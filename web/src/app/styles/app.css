@@ -233,8 +233,7 @@ small {
 .viewerCard {
   margin: 16px;
   overflow: auto;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  display: block;
   background: rgba(255, 255, 255, 0.86);
 }
 
@@ -259,26 +258,27 @@ small {
 .viewerSurface {
   position: relative;
   margin: 16px 16px 10px;
-  min-height: 360px;
+  min-height: 0;
   border-radius: var(--radius);
-  overflow: hidden;
-  display: grid;
-  place-items: center;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #dce8f7;
 }
 
 .mediaLayer {
   position: relative;
-  display: inline-block;
+  display: block;
   max-width: 100%;
-  max-height: 62vh;
   line-height: 0;
 }
 
 .mediaLayer img {
   display: block;
+  width: min(100%, 960px);
   max-width: 100%;
-  max-height: 62vh;
+  height: auto;
   border-radius: var(--radius-sm);
 }
 
