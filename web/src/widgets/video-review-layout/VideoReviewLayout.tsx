@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MouseEvent } from "react";
 import { Badge } from "@shared/ui/Badge";
 import { Button } from "@shared/ui/Button";
 import { clamp } from "@shared/lib/format";
@@ -6,6 +6,8 @@ import type { Segment } from "@entities/anomaly-event/model";
 import type { Box } from "@entities/track/model";
 import type { ClassCount, VideoMeta } from "@entities/video/model";
 import { classColor, className, trackKey } from "@entities/track/model";
+
+type PlaybackMode = "frames" | "video";
 
 interface Props {
   scene: string;
@@ -15,14 +17,28 @@ interface Props {
   selectedTrackKey: string;
   lockedSegment?: Segment;
   playRate: number;
+  playbackMode: PlaybackMode;
+  reviewFPS: number;
   playing: boolean;
   pendingDeletes: string[];
   onFrameChange: (frame: number) => void;
   onSelectTrack: (key: string) => void;
   onSegmentLock: (segment?: Segment) => void;
   onPlayRate: (rate: number) => void;
+  onPlaybackMode: (mode: PlaybackMode) => void;
+  onReviewFPS: (fps: number) => void;
   onPlaying: (playing: boolean) => void;
   onAdjacentVideo: (delta: number) => void;
+}
+
+function mediaSize(img: HTMLImageElement | null, video: HTMLVideoElement | null, mode: PlaybackMode) {
+  if (mode === "video" && video && video.videoWidth && video.clientWidth) {
+    return { el: video, naturalWidth: video.videoWidth, naturalHeight: video.videoHeight, width: video.clientWidth, height: video.clientHeight };
+  }
+  if (img && img.naturalWidth && img.clientWidth) {
+    return { el: img, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight, width: img.clientWidth, height: img.clientHeight };
+  }
+  return undefined;
 }
 
 export function VideoReviewLayout({
@@ -33,51 +49,41 @@ export function VideoReviewLayout({
   selectedTrackKey,
   lockedSegment,
   playRate,
+  playbackMode,
+  reviewFPS,
   playing,
   pendingDeletes,
   onFrameChange,
   onSelectTrack,
   onSegmentLock,
   onPlayRate,
+  onPlaybackMode,
+  onReviewFPS,
   onPlaying,
   onAdjacentVideo
 }: Props) {
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const safeFPS = Math.max(1, Math.min(120, reviewFPS || 30));
   const range = useMemo<[number, number]>(() => {
     if (lockedSegment) return [lockedSegment.start_frame, lockedSegment.end_frame];
     return [1, meta?.frame_count || 1];
   }, [lockedSegment, meta]);
-
-  useEffect(() => {
-    if (!playing) return;
-    const timer = window.setInterval(() => {
-      onFrameChange(frame >= range[1] ? range[0] : frame + 1);
-    }, Math.max(60, 480 / playRate));
-    return () => window.clearInterval(timer);
-  }, [frame, onFrameChange, playRate, playing, range]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
-      if (event.key.toLowerCase() === "a") onAdjacentVideo(-1);
-      if (event.key.toLowerCase() === "d") onAdjacentVideo(1);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onAdjacentVideo]);
+  const safeFrame = clamp(frame, range[0], range[1]);
+  const segmentOptions = meta?.anomaly_segments || [];
 
   const draw = () => {
-    const img = imgRef.current;
     const canvas = canvasRef.current;
-    if (!img || !canvas || !img.naturalWidth || !img.clientWidth) return;
-    canvas.width = img.clientWidth;
-    canvas.height = img.clientHeight;
+    const size = mediaSize(imgRef.current, videoRef.current, playbackMode);
+    if (!canvas || !size) return;
+    canvas.width = size.width;
+    canvas.height = size.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const sx = canvas.width / img.naturalWidth;
-    const sy = canvas.height / img.naturalHeight;
+    const sx = canvas.width / size.naturalWidth;
+    const sy = canvas.height / size.naturalHeight;
     for (const box of boxes) {
       const key = trackKey(box);
       if (pendingDeletes.includes(key)) continue;
@@ -91,7 +97,7 @@ export function VideoReviewLayout({
       ctx.strokeRect(x, y, w, h);
       const label = `编号:${box.track_id}`;
       const labelY = Math.max(15, y - 5);
-      ctx.font = "700 13px Microsoft YaHei, Segoe UI";
+      ctx.font = "700 13px Microsoft YaHei, Segoe UI, sans-serif";
       ctx.lineWidth = 4;
       ctx.strokeStyle = "rgba(0,0,0,.9)";
       ctx.strokeText(label, x, labelY);
@@ -101,20 +107,70 @@ export function VideoReviewLayout({
   };
 
   useEffect(() => {
+    if (!playing || playbackMode !== "frames") return;
+    const timer = window.setInterval(() => {
+      onFrameChange(safeFrame >= range[1] ? range[0] : safeFrame + 1);
+    }, Math.max(16, 1000 / safeFPS / playRate));
+    return () => window.clearInterval(timer);
+  }, [onFrameChange, playRate, playbackMode, playing, range, safeFPS, safeFrame]);
+
+  useEffect(() => {
+    if (!scene || playbackMode !== "frames") return;
+    const lookAhead = 14;
+    for (let offset = 1; offset <= lookAhead; offset += 1) {
+      const nextFrame = safeFrame + offset;
+      if (nextFrame > range[1]) break;
+      const image = new Image();
+      image.decoding = "async";
+      image.src = `/api/video/${scene}/frame/${nextFrame}.jpg`;
+    }
+  }, [playbackMode, range, scene, safeFrame]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || playbackMode !== "video") return;
+    video.playbackRate = playRate;
+    if (playing) {
+      void video.play().catch(() => onPlaying(false));
+    } else {
+      video.pause();
+    }
+  }, [onPlaying, playRate, playbackMode, playing]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || playbackMode !== "video" || playing) return;
+    const target = (safeFrame - 1) / safeFPS;
+    if (Number.isFinite(target) && Math.abs(video.currentTime - target) > 0.08) {
+      video.currentTime = target;
+    }
+  }, [playbackMode, playing, safeFPS, safeFrame]);
+
+  useEffect(() => {
     draw();
     window.addEventListener("resize", draw);
     return () => window.removeEventListener("resize", draw);
   });
 
-  const pick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const img = imgRef.current;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+      if (event.key.toLowerCase() === "a") onAdjacentVideo(-1);
+      if (event.key.toLowerCase() === "d") onAdjacentVideo(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onAdjacentVideo]);
+
+  const pick = (event: MouseEvent<HTMLCanvasElement>) => {
+    const size = mediaSize(imgRef.current, videoRef.current, playbackMode);
     const canvas = canvasRef.current;
-    if (!img || !canvas) return;
+    if (!size || !canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const sx = canvas.width / img.naturalWidth;
-    const sy = canvas.height / img.naturalHeight;
+    const sx = canvas.width / size.naturalWidth;
+    const sy = canvas.height / size.naturalHeight;
     let hit: Box | undefined;
     for (const box of boxes) {
       const bx = box.x * sx;
@@ -126,8 +182,22 @@ export function VideoReviewLayout({
     if (hit) onSelectTrack(trackKey(hit));
   };
 
-  const safeFrame = clamp(frame, range[0], range[1]);
-  const segmentOptions = meta?.anomaly_segments || [];
+  const onVideoTime = () => {
+    const video = videoRef.current;
+    if (!video || playbackMode !== "video") return;
+    const nextFrame = clamp(Math.round(video.currentTime * safeFPS) + 1, range[0], range[1]);
+    if (nextFrame >= range[1] && video.currentTime >= range[1] / safeFPS) {
+      video.currentTime = (range[0] - 1) / safeFPS;
+      onFrameChange(range[0]);
+      return;
+    }
+    if (nextFrame < range[0]) {
+      video.currentTime = (range[0] - 1) / safeFPS;
+      return;
+    }
+    if (nextFrame !== safeFrame) onFrameChange(nextFrame);
+    draw();
+  };
 
   return (
     <section className="viewerCard">
@@ -143,7 +213,24 @@ export function VideoReviewLayout({
       <div className="viewerSurface">
         {scene ? (
           <div className="mediaLayer">
-            <img ref={imgRef} src={`/api/video/${scene}/frame/${safeFrame}.jpg?ts=${Date.now()}`} onLoad={draw} alt={`${scene} frame ${safeFrame}`} />
+            {playbackMode === "video" ? (
+              <video
+                ref={videoRef}
+                src={`/api/video/${scene}/preview`}
+                muted
+                playsInline
+                preload="auto"
+                onLoadedMetadata={() => {
+                  const video = videoRef.current;
+                  if (video) video.currentTime = (safeFrame - 1) / safeFPS;
+                  draw();
+                }}
+                onTimeUpdate={onVideoTime}
+                onSeeked={draw}
+              />
+            ) : (
+              <img ref={imgRef} src={`/api/video/${scene}/frame/${safeFrame}.jpg`} onLoad={draw} alt={`${scene} frame ${safeFrame}`} />
+            )}
             <canvas ref={canvasRef} onClick={pick} />
           </div>
         ) : (
@@ -178,6 +265,17 @@ export function VideoReviewLayout({
               </option>
             ))}
           </select>
+        </label>
+        <label>
+          播放方式
+          <select value={playbackMode} onChange={(event) => onPlaybackMode(event.target.value as PlaybackMode)}>
+            <option value="frames">逐帧审核（预取）</option>
+            <option value="video">视频预览（流畅）</option>
+          </select>
+        </label>
+        <label>
+          FPS
+          <input type="number" min={1} max={120} value={safeFPS} onChange={(event) => onReviewFPS(Number(event.target.value) || 30)} />
         </label>
         <label>
           播放速度

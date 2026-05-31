@@ -36,6 +36,20 @@ export function AnnotationWorkbenchPage() {
   const boxesQuery = useQuery({ queryKey: ["boxes", scene, frame], queryFn: () => apiClient.frameBoxes(scene, frame), enabled: Boolean(scene) });
 
   useEffect(() => {
+    if (!scene) return;
+    const ahead = state.playbackMode === "frames" ? 12 : 4;
+    for (let offset = 1; offset <= ahead; offset += 1) {
+      const nextFrame = frame + offset;
+      if (nextFrame > range[1]) break;
+      queryClient.prefetchQuery({
+        queryKey: ["boxes", scene, nextFrame],
+        queryFn: () => apiClient.frameBoxes(scene, nextFrame),
+        staleTime: 60_000
+      });
+    }
+  }, [frame, queryClient, range, scene, state.playbackMode]);
+
+  useEffect(() => {
     if (!videosQuery.data) return;
     if (videos.length && !state.currentScene) setState({ videos, currentScene: videos[0].scene });
     else setState({ videos });
@@ -173,12 +187,16 @@ export function AnnotationWorkbenchPage() {
         selectedTrackKey={state.selectedTrackKey}
         lockedSegment={state.lockedSegment}
         playRate={state.playRate}
+        playbackMode={state.playbackMode}
+        reviewFPS={state.reviewFPS}
         playing={state.playing}
         pendingDeletes={state.pendingDeleteKeys}
         onFrameChange={(currentFrame) => setState({ currentFrame: clamp(currentFrame, range[0], range[1]) })}
         onSelectTrack={(selectedTrackKey) => setState({ selectedTrackKey })}
         onSegmentLock={setLockedSegment}
         onPlayRate={(playRate) => setState({ playRate })}
+        onPlaybackMode={(playbackMode) => setState({ playbackMode, playing: false })}
+        onReviewFPS={(reviewFPS) => setState({ reviewFPS })}
         onPlaying={(playing) => setState({ playing })}
         onAdjacentVideo={adjacentVideo}
       />

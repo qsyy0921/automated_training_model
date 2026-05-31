@@ -326,7 +326,7 @@ func (s *Server) frame(w http.ResponseWriter, r *http.Request, scene string, fra
 	}
 	defer f.Close()
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	http.ServeContent(w, r, scene+".jpg", time.Time{}, f)
 }
 

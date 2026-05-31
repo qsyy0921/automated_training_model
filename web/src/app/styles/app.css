@@ -274,12 +274,14 @@ small {
   line-height: 0;
 }
 
-.mediaLayer img {
+.mediaLayer img,
+.mediaLayer video {
   display: block;
   width: min(100%, 960px);
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-sm);
+  background: #0f172a;
 }
 
 .mediaLayer canvas {
@@ -305,7 +307,7 @@ small {
 }
 
 .reviewControls {
-  grid-template-columns: minmax(260px, 1fr) 150px;
+  grid-template-columns: minmax(240px, 1fr) 180px 110px 150px;
 }
 
 .frameInput {

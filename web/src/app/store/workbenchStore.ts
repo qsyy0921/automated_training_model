@@ -17,6 +17,8 @@ export interface WorkbenchState {
   activeObjectSlot: number;
   playing: boolean;
   playRate: number;
+  playbackMode: "frames" | "video";
+  reviewFPS: number;
   trackListCollapsed: boolean;
   searchText: string;
   classFilter: string;
@@ -37,6 +39,8 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   activeObjectSlot: 0,
   playing: false,
   playRate: 1,
+  playbackMode: "frames",
+  reviewFPS: 30,
   trackListCollapsed: false,
   searchText: "",
   classFilter: "",
@@ -50,4 +54,3 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
       activeObjectSlot: 0
     })
 }));
-
