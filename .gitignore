@@ -1,6 +1,10 @@
 # build output
 bin/
 dist/
+node_modules/
+web/dist/
+web/node_modules/
+web/node_modules/.tmp/
 *.exe
 *.dll
 *.so

@@ -44,7 +44,7 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /", s.index)
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(webRoot, "assets")))))
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(s.staticWebRoot(), "assets")))))
 	mux.HandleFunc("GET /api/videos", s.listVideos)
 	mux.HandleFunc("GET /api/datasets", s.listDatasets)
 	mux.HandleFunc("POST /api/datasets/register-folder", s.registerFolderDataset)
@@ -79,13 +79,21 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		writeErrorText(w, http.StatusNotFound, "not found")
 		return
 	}
-	path := filepath.Join(s.webRoot, "index.html")
+	path := filepath.Join(s.staticWebRoot(), "index.html")
 	if _, err := os.Stat(path); err == nil {
 		w.Header().Set("Cache-Control", "no-store")
 		http.ServeFile(w, r, path)
 		return
 	}
 	writeErrorText(w, http.StatusNotFound, "web/index.html not found")
+}
+
+func (s *Server) staticWebRoot() string {
+	distRoot := filepath.Join(s.webRoot, "dist")
+	if _, err := os.Stat(filepath.Join(distRoot, "index.html")); err == nil {
+		return distRoot
+	}
+	return s.webRoot
 }
 
 func (s *Server) listVideos(w http.ResponseWriter, r *http.Request) {

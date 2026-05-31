@@ -1,102 +1,102 @@
 # Frontend Architecture
 
-版本：v0.1  
-日期：2026-05-31
+版本：v0.2  
+日期：2026-06-01
 
-## 1. 设计目标
+## 1. 技术路线
 
-前端不能因为当前项目小就写成单页脚本。当前阶段采用无构建链路的原生 ES Modules，但按大型平台前端的方式提前拆分边界：
+前端已经从原生 ES Modules 迁移到：
 
-- 设计系统集中管理。
-- API client 独立。
-- UI state 与 draft state 独立。
-- 复杂 viewer 专门化。
-- 标注业务、tracking 审核、数据集、生命周期任务分别作为 feature。
-- `index.html` 只负责页面骨架，不承载业务逻辑。
+```text
+Vite + React + TypeScript
++ TanStack Query
++ Zustand
++ Zod
++ FSD / 前端 DDD 分层
++ Design Tokens
+```
 
-## 2. 目录结构
+选择原因：
+
+- TypeScript 让 API 字段、业务实体和 UI 草稿状态有编译期约束。
+- React 适合构建复杂工作台和可复用组件。
+- Vite 保持本地开发和构建速度。
+- TanStack Query 管理服务端状态、缓存、轮询和任务状态。
+- Zustand 管理当前视频、当前帧、选中对象、草稿、播放器等 UI 状态。
+- Zod 作为后续 API runtime validation 的边界工具。
+
+## 2. FSD 目录结构
 
 ```text
 web/
+  package.json
+  vite.config.ts
+  tsconfig.json
   index.html
-  assets/
-    css/
-      app.css
-    js/
-      app/
-        workbench.js
-      app.js
-      entities/
-        tracking.js
-      features/
-        anomaly-annotation/
-          anomalyAnnotation.js
-        datasets/
-          datasetPanel.js
-        lifecycle/
-          lifecyclePanel.js
-        media-viewer/
-          frameViewer.js
-        tracking-review/
-          trackingReview.js
-        video-list/
-          videoList.js
-      infrastructure/
-        apiClient.js
-      shared/
-        catalog.js
-        dom.js
-      state/
-        store.js
+  src/
+    app/
+      main.tsx
+      providers/
+      store/
+      styles/
+    pages/
+      annotation-workbench/
+    widgets/
+      app-shell/
+      dataset-sidebar/
+      inspector-panel/
+      task-monitor-panel/
+      track-list/
+      video-review-layout/
+    features/
+      annotate-anomaly-event/
+      register-dataset/
+      review-tracking/
+      select-video/
+      submit-lifecycle-task/
+    entities/
+      anomaly-event/
+      dataset/
+      frame/
+      task/
+      track/
+      video/
+    shared/
+      api/
+      assets/
+      config/
+      lib/
+      ui/
 ```
 
 ## 3. 依赖方向
 
 ```text
-app/workbench
-  -> features
-  -> infrastructure/apiClient
-  -> state/store
-  -> shared
-
-features
-  -> entities
-  -> shared
-  -> app orchestration only through injected app object
-
-infrastructure
-  -> browser API
-
-shared
-  -> no business feature dependency
+app -> pages -> widgets -> features -> entities -> shared
 ```
+
+允许：
+
+- page 组合 widgets/features。
+- widget 调用 feature 传入的 handler 或共享实体模型。
+- feature 使用 entities 和 shared。
+- shared 不依赖任何业务层。
 
 禁止：
 
-```text
-feature A -> feature B
-infrastructure -> feature
-shared -> feature
-index.html -> business logic
-```
+- entities 依赖 widgets/features/pages。
+- shared 依赖业务代码。
+- 页面里堆业务算法。
+- 组件直接散落 `fetch`，必须经过 `shared/api` 或对应 repository/adapter。
 
-跨 feature 的协作由 `WorkbenchApp` 编排。例如：
-
-```text
-FrameViewer 选择对象
--> WorkbenchApp.selectTrack
--> TrackingReview 和 AnomalyAnnotation 读取统一 state
-```
-
-## 4. 状态分类
+## 4. 状态分层
 
 ### Server State
 
-来自 Go API：
+由 TanStack Query 管理：
 
 - videos
 - video meta
-- tracks
 - boxes
 - annotations
 - datasets
@@ -104,64 +104,64 @@ FrameViewer 选择对象
 
 ### UI State
 
-只影响界面：
+由 Zustand 管理：
 
 - 当前视频
 - 当前帧
 - 当前锁定异常片段
 - 当前选中 track
 - 播放状态
-- 轨迹列表是否收起
+- 播放速度
+- 轨迹列表收起状态
 
 ### Draft State
 
-用户尚未保存的编辑：
+仍由 Zustand 管理，但与服务端状态分离：
 
 - tracking 删除预览队列
 - 异常事件对象槽位
-- 表单字段
+- 未保存的对象外貌描述
 
-保存前不应直接改写源数据。
+保存前不得直接改写源数据。
 
-## 5. 当前页面布局
+## 5. 页面布局
 
 ```text
-左侧 Sidebar：
-  数据接入、视频列表、类别过滤
+左侧 DatasetSidebar:
+  数据集入口、视频搜索、类别过滤、视频列表
 
-中间 Workspace：
-  顶部样本状态
-  帧级审核主画布
-  播放范围/倍速/异常片段
-  底部轨迹列表
+中间 Workspace:
+  VideoReviewLayout:
+    帧级展示、bbox overlay、对象点击选择、播放、倍速、锁定异常片段
+  TaskMonitorPanel:
+    数据接入、自动标注、训练、评估、部署任务入口
+  TrackList:
+    轨迹列表、轨迹搜索、类别过滤
 
-右侧 Inspector：
+右侧 InspectorPanel:
   当前对象
-  删除预览
+  tracking 删除预览与彻底删除
   异常事件标注
+  对象槽位
   已保存标注
-  视频-片段-事件-对象结构
 ```
 
-## 6. 迁移路线
+## 6. 设计系统方向
 
-短期保持原生 ES Modules：
+当前使用 CSS variables 维护设计 tokens：
 
-- 零 npm 依赖。
-- Go 静态文件服务即可运行。
-- 方便研究机器、内网服务器、Docker 环境启动。
+- 品牌色：蓝 / 青
+- 辅助强调色：粉 / 橙
+- 状态色：成功 / 危险 / 警告
+- 圆角、阴影、边框、面板背景集中定义
 
-当出现以下情况时迁移到 Vite + TypeScript + React：
+后续如果 UI 规模继续扩大，迁移到 Tailwind + Headless UI / Radix 思路的内部组件库。
 
-- feature 数量超过 10 个。
-- 表单状态和校验明显复杂。
-- 需要复用组件库和端到端测试。
-- 需要多页面路由、权限、任务中心、模型 registry 复杂表格。
+## 7. 后续演进
 
-迁移时保留：
-
-- `features` 边界。
-- `entities` 模型。
-- `infrastructure/apiClient`。
-- `state` 的状态分类。
-
+- 增加 Zod schema 对 API 响应做运行时校验。
+- 把复杂表单拆成 `features/annotate-anomaly-event` 内部子模块。
+- 增加 toast/dialog，替换 `alert/confirm`。
+- 增加 Playwright UI smoke tests。
+- 增加任务中心页面、模型注册页面、部署页面。
+- 如果出现多个团队独立维护子系统，再评估微前端或模块联邦。
