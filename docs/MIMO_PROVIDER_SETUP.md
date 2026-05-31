@@ -59,8 +59,8 @@ $env:ANTHROPIC_DEFAULT_HAIKU_MODEL="mimo-v2.5-pro"
 
 仓库中只保留：
 
-- `.env.example`
-- `scripts/set-mimo-env.example.ps1`
+- `ops/configs/env/.env.example`
+- `ops/scripts/set-mimo-env.example.ps1`
 
 ## 4. 后续工作
 
@@ -75,4 +75,3 @@ $env:ANTHROPIC_DEFAULT_HAIKU_MODEL="mimo-v2.5-pro"
    - `labelctl providers`
    - `labelctl secrets`
    - `labelctl model test mimo_anthropic`
-

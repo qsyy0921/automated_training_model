@@ -1,0 +1,63 @@
+services:
+  labelserver:
+    build:
+      context: ../../..
+      dockerfile: ops/deployments/docker/Dockerfile
+    ports:
+      - "7870:7870"
+    command:
+      - "-addr"
+      - "0.0.0.0:7870"
+      - "-merge-root"
+      - "/data/merge"
+      - "-frame-root"
+      - "/data/frames"
+      - "-annotation-root"
+      - "/data/merge/annotations_review"
+    volumes:
+      - ../../../../merge:/data/merge
+      - ../../../../../data/testing/frames:/data/frames:ro
+    depends_on:
+      - redis
+      - postgres
+      - minio
+      - nats
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: video_label_tool
+      POSTGRES_USER: video_label_tool
+      POSTGRES_PASSWORD: video_label_tool
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  nats:
+    image: nats:2-alpine
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+volumes:
+  postgres_data:
+  minio_data:

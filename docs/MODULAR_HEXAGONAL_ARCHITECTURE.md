@@ -1,52 +1,79 @@
 # 模块化单体与六边形架构落地说明
 
-版本：v0.1  
+版本：v0.2  
 日期：2026-05-31  
-仓库：`video_label_tool`
+仓库：`_video_label_tool`
 
 ## 1. 当前选择
 
-当前项目不再继续扩展单文件 Go 服务，而是拆成可扩展的模块化单体：
+当前项目采用模块化单体，而不是一开始就拆成大量微服务。
+
+代码边界按六边形架构整理在 `internal/` 下：
 
 ```text
-api
-app
-domain
-infrastructure
-trigger
-types
+internal/api
+internal/app
+internal/domain
+internal/infrastructure
+internal/trigger
+internal/types
 ```
 
-这不是最终拒绝微服务，而是先把边界设计好。后续任何模块都可以按边界拆成独立服务。
+这样做的目的：
 
-## 2. 目录职责
+- 根目录更整洁。
+- Go 的 `internal` 机制能限制外部 import。
+- 领域层和基础设施层分离。
+- 后续可以平滑拆出 Python worker、Connector Gateway、Training Worker。
 
-### 2.1 `domain`
-
-领域层，不依赖外部框架。
-
-当前包含：
+根目录的非核心支撑文件统一放入 `ops/`：
 
 ```text
-domain/media       视频、帧、视频摘要
-domain/tracking    track、box、class 映射
-domain/workflow    task/job 状态
-domain/provider    LLM/VLM provider 与 API key 引用
+ops/configs
+ops/deployments
+ops/migrations
+ops/scripts
+ops/testdata
+ops/tools
 ```
 
-后续增加：
+因此根目录只保留 `cmd/`、`internal/`、`web/`、`docs/`、`ops/` 和少量工程配置文件。
+
+## 2. 核心依赖方向
+
+推荐依赖方向：
 
 ```text
-domain/annotation  异常片段、异常事件、事件对象、外貌描述
-domain/agent       agent session、tool call、skill、memory
-domain/dataset     dataset version、snapshot、export manifest
+api -> app -> domain
+trigger -> api/app/infrastructure
+infrastructure -> app ports + domain
+types -> domain only when necessary
 ```
 
-### 2.2 `app`
+禁止：
 
-应用层，定义 use case 和端口接口。
+```text
+domain -> infrastructure
+domain -> api
+app -> concrete postgres/redis/python worker
+```
 
-当前包含：
+## 3. 当前模块
+
+### `internal/domain`
+
+领域模型：
+
+```text
+media       视频、帧、视频摘要
+tracking    track、box、class 映射
+workflow    task/job 状态
+provider    LLM/VLM provider 与 API key 引用
+```
+
+### `internal/app`
+
+应用服务和端口：
 
 ```text
 MediaService
@@ -58,104 +85,55 @@ SecretStore
 ProviderRepository
 ```
 
-原则：
+### `internal/infrastructure`
 
-- app 层只依赖 domain。
-- app 层不关心 CSV、PostgreSQL、Redis、Python worker 的具体实现。
-- 正式标注写入必须通过 app service。
-
-### 2.3 `infrastructure`
-
-基础设施层，实现外部依赖。
-
-当前包含：
+端口实现：
 
 ```text
-mergecsv          适配现有 merge/csv 数据
-middleware        HTTP 中间件
-queue             内存任务队列 MVP
-modelgateway      Noop ModelGateway
-providerrepo      内存 provider repository
-secrets           环境变量 SecretStore
-config            配置读取
+mergecsv       读取现有 merge/csv 数据
+middleware     HTTP 中间件
+queue          内存任务队列 MVP
+modelgateway   Noop ModelGateway
+providerrepo   内存 provider repository
+secrets        环境变量 SecretStore
+config         配置
 ```
 
-后续增加：
+### `internal/api`
+
+HTTP API：
 
 ```text
-postgres          PostgreSQL repository
-redisqueue        Redis/Asynq task queue
-minio             object storage
-nats              event bus
-pythonworker      Python model-worker client
-duckdb            analytics table store
-otel              OpenTelemetry
-casbin            RBAC/ABAC
+GET /healthz
+GET /api/videos
+GET /api/video/{scene}/meta
+GET /api/video/{scene}/boxes?frame=...
+GET /api/video/{scene}/frame/{frame}.jpg
+GET /api/video/{scene}/preview
+GET /api/providers
+GET /api/secrets
 ```
 
-### 2.4 `api`
+### `internal/trigger`
 
-API 适配层。
-
-当前包含：
+启动触发器：
 
 ```text
-api/httpapi
-  GET /healthz
-  GET /api/videos
-  GET /api/video/{scene}/meta
-  GET /api/video/{scene}/boxes?frame=...
-  GET /api/video/{scene}/frame/{frame}.jpg
-  GET /api/video/{scene}/preview
+internal/trigger/http
 ```
 
-后续增加：
+### `cmd`
+
+可执行程序：
 
 ```text
-/api/annotations
-/api/tracks/review
-/api/tasks
-/api/model-jobs
-/api/providers
-/api/secrets
-/api/exports
-/api/agents
-/api/skills
-/api/memory
+cmd/labelserver
+cmd/labelctl
 ```
 
-### 2.5 `trigger`
+## 4. 当前已落地接口
 
-外部触发器和进程入口。
-
-当前包含：
-
-```text
-trigger/http
-```
-
-后续增加：
-
-```text
-trigger/cli
-trigger/connector
-trigger/scheduler
-trigger/webhook
-```
-
-### 2.6 `types`
-
-API DTO 和跨层轻量类型。
-
-注意：
-
-- domain 是业务事实。
-- types 是 API 形状。
-- 不要把 API DTO 当领域模型。
-
-## 3. 当前已落地接口
-
-### 3.1 `VideoRepository`
+### `VideoRepository`
 
 ```go
 type VideoRepository interface {
@@ -170,7 +148,7 @@ type VideoRepository interface {
 当前实现：
 
 ```text
-infrastructure/mergecsv.Repository
+internal/infrastructure/mergecsv.Repository
 ```
 
 后续可替换为：
@@ -181,7 +159,7 @@ Parquet/DuckDB index
 remote media service
 ```
 
-### 3.2 `ModelGateway`
+### `ModelGateway`
 
 ```go
 type ModelGateway interface {
@@ -200,7 +178,7 @@ type ModelGateway interface {
 - LLM suggestion。
 - training worker。
 
-### 3.3 `SecretStore`
+### `SecretStore`
 
 ```go
 type SecretStore interface {
@@ -214,7 +192,7 @@ type SecretStore interface {
 当前实现：
 
 ```text
-EnvStore
+internal/infrastructure/secrets.EnvStore
 ```
 
 后续实现：
@@ -223,31 +201,6 @@ EnvStore
 EncryptedDBSecretStore
 VaultSecretStore
 CloudSecretStore
-```
-
-## 4. 中间件路线
-
-当前 HTTP middleware：
-
-```text
-Recover
-RequestID
-CORS
-Logger
-```
-
-下一步应增加：
-
-```text
-Auth
-RBAC
-Audit
-RateLimit
-Timeout
-Metrics
-Tracing
-BodyLimit
-IdempotencyKey
 ```
 
 ## 5. AI 微服务拆分策略
@@ -279,9 +232,34 @@ training
 - 某能力任务量远高于其他能力。
 - 某能力需要独立伸缩和发布。
 
-## 6. GitHub 当前提交范围
+## 6. 中间件路线
 
-首次提交只包含：
+当前 HTTP middleware：
+
+```text
+Recover
+RequestID
+CORS
+Logger
+```
+
+下一步应增加：
+
+```text
+Auth
+RBAC
+Audit
+RateLimit
+Timeout
+Metrics
+Tracing
+BodyLimit
+IdempotencyKey
+```
+
+## 7. GitHub 当前提交范围
+
+提交范围：
 
 - Go 后端骨架。
 - CLI 骨架。
@@ -299,9 +277,7 @@ training
 - 训练 checkpoint。
 - API Key。
 
-这些通过 `.gitignore` 排除。
-
-## 7. 下一阶段开发顺序
+## 8. 下一阶段开发顺序
 
 1. `annotation` 领域与 API。
 2. track review / purge 的领域化。
@@ -313,4 +289,3 @@ training
 8. Web UI 接入新 API。
 9. object storage abstraction。
 10. 数据集 export snapshot。
-

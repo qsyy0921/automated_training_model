@@ -312,11 +312,17 @@ labelserver/
     sam-propagation/
     vlm-caption/
 
-  configs/
-    labelserver.yaml
-    connectors.yaml
-    models.yaml
-    permissions.yaml
+  ops/
+    configs/
+      labelserver.yaml
+      connectors.yaml
+      models.yaml
+      permissions.yaml
+    deployments/
+    migrations/
+    scripts/
+    tools/
+    testdata/
 ```
 
 ## 6. DDD 领域核心
@@ -1021,4 +1027,3 @@ Training feedback loop
 - Claude Code Permissions：`https://code.claude.com/docs/en/permissions`
 - Claude Code Subagents：`https://code.claude.com/docs/en/sub-agents`
 - 本机 Hermes 参考：`E:\agent\Hermes`
-

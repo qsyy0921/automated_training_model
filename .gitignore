@@ -19,6 +19,7 @@ annotations_review/
 .env
 .env.*
 !.env.example
+!**/.env.example
 
 # editor/system
 .idea/
@@ -40,4 +41,3 @@ Thumbs.db
 *.png
 *.parquet
 *.safetensors
-
