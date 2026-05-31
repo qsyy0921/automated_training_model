@@ -31,6 +31,16 @@ web/                      前端工程目录
   - 上传 zip 压缩包：适合小型数据集和团队临时共享。
   - 注册 manifest：适合大数据索引、对象存储、Parquet/DuckDB/PostgreSQL 后续扩展。
 - Provider/API Key、任务队列、模型网关、Agent workflow 的后端边界已预留。
+- 自动标注、训练、评估、模型注册、部署的 lifecycle API 已接入 Go 控制面。
+- 前端已按平台化模块拆分：设计系统样式、API client、状态管理、viewer 专用模块、tracking 审核、异常标注、数据集、lifecycle 任务面板。
+
+## Codex / 维护入口
+
+- 长期开发提示词：`docs/CODEX_GO_PROMPT.md`
+- 当前待办：`docs/PROJECT_TODO.md`
+- 已完成记录：`docs/PROJECT_DONE.md`
+- 前端架构：`docs/FRONTEND_ARCHITECTURE.md`
+- 小模型训练到部署 SDD：`docs/SMALL_MODEL_LIFECYCLE_SDD.md`
 
 ## 平台目标
 

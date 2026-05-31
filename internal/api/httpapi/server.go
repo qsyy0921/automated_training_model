@@ -15,6 +15,7 @@ import (
 
 	"github.com/qsyy0921/automated_training_model/internal/app/annotationapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/datasetapp"
+	"github.com/qsyy0921/automated_training_model/internal/app/lifecycleapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/mediaapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/providerapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/workspaceapp"
@@ -31,17 +32,19 @@ type Server struct {
 	annotations *annotationapp.AnnotationService
 	datasets    *datasetapp.DatasetService
 	workspace   *workspaceapp.RuntimeService
+	lifecycle   *lifecycleapp.Service
 	providers   *providerapp.ProviderService
 	webRoot     string
 	dataRoot    string
 	logger      *slog.Logger
 }
 
-func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.AnnotationService, datasetSvc *datasetapp.DatasetService, workspaceSvc *workspaceapp.RuntimeService, providerSvc *providerapp.ProviderService, webRoot string, dataRoot string, logger *slog.Logger) http.Handler {
-	s := &Server{media: mediaSvc, annotations: annotationSvc, datasets: datasetSvc, workspace: workspaceSvc, providers: providerSvc, webRoot: webRoot, dataRoot: dataRoot, logger: logger}
+func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.AnnotationService, datasetSvc *datasetapp.DatasetService, workspaceSvc *workspaceapp.RuntimeService, lifecycleSvc *lifecycleapp.Service, providerSvc *providerapp.ProviderService, webRoot string, dataRoot string, logger *slog.Logger) http.Handler {
+	s := &Server{media: mediaSvc, annotations: annotationSvc, datasets: datasetSvc, workspace: workspaceSvc, lifecycle: lifecycleSvc, providers: providerSvc, webRoot: webRoot, dataRoot: dataRoot, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /", s.index)
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(webRoot, "assets")))))
 	mux.HandleFunc("GET /api/videos", s.listVideos)
 	mux.HandleFunc("GET /api/datasets", s.listDatasets)
 	mux.HandleFunc("POST /api/datasets/register-folder", s.registerFolderDataset)
@@ -50,6 +53,13 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("POST /api/datasets/", s.datasetAction)
 	mux.HandleFunc("GET /api/providers", s.listProviders)
 	mux.HandleFunc("GET /api/secrets", s.listSecrets)
+	mux.HandleFunc("POST /api/autolabel/jobs", s.submitAutoLabel)
+	mux.HandleFunc("POST /api/training/runs", s.submitTraining)
+	mux.HandleFunc("POST /api/evaluation/runs", s.submitEvaluation)
+	mux.HandleFunc("POST /api/models/register", s.registerModel)
+	mux.HandleFunc("POST /api/deployments", s.submitDeployment)
+	mux.HandleFunc("GET /api/tasks/", s.taskStatus)
+	mux.HandleFunc("DELETE /api/tasks/", s.cancelTask)
 	mux.HandleFunc("GET /api/video/", s.video)
 	return middleware.Chain(
 		mux,

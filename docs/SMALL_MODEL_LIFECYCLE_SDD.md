@@ -151,12 +151,26 @@ trigger -> api/app/infrastructure
 训练任务不是直接由前端跑脚本，而是通过 Workflow：
 
 ```text
-POST /api/workflows/training
+POST /api/training/runs
   -> enqueue training job
   -> Python training worker
   -> checkpoint / metrics / logs
   -> Model Registry
 ```
+
+当前 Go 控制面已提供统一生命周期入口：
+
+```text
+POST   /api/autolabel/jobs
+POST   /api/training/runs
+POST   /api/evaluation/runs
+POST   /api/models/register
+POST   /api/deployments
+GET    /api/tasks/{id}
+DELETE /api/tasks/{id}
+```
+
+这些接口当前通过 `lifecycleapp` 提交到 `workflowapp.ModelGateway`。现阶段默认实现是 in-memory/noop gateway，用于先固定业务边界；后续替换为 Redis/NATS/Kafka + Python worker 时，不应该改变 HTTP/API 和领域模型。
 
 ### 5.3 评估与误差分析
 
@@ -211,11 +225,13 @@ POST /api/workflows/training
 - 对象级异常事件标注。
 - 注册本地目录、上传 zip、注册 manifest。
 - 数据集激活用例。
+- 自动标注、训练、评估、模型注册、部署的 lifecycle domain/app/API 边界。
+- 前端平台化拆分：设计样式、API client、state、viewer、tracking review、anomaly annotation、dataset、lifecycle feature。
 
 预留但未完成：
 
 - PostgreSQL / Redis / MinIO。
 - Python model-worker 协议。
 - SAM/SAM2 自动传播。
-- 训练/评估/部署 API。
+- lifecycle API 的真实异步执行器、日志、artifact 和持久化 task store。
 - 多用户权限和审计。

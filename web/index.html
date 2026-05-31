@@ -3,182 +3,180 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Video Label Tool</title>
-  <style>
-    :root{
-      --bg:#f5f7fb;--panel:#fff;--ink:#0f172a;--muted:#64748b;--line:#dbe3ee;
-      --brand:#2563eb;--brand2:#06b6d4;--danger:#dc2626;--ok:#059669;--warn:#f97316;
-      --shadow:0 12px 32px rgba(15,23,42,.08);--radius:14px
-    }
-    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",Arial,sans-serif}
-    button,input,select,textarea{font:inherit}button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
-    button:hover{border-color:#93c5fd}.primary{background:var(--brand);border-color:var(--brand);color:#fff}.danger{background:#fee2e2;border-color:#fecaca;color:#991b1b}.ok{background:#d1fae5;border-color:#a7f3d0;color:#065f46}.ghost{background:#f8fafc}
-    input,select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;padding:9px 10px;color:var(--ink)}
-    textarea{min-height:74px;resize:vertical}.app{height:100vh;display:grid;grid-template-columns:330px minmax(680px,1fr) 470px;overflow:hidden}
-    .side,.right{background:var(--panel);overflow:auto}.side{border-right:1px solid var(--line)}.right{border-left:1px solid var(--line)}
-    .brand{padding:24px 18px 16px;border-bottom:1px solid var(--line)}.brand h1{margin:0;font-size:24px}.brand p{margin:5px 0 0;color:var(--muted)}
-    .tools{display:grid;gap:10px;padding:14px;border-bottom:1px solid var(--line)}.videoList{padding:10px;display:grid;gap:10px}
-    .videoItem{text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px;display:grid;gap:6px}.videoItem.active{border-color:#06b6d4;background:#ecfeff}
-    .videoName{font-weight:800;font-size:16px}.meta{color:var(--muted);font-size:12px}.badges{display:flex;flex-wrap:wrap;gap:5px}.badge{border-left:4px solid var(--c);background:#f8fafc;border-radius:8px;padding:3px 6px;font-size:12px}
-    .center{display:grid;grid-template-rows:auto minmax(0,1fr) 225px;overflow:hidden}.topbar{background:var(--panel);border-bottom:1px solid var(--line);padding:18px 24px;display:flex;align-items:center;justify-content:space-between}
-    .title h2{margin:0;font-size:24px}.title p{margin:4px 0 0;color:var(--muted)}.stage{overflow:auto;padding:18px;display:grid;gap:14px}
-    .viewer{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px;display:grid;gap:12px}
-    .canvasWrap{position:relative;max-width:100%;background:#0b1220;border-radius:12px;overflow:hidden;display:inline-block;justify-self:start}
-    #frameImg{display:block;max-width:min(100%,980px);max-height:62vh;object-fit:contain;background:#111}
-    #overlay{position:absolute;left:0;top:0;width:100%;height:100%;cursor:crosshair}.controls{display:grid;grid-template-columns:auto auto auto 1fr 88px auto;gap:10px;align-items:center}.controls input[type=range]{padding:0}
-    .playopts{display:grid;grid-template-columns:1fr 130px 150px;gap:10px;align-items:end}.legend,.segments{display:flex;gap:8px;flex-wrap:wrap}.segment{border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:999px;padding:6px 10px;cursor:pointer}.segment.active{border-color:#fb923c;background:#ffedd5}
-    .tracksPanel{background:#fff;border-top:1px solid var(--line);padding:12px;overflow:auto}.tracksHead{display:flex;justify-content:space-between;align-items:center;gap:10px}.trackFilters{display:grid;grid-template-columns:180px 140px;gap:8px}
-    .tracks{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px;margin-top:10px;max-height:150px;overflow:auto}.track{border:1px solid var(--line);border-left:5px solid var(--c);border-radius:11px;background:#fff;padding:9px;text-align:left}.track.active{background:#eff6ff;border-color:#60a5fa}.track.pending{opacity:.5;text-decoration:line-through}
-    .section{padding:16px;border-bottom:1px solid var(--line);display:grid;gap:11px}.section h3{margin:0;font-size:15px}.hint{font-size:12px;color:var(--muted)}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.quick{display:grid;grid-template-columns:1fr 1fr;gap:8px}.quick3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-    .pending,.annList,.eventTree{display:grid;gap:8px;max-height:190px;overflow:auto}.card{border:1px solid var(--line);border-left:5px solid var(--c,#94a3b8);border-radius:11px;background:#f8fafc;padding:9px}.card b{display:block}.card small{display:block;color:var(--muted)}
-    .objectSlots{display:flex;gap:8px;overflow:auto;padding-bottom:6px}.slot{flex:0 0 220px;border:1px solid var(--line);border-top:5px solid var(--c,#cbd5e1);border-radius:12px;background:#fff;padding:9px}.slot.active{outline:3px solid rgba(37,99,235,.25)}.slot.empty{background:#f8fafc}
-    .importBox{display:grid;gap:8px;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px}.status{font-weight:700;color:#0f766e}
-    @media(max-width:1280px){.app{grid-template-columns:280px minmax(560px,1fr) 410px}.controls{grid-template-columns:auto auto auto 1fr 76px}.right{min-width:410px}}
-  </style>
+  <title>Automated Training Model Workbench</title>
+  <link rel="stylesheet" href="/assets/css/app.css" />
 </head>
 <body>
-<div class="app">
-  <aside class="side">
-    <div class="brand"><h1>VideoLabel</h1><p>轨迹审核 · 对象级异常标注</p></div>
-    <div class="tools">
-      <input id="videoSearch" placeholder="搜索视频，如 04_0012" />
-      <select id="videoClass"><option value="">全部类别</option></select>
-      <button id="toggleImport" class="ghost">数据接入</button>
-      <div id="importBox" class="importBox" style="display:none">
-        <b>注册本地数据集目录</b>
+<div class="shell">
+  <aside class="sidebar" aria-label="数据集与视频">
+    <section class="brand">
+      <div>
+        <p class="eyebrow">Automated Training Model</p>
+        <h1>视频标注工作台</h1>
+      </div>
+      <p>轨迹审核 · 对象级异常标注 · 自动训练闭环</p>
+    </section>
+
+    <section class="panel compact">
+      <div class="toolbar">
+        <input id="videoSearch" placeholder="搜索视频，如 04_0012" />
+        <select id="videoClass"><option value="">全部类别</option></select>
+      </div>
+      <button id="toggleImport" class="secondary wide">数据接入 / 自动训练</button>
+      <div id="importBox" class="importBox is-hidden">
+        <h3>数据接入</h3>
         <input id="dsName" placeholder="数据集名称" />
         <input id="mergeRoot" placeholder="merge/csv 根目录" />
         <input id="frameRoot" placeholder="frames 根目录" />
         <input id="maskRoot" placeholder="可选：帧级 mask 目录" />
-        <button id="registerFolder" class="primary">注册目录</button>
-        <b>注册大数据 Manifest</b>
+        <button id="registerFolder" class="primary">注册本地目录</button>
+
         <input id="manifestPath" placeholder="manifest.json / parquet 索引路径" />
         <button id="registerManifest">注册 Manifest</button>
-        <b>上传压缩包</b>
-        <input id="archiveFile" type="file" />
-        <button id="uploadArchive">上传并登记</button>
-        <b>已登记数据集</b>
-        <div id="datasetList" class="pending"><div class="hint">尚未加载。</div></div>
-      </div>
-    </div>
-    <div id="videoList" class="videoList"></div>
-  </aside>
 
-  <main class="center">
-    <header class="topbar">
-      <div class="title"><h2 id="title">未选择视频</h2><p id="meta">请选择左侧视频</p></div>
-      <div class="status" id="status">就绪</div>
-    </header>
-    <section class="stage">
-      <div class="viewer" id="viewer" tabindex="0">
-        <div class="canvasWrap"><img id="frameImg" alt="frame"/><canvas id="overlay"></canvas></div>
-        <div class="controls">
-          <button id="prev">←</button><button id="play">▶</button><button id="next">→</button>
-          <input id="slider" type="range" min="1" max="1" value="1"/>
-          <input id="frameInput" type="number" min="1" value="1"/>
-          <span id="frameCount">/1</span>
+        <input id="archiveFile" type="file" />
+        <button id="uploadArchive">上传 Zip 并登记</button>
+
+        <h3>已登记数据集</h3>
+        <div id="datasetList" class="stack"><div class="empty">尚未加载。</div></div>
+
+        <h3>自动训练闭环</h3>
+        <input id="lifecycleDataset" placeholder="dataset id，激活数据集后自动填充" />
+        <div class="buttonGrid">
+          <button id="autoLabelJob">自动标注任务</button>
+          <button id="trainJob">训练任务</button>
+          <button id="evalJob">评估任务</button>
+          <button id="deployJob">部署任务</button>
         </div>
-        <div class="playopts">
-          <label>播放范围<select id="playMode"><option value="full">整段视频</option></select></label>
-          <label>播放速度<select id="playRate"><option value="0.5">0.5x</option><option value="1" selected>1.0x</option><option value="2">2.0x</option><option value="4">4.0x</option></select></label>
-          <button id="useObjectRange">按当前对象∩锁定片段填时间段</button>
-        </div>
-        <div id="legend" class="legend"></div>
-        <div id="segments" class="segments"></div>
+        <input id="taskID" placeholder="task id" />
+        <button id="checkTask">查询任务状态</button>
       </div>
     </section>
-    <section class="tracksPanel" id="tracksPanel">
-      <div class="tracksHead">
-        <h3>轨迹列表</h3>
-        <div class="trackFilters"><input id="trackSearch" placeholder="轨迹 ID / 类别"/><select id="trackClass"><option value="">全部类别</option></select></div>
-        <button id="toggleTracks">收起轨迹列表</button>
+
+    <section id="videoList" class="videoList" aria-label="视频列表"></section>
+    <a class="exportLink" href="/api/videos" target="_blank">导出 / 检查当前数据 JSON</a>
+  </aside>
+
+  <main class="workspace">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">当前样本</p>
+        <h2 id="title">未选择视频</h2>
+        <p id="meta" class="muted">请选择左侧视频</p>
+      </div>
+      <div id="status" class="status">就绪</div>
+    </header>
+
+    <section class="viewerCard" id="viewer" tabindex="0">
+      <div class="viewerHeader">
+        <div>
+          <h3>帧级审核视图</h3>
+          <p class="muted">所有播放、锁定片段和对象选择都在这里完成。</p>
+        </div>
+        <button id="wholeVideo" class="secondary">整段视频</button>
+      </div>
+      <div class="canvasWrap">
+        <img id="frameImg" alt="当前视频帧" />
+        <canvas id="overlay" aria-label="tracking box overlay"></canvas>
+      </div>
+      <div class="frameControls">
+        <button id="prev" title="上一帧">←</button>
+        <button id="play" title="播放/暂停">▶</button>
+        <button id="next" title="下一帧">→</button>
+        <input id="slider" type="range" min="1" max="1" value="1" />
+        <input id="frameInput" type="number" min="1" value="1" />
+        <span id="frameCount" class="muted">/1</span>
+      </div>
+      <div class="playOptions">
+        <label>播放范围<select id="playMode"><option value="full">整段视频</option></select></label>
+        <label>播放速度<select id="playRate"><option value="0.5">0.5x</option><option value="1" selected>1.0x</option><option value="2">2.0x</option><option value="4">4.0x</option></select></label>
+        <button id="useObjectRange">按当前对象 ∩ 锁定片段填时间段</button>
+      </div>
+      <div id="legend" class="legend"></div>
+      <div id="segments" class="segments"></div>
+    </section>
+
+    <section class="tracksPanel">
+      <div class="panelTitle">
+        <div>
+          <h3>轨迹列表</h3>
+          <p class="muted">“出现次数”是该 object id 在多少帧被 tracking 命中；“平均置信度”是检测器对该轨迹所有框的平均分。</p>
+        </div>
+        <div class="trackActions">
+          <input id="trackSearch" placeholder="轨迹 ID / 类别" />
+          <select id="trackClass"><option value="">全部类别</option></select>
+          <button id="toggleTracks">收起</button>
+        </div>
       </div>
       <div id="tracks" class="tracks"></div>
     </section>
   </main>
 
-  <aside class="right">
-    <div class="section">
-      <h3>当前对象</h3><div id="selectedText" class="hint">未选择</div>
-      <button id="addReject" class="danger">加入删除预览</button>
-      <div class="hint">删除会先隐藏预览，保存删除队列后才写入审核 JSON；彻底删除会备份 CSV 后移除源 tracking 行。</div>
-    </div>
-    <div class="section">
-      <h3>轨迹删除预览</h3><div id="pending" class="pending"><div class="hint">暂无待删除轨迹。</div></div>
-      <div class="quick"><button id="clearPending">清空待删</button><button id="savePending" class="danger">保存删除队列</button></div>
-      <button id="purgePending" class="danger">彻底删除数据</button>
-    </div>
-    <div class="section">
-      <h3>异常事件（一个事件可含多个对象）</h3>
-      <label>所属异常时间段（可多选）<div id="segmentChecks" class="segments"></div></label>
-      <div class="row"><label>开始帧<input id="start" type="number" value="1"/></label><label>结束帧<input id="end" type="number" value="1"/></label></div>
-      <div class="row"><label>异常类型<select id="type"><option>泛异常</option><option>骑车</option><option>奔跑</option><option>滑板</option><option>打斗</option><option>跌倒</option><option>跳跃</option><option>徘徊</option><option>投掷</option></select></label><label>严重程度<select id="severity"><option>未知</option><option>低</option><option>中</option><option>高</option></select></label></div>
-      <label>异常原因/描述<textarea id="eventReason" placeholder="例如：白色上衣黑色裤子的人骑黑色自行车进入步行区域"></textarea></label>
-      <div class="objectSlots" id="objectSlots" tabindex="0"></div>
-      <div class="quick3"><button id="fillObject" class="primary">填入当前对象</button><button id="newSlot">新增对象槽位</button><button id="saveEvent" class="primary">保存异常事件</button></div>
-      <div class="row"><label>上衣颜色<input id="upperColor" placeholder="如 白色"/></label><label>下衣颜色<input id="lowerColor" placeholder="如 黑色"/></label></div>
-      <div class="row"><label>上衣类型<input id="upperClothing" placeholder="如 长袖"/></label><label>下衣类型<input id="lowerClothing" placeholder="如 长裤"/></label></div>
+  <aside class="inspector" aria-label="审核与标注">
+    <section class="panel">
+      <h3>当前对象</h3>
+      <div id="selectedText" class="selectedBox">未选择</div>
+      <button id="addReject" class="danger wide">加入删除预览</button>
+      <p class="hint">删除会先隐藏预览，保存删除队列后才写入审核 JSON；彻底删除会备份 CSV 后移除源 tracking 行。</p>
+    </section>
+
+    <section class="panel">
+      <h3>轨迹删除预览</h3>
+      <div id="pending" class="stack"><div class="empty">暂无待删除轨迹。</div></div>
+      <div class="buttonGrid">
+        <button id="clearPending">清空待删</button>
+        <button id="savePending" class="danger">保存删除队列</button>
+      </div>
+      <button id="purgePending" class="danger wide">彻底删除数据</button>
+    </section>
+
+    <section class="panel eventPanel">
+      <h3>异常事件</h3>
+      <p class="hint">结构：视频 → 异常时间段 → 异常事件 → 多个相关对象。</p>
+      <label>所属异常时间段（可多选）<div id="segmentChecks" class="segments checkSegments"></div></label>
+      <div class="twoCol">
+        <label>开始帧<input id="start" type="number" value="1"/></label>
+        <label>结束帧<input id="end" type="number" value="1"/></label>
+      </div>
+      <div class="twoCol">
+        <label>异常类型<select id="type"><option>泛异常</option><option>骑车</option><option>奔跑</option><option>滑板</option><option>打斗</option><option>跌倒</option><option>跳跃</option><option>徘徊</option><option>投掷</option></select></label>
+        <label>严重程度<select id="severity"><option>未知</option><option>低</option><option>中</option><option>高</option></select></label>
+      </div>
+      <label>异常原因 / 描述<textarea id="eventReason" placeholder="例如：白色上衣黑色裤子的人骑黑色自行车进入步行区域"></textarea></label>
+
+      <div class="objectSlotHeader">
+        <h4>本异常事件相关对象</h4>
+        <span class="hint">在对象槽位区域按 A/D 切换对象槽位。</span>
+      </div>
+      <div id="objectSlots" class="objectSlots" tabindex="0"></div>
+      <div class="buttonGrid three">
+        <button id="fillObject" class="primary">填入当前对象</button>
+        <button id="newSlot">新增对象槽位</button>
+        <button id="saveEvent" class="primary">保存异常事件</button>
+      </div>
+      <div class="twoCol">
+        <label>上衣颜色<input id="upperColor" placeholder="如 白色"/></label>
+        <label>下衣颜色<input id="lowerColor" placeholder="如 黑色"/></label>
+      </div>
+      <div class="twoCol">
+        <label>上衣类型<input id="upperClothing" placeholder="如 长袖"/></label>
+        <label>下衣类型<input id="lowerClothing" placeholder="如 长裤"/></label>
+      </div>
       <label>当前对象在该异常中的描述<textarea id="appearance" placeholder="只描述当前对象与本异常相关的外貌/动作"></textarea></label>
-    </div>
-    <div class="section">
-      <h3>已保存标注</h3><div id="annList" class="annList"></div>
-    </div>
-    <div class="section">
-      <h3>视频 → 异常片段 → 异常事件 → 相关对象</h3><div id="eventTree" class="eventTree"></div>
-    </div>
+    </section>
+
+    <section class="panel">
+      <h3>已保存标注</h3>
+      <div id="annList" class="stack"></div>
+    </section>
+
+    <section class="panel">
+      <h3>视频 → 异常片段 → 事件 → 对象</h3>
+      <div id="eventTree" class="stack"></div>
+    </section>
   </aside>
 </div>
 
-<script>
-const C={0:["人","#06b6d4"],1:["自行车","#facc15"],2:["汽车","#ef4444"],3:["摩托车","#a855f7"],5:["公交车","#2563eb"],7:["卡车","#22c55e"],36:["滑板","#d946ef"],80:["婴儿车","#f97316"]};
-const S={videos:[],scene:"",meta:null,tracks:[],boxes:[],anns:[],frame:1,selected:null,pending:{},playing:false,timer:null,segment:null,slots:[],activeSlot:0,collapsed:false};
-const q=id=>document.getElementById(id); const api=(u,o={})=>fetch(u,{headers:{"Content-Type":"application/json"},...o}).then(r=>{if(!r.ok)return r.text().then(t=>{throw new Error(t)});return r.json()});
-const cname=id=>(C[id]||["class_"+id,"#94a3b8"])[0], ccol=id=>(C[id]||["","#94a3b8"])[1], key=o=>o.track_key||(o.class_id+":"+o.track_id);
-function setStatus(t){q("status").textContent=t}
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
-function annKey(a){return a.track_key||a.class_id+":"+a.track_id}
-function loadVideos(){return api("/api/videos").then(d=>{S.videos=d.videos||[];fillClassFilters();renderVideos();if(!S.scene&&S.videos[0])loadScene(S.videos[0].scene)})}
-function loadDatasets(){return api("/api/datasets").then(d=>{const rows=d.datasets||[];q("datasetList").innerHTML=rows.length?"":"<div class=hint>暂无已登记数据集。</div>";rows.forEach(ds=>{const div=document.createElement("div");div.className="card";div.innerHTML=`<b>${esc(ds.name)}</b><small>${ds.source_type} · ${esc(ds.status||"registered")}</small><button>激活</button>`;div.querySelector("button").onclick=()=>activateDataset(ds.id);q("datasetList").appendChild(div)})}).catch(()=>{})}
-function activateDataset(id){return api(`/api/datasets/${id}/activate`,{method:"POST",body:"{}"}).then(()=>{S.scene="";setStatus("数据集已激活");return loadVideos()}).then(loadDatasets)}
-function fillClassFilters(){["videoClass","trackClass"].forEach(id=>{const el=q(id),old=el.value; el.innerHTML='<option value="">全部类别</option>'; Object.keys(C).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=C[k][0];el.appendChild(o)});el.value=old})}
-function renderVideos(){const text=q("videoSearch").value.toLowerCase(), cls=q("videoClass").value; q("videoList").innerHTML=""; S.videos.filter(v=>v.scene.includes(text)&&(!cls||(v.classes||[]).some(c=>String(c.class_id)===cls))).forEach(v=>{const b=document.createElement("button");b.className="videoItem"+(S.scene===v.scene?" active":"");b.innerHTML=`<div class=videoName>${v.scene}</div><div class=meta>${v.frame_count} 帧 · ${v.track_count} 条轨迹 · ${v.annotation_count||0} 条标注</div><div class=badges>${(v.classes||[]).map(c=>`<span class=badge style="--c:${c.color}">${cname(c.class_id)}:${c.count}</span>`).join("")}</div>`;b.onclick=()=>loadScene(v.scene);q("videoList").appendChild(b)})}
-function loadScene(scene){if(hasUnsaved()){alert("当前视频有未保存内容，请先 Ctrl+S 保存。");return} S.scene=scene;S.frame=1;S.selected=null;S.pending={};S.segment=null;S.slots=[];S.activeSlot=0;setStatus("加载中");api(`/api/video/${scene}/meta`).then(m=>{S.meta=m;S.tracks=m.tracks||[];S.anns=m.annotations||[];q("title").textContent=scene;q("meta").textContent=`${m.frame_count} 帧 · ${S.tracks.length} 条轨迹 · ${m.rows} 个框 · 异常帧 ${m.anomaly_frame_count||0}`;q("slider").max=m.frame_count;q("frameInput").max=m.frame_count;q("frameCount").textContent="/"+m.frame_count;renderLegend();renderSegments();renderTracks();renderAnns();renderEventTree();ensureSlots();loadFrame(1);renderVideos();setStatus("就绪")}).catch(e=>{console.error(e);setStatus("加载失败")})}
-function renderLegend(){q("legend").innerHTML=(S.meta.classes||[]).map(c=>`<span class=badge style="--c:${c.color}">${cname(c.class_id)} ${c.count}</span>`).join("")}
-function renderSegments(){const segs=S.meta.anomaly_segments||[];q("segments").innerHTML=segs.length?segs.map(s=>`<button class="segment ${S.segment&&S.segment.index===s.index?"active":""}" data-seg="${s.index}">#${s.index} ${s.start_frame}-${s.end_frame} (${s.length}帧)</button>`).join(""):'<span class="hint">无帧级异常片段</span>';q("segmentChecks").innerHTML=segs.map(s=>`<label class=segment><input type=checkbox value="${s.index}"> #${s.index} ${s.start_frame}-${s.end_frame}</label>`).join("");q("playMode").innerHTML='<option value="full">整段视频</option>'+segs.map(s=>`<option value="${s.index}">异常片段 ${s.index} (${s.start_frame}-${s.end_frame})</option>`).join("");q("segments").querySelectorAll("[data-seg]").forEach(b=>b.onclick=()=>lockSegment(Number(b.dataset.seg),true))}
-function lockSegment(i,jump){S.segment=(S.meta.anomaly_segments||[]).find(s=>s.index===i)||null;q("playMode").value=S.segment?String(i):"full";renderSegments();if(jump&&S.segment)loadFrame(S.segment.start_frame)}
-function setPlayMode(v){if(v==="full"){S.segment=null;renderSegments();return}lockSegment(Number(v),true)}
-function range(){return S.segment?[S.segment.start_frame,S.segment.end_frame]:[1,S.meta?S.meta.frame_count:1]}
-function loadFrame(f){if(!S.meta)return;const [lo,hi]=range();f=Math.max(lo,Math.min(hi,Number(f)||lo));S.frame=f;q("slider").value=f;q("frameInput").value=f;return api(`/api/video/${S.scene}/boxes?frame=${f}`).then(d=>{S.boxes=d.boxes||[];const img=q("frameImg");img.onload=()=>drawBoxes();img.src=`/api/video/${S.scene}/frame/${f}.jpg?ts=${Date.now()}`})}
-function drawBoxes(){const img=q("frameImg"),cv=q("overlay");cv.width=img.clientWidth;cv.height=img.clientHeight;const ctx=cv.getContext("2d");ctx.clearRect(0,0,cv.width,cv.height);const sx=cv.width/img.naturalWidth,sy=cv.height/img.naturalHeight;S.boxes.filter(b=>!S.pending[key(b)]).forEach(b=>{const x=b.x*sx,y=b.y*sy,w=b.w*sx,h=b.h*sy,col=b.color||ccol(b.class_id);ctx.lineWidth=key(b)===S.selected?4:2;ctx.strokeStyle=col;ctx.strokeRect(x,y,w,h);ctx.font="bold 12px Segoe UI";ctx.lineWidth=4;ctx.strokeStyle="rgba(0,0,0,.85)";ctx.strokeText("编号:"+b.track_id,x,Math.max(12,y-4));ctx.fillStyle=col;ctx.fillText("编号:"+b.track_id,x,Math.max(12,y-4))})}
-q("overlay").onclick=e=>{const r=e.currentTarget.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,img=q("frameImg"),sx=e.currentTarget.width/img.naturalWidth,sy=e.currentTarget.height/img.naturalHeight;let hit=null;for(const b of S.boxes){const bx=b.x*sx,by=b.y*sy,bw=b.w*sx,bh=b.h*sy;if(x>=bx&&x<=bx+bw&&y>=by&&y<=by+bh)hit=b}if(hit)selectTrack(key(hit),false)}
-function renderTracks(){const text=q("trackSearch").value.toLowerCase(),cls=q("trackClass").value;q("tracks").innerHTML="";S.tracks.filter(t=>(!cls||String(t.class_id)===cls)&&(`${t.track_id} ${cname(t.class_id)}`.includes(text))).forEach(t=>{const b=document.createElement("button");b.className="track"+(S.selected===t.track_key?" active":"")+(S.pending[t.track_key]?" pending":"");b.style.setProperty("--c",t.color);b.innerHTML=`<b>${cname(t.class_id)} 编号:${t.track_id}</b><small>${t.first_frame}-${t.last_frame} · ${t.frames} 次出现 · 平均置信度 ${(t.avg_conf||t.mean_conf||0).toFixed(2)}</small>`;b.onclick=()=>selectTrack(t.track_key,true);q("tracks").appendChild(b)})}
-function selectTrack(k,jump){S.selected=k;const t=S.tracks.find(x=>x.track_key===k);q("selectedText").textContent=t?`${cname(t.class_id)} 编号:${t.track_id} · ${t.first_frame}-${t.last_frame}`:"未选择";if(t&&jump)loadFrame(Math.max(range()[0],Math.min(range()[1],t.first_frame)));renderTracks();drawBoxes()}
-function selectedTrack(){return S.tracks.find(t=>t.track_key===S.selected)}
-function addReject(){const t=selectedTrack();if(!t){alert("先选择对象");return}S.pending[t.track_key]={track_key:t.track_key,track_id:t.track_id,class_id:t.class_id,object_class:cname(t.class_id),start_frame:t.first_frame,end_frame:t.last_frame,label:"正常",anomaly_type:"无",tracking_status:"删除",tracking_issue:"误检",bbox_quality:"ok"};renderPending();renderTracks();drawBoxes()}
-function renderPending(){const keys=Object.keys(S.pending);q("pending").innerHTML=keys.length?"":'<div class=hint>暂无待删除轨迹。</div>';keys.forEach(k=>{const p=S.pending[k],d=document.createElement("div");d.className="card";d.style.setProperty("--c",ccol(p.class_id));d.innerHTML=`<b>${cname(p.class_id)} 编号:${p.track_id}</b><small>${k} · ${p.start_frame}-${p.end_frame}</small><button>撤销</button>`;d.querySelector("button").onclick=()=>{delete S.pending[k];renderPending();renderTracks();drawBoxes()};q("pending").appendChild(d)})}
-function savePending(){const rows=Object.values(S.pending);if(!rows.length){alert("没有待删除项");return Promise.resolve()}let p=Promise.resolve();rows.forEach(row=>p=p.then(()=>api(`/api/video/${S.scene}/annotations`,{method:"POST",body:JSON.stringify(row)})));return p.then(()=>{S.pending={};return refresh()})}
-function purgePending(){const keys=Object.keys(S.pending);if(!keys.length){alert("没有待彻底删除的数据");return}if(!confirm("彻底删除源 tracking 数据？系统会先备份 CSV。"))return;savePending().then(()=>api(`/api/video/${S.scene}/purge-tracks`,{method:"POST",body:JSON.stringify({track_keys:keys})})).then(refresh)}
-function ensureSlots(n=5){while(S.slots.length<n)S.slots.push({empty:true,slot:S.slots.length+1});renderSlots()}
-function fillObject(){const t=selectedTrack();if(!t){alert("先选择对象");return}ensureSlots();let i=S.slots.findIndex(s=>s.empty);if(i<0){S.slots.push({empty:true,slot:S.slots.length+1});i=S.slots.length-1}S.slots[i]={empty:false,slot:i+1,track_key:t.track_key,track_id:t.track_id,class_id:t.class_id,object_class:cname(t.class_id),upper_color:q("upperColor").value,lower_color:q("lowerColor").value,upper_clothing:q("upperClothing").value,lower_clothing:q("lowerClothing").value,appearance:q("appearance").value};S.activeSlot=i;renderSlots()}
-function renderSlots(){q("objectSlots").innerHTML="";S.slots.forEach((o,i)=>{const d=document.createElement("div");d.className="slot "+(o.empty?"empty ":"")+(S.activeSlot===i?"active":"");d.style.setProperty("--c",ccol(o.class_id));d.onclick=()=>{S.activeSlot=i;renderSlots()};d.innerHTML=o.empty?`<b>对象槽位 ${i+1}: 空</b><small>选择对象后填入</small><button>删除槽位</button>`:`<b>${cname(o.class_id)} 编号:${o.track_id}</b><small>${[o.upper_color,o.upper_clothing,o.lower_color,o.lower_clothing,o.appearance].filter(Boolean).join(" / ")||"未填写描述"}</small><button>清空槽位</button>`;d.querySelector("button").onclick=e=>{e.stopPropagation();S.slots[i]={empty:true,slot:i+1};renderSlots()};q("objectSlots").appendChild(d)})}
-function selectedSegments(){return [...q("segmentChecks").querySelectorAll("input:checked")].map(x=>Number(x.value))}
-function saveEvent(){const objs=S.slots.filter(o=>!o.empty);if(!objs.length){alert("至少填入一个异常对象");return}const segs=selectedSegments();if(!segs.length){alert("请选择所属异常时间段");return}const eventID=`${S.scene}-event-${Date.now()}`, typ=q("type").value, reason=q("eventReason").value;let p=Promise.resolve();objs.forEach(o=>{const ann={...o,start_frame:Number(q("start").value),end_frame:Number(q("end").value),label:"异常",anomaly_type:typ,event_id:eventID,event_title:"异常事件",event_reason:reason,severity:q("severity").value,tracking_status:"通过",tracking_issue:"正常",bbox_quality:"ok",notes:"segment_ids="+segs.join("|")};p=p.then(()=>api(`/api/video/${S.scene}/annotations`,{method:"POST",body:JSON.stringify(ann)}))});p.then(()=>{S.slots=[];ensureSlots();return refresh()})}
-function renderAnns(){q("annList").innerHTML="";(S.anns||[]).forEach(a=>{const d=document.createElement("div");d.className="card";d.style.setProperty("--c",ccol(a.class_id));d.innerHTML=`<b>${cname(a.class_id)} 编号:${a.track_id}</b><small>${a.start_frame}-${a.end_frame} · ${a.label||""} · ${a.anomaly_type||""}</small><small>原因/描述: ${esc(a.event_reason||"")}</small><button>跳转</button> <button class=danger>删除标注</button>`;const bs=d.querySelectorAll("button");bs[0].onclick=()=>{selectTrack(annKey(a),false);loadFrame(a.start_frame)};bs[1].onclick=()=>fetch(`/api/video/${S.scene}/annotation/${a.id}`,{method:"DELETE"}).then(refresh);q("annList").appendChild(d)})}
-function renderEventTree(){const segs=S.meta?.anomaly_segments||[];q("eventTree").innerHTML=segs.map(s=>`<div class=card style="--c:#f97316"><b>异常时间段 #${s.index}</b><small>${s.start_frame}-${s.end_frame} · ${s.length} 帧</small></div>`).join("") || '<div class=hint>无帧级异常片段</div>'}
-function useObjectRange(){const t=selectedTrack();if(!t||!S.segment){alert("必须先选择对象并锁定异常片段");return}q("start").value=Math.max(t.first_frame,S.segment.start_frame);q("end").value=Math.min(t.last_frame,S.segment.end_frame)}
-function refresh(){return api(`/api/video/${S.scene}/meta`).then(m=>{S.meta=m;S.tracks=m.tracks||[];S.anns=m.annotations||[];renderVideos();renderLegend();renderSegments();renderTracks();renderAnns();renderEventTree();loadFrame(S.frame);setStatus("已刷新")})}
-function hasUnsaved(){return Object.keys(S.pending).length||S.slots.some(s=>!s.empty)}
-q("videoSearch").oninput=renderVideos;q("videoClass").onchange=renderVideos;q("trackSearch").oninput=renderTracks;q("trackClass").onchange=renderTracks;q("prev").onclick=()=>loadFrame(S.frame-1);q("next").onclick=()=>loadFrame(S.frame+1);q("slider").oninput=e=>loadFrame(e.target.value);q("frameInput").onchange=e=>loadFrame(e.target.value);q("playMode").onchange=e=>setPlayMode(e.target.value);q("useObjectRange").onclick=useObjectRange;q("addReject").onclick=addReject;q("clearPending").onclick=()=>{S.pending={};renderPending();renderTracks();drawBoxes()};q("savePending").onclick=savePending;q("purgePending").onclick=purgePending;q("fillObject").onclick=fillObject;q("newSlot").onclick=()=>{S.slots.push({empty:true,slot:S.slots.length+1});renderSlots()};q("saveEvent").onclick=saveEvent;
-q("play").onclick=()=>{if(S.playing){clearInterval(S.timer);S.playing=false;q("play").textContent="▶";return}S.playing=true;q("play").textContent="Ⅱ";S.timer=setInterval(()=>{const [lo,hi]=range();loadFrame(S.frame>=hi?lo:S.frame+1)},Math.max(80,500/Number(q("playRate").value||1)))};
-q("toggleTracks").onclick=()=>{S.collapsed=!S.collapsed;q("tracks").style.display=S.collapsed?"none":"grid";q("toggleTracks").textContent=S.collapsed?"展开轨迹列表":"收起轨迹列表"};
-q("objectSlots").onkeydown=e=>{if(e.key.toLowerCase()==="a"||e.key.toLowerCase()==="d"){e.preventDefault();S.activeSlot=(S.activeSlot+(e.key.toLowerCase()==="a"?-1:1)+S.slots.length)%S.slots.length;renderSlots()}};
-q("viewer").onkeydown=e=>{if(e.ctrlKey&&e.key.toLowerCase()==="s"){e.preventDefault();savePending()}else if(e.key.toLowerCase()==="a")loadScene(S.videos[Math.max(0,S.videos.findIndex(v=>v.scene===S.scene)-1)]?.scene||S.scene);else if(e.key.toLowerCase()==="d")loadScene(S.videos[Math.min(S.videos.length-1,S.videos.findIndex(v=>v.scene===S.scene)+1)]?.scene||S.scene)};
-q("toggleImport").onclick=()=>q("importBox").style.display=q("importBox").style.display==="none"?"grid":"none";
-q("registerFolder").onclick=()=>api("/api/datasets/register-folder",{method:"POST",body:JSON.stringify({name:q("dsName").value,merge_root:q("mergeRoot").value,frame_root:q("frameRoot").value,mask_root:q("maskRoot").value})}).then(d=>activateDataset(d.dataset.id));
-q("registerManifest").onclick=()=>api("/api/datasets/register-manifest",{method:"POST",body:JSON.stringify({name:q("dsName").value||"manifest dataset",manifest_path:q("manifestPath").value})}).then(d=>activateDataset(d.dataset.id));
-q("uploadArchive").onclick=()=>{const f=q("archiveFile").files[0];if(!f){alert("请选择压缩包");return}const fd=new FormData();fd.append("file",f);fd.append("name",q("dsName").value||f.name);fetch("/api/datasets/upload-archive",{method:"POST",body:fd}).then(r=>r.json()).then(d=>activateDataset(d.dataset.id)).catch(e=>alert(e.message))};
-window.addEventListener("resize",drawBoxes);loadVideos();
-loadDatasets();
-</script>
+<script type="module" src="/assets/js/app.js"></script>
 </body>
 </html>

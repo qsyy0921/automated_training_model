@@ -51,7 +51,39 @@ internal/
 
 ### `web/`
 
-前端工程目录。后续二次元风格 Web UI、桌面端壳、移动端适配都从这里扩展。
+前端工程目录。当前先用原生 ES Modules，避免在 MVP 阶段引入沉重构建链路，但目录按“大厂式前端平台”提前拆好边界。后续迁移到 React/Vite、桌面端壳或移动端时，业务模块可以保留。
+
+```text
+web/
+  index.html
+  assets/
+    css/
+      app.css              设计 tokens、布局、组件样式
+    js/
+      app/                 应用装配、页面级编排
+      features/            按业务能力拆分的前端模块
+        anomaly-annotation/
+        datasets/
+        lifecycle/
+        media-viewer/
+        tracking-review/
+        video-list/
+      entities/            前端领域对象辅助，如 track key/label
+      infrastructure/      API client、后续 websocket/SSE/client storage
+      shared/              DOM、class catalog、通用 UI helper
+      state/               UI state / draft state store
+```
+
+前端依赖方向：
+
+```text
+app -> features -> entities/shared/infrastructure/state
+features 不互相直接依赖，跨 feature 协作通过 app 编排
+infrastructure 不依赖 UI
+shared 不依赖业务 feature
+```
+
+禁止把新功能继续堆回 `index.html`。`index.html` 只保留布局骨架和模块入口，业务逻辑必须进入 `features/`。
 
 ### `docs/`
 
@@ -84,6 +116,7 @@ internal/
     httpapi/
   app/
     annotationapp/
+    lifecycleapp/
     datasetapp/
     mediaapp/
     providerapp/
@@ -91,10 +124,15 @@ internal/
     workflowapp/
   domain/
     annotation/
+    autolabel/
     dataset/
+    deployment/
+    evaluation/
     media/
+    modelregistry/
     provider/
     tracking/
+    training/
     workflow/
   infrastructure/
     config/
@@ -138,7 +176,11 @@ app -> concrete postgres/redis/python worker
 | 数据库/Redis/MinIO/Python worker 适配 | `internal/infrastructure` |
 | 服务启动编排 | `internal/trigger` |
 | Go main | `cmd/<binary>` |
-| 前端工程 | `web` |
+| 前端工程入口 | `web/index.html` |
+| 前端业务模块 | `web/assets/js/features/<feature>` |
+| 前端 API client | `web/assets/js/infrastructure` |
+| 前端状态 | `web/assets/js/state` |
+| 前端设计系统样式 | `web/assets/css` |
 | Docker/K8s | `ops/deployments` |
 | SQL migration | `ops/migrations` |
 | 非敏感配置模板 | `ops/configs` |

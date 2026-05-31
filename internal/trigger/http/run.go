@@ -10,6 +10,7 @@ import (
 	httpapi "github.com/qsyy0921/automated_training_model/internal/api/httpapi"
 	"github.com/qsyy0921/automated_training_model/internal/app/annotationapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/datasetapp"
+	"github.com/qsyy0921/automated_training_model/internal/app/lifecycleapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/mediaapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/providerapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/workspaceapp"
@@ -18,7 +19,9 @@ import (
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/datasetruntime"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/jsonannotation"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/mergecsv"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/modelgateway"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/providerrepo"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/queue"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/secrets"
 )
 
@@ -31,6 +34,9 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	mediaSvc := mediaapp.NewMediaService(repo)
 	annotationSvc := annotationapp.NewAnnotationService(annRepo)
 	datasetSvc := datasetapp.NewDatasetService(datasetrepo.NewJSONRepository(cfg.DataRoot))
+	taskQueue := queue.NewMemoryQueue()
+	modelGateway := modelgateway.NewNoopGateway(taskQueue)
+	lifecycleSvc := lifecycleapp.NewService(modelGateway)
 	providerSvc := providerapp.NewProviderService(providerrepo.NewMemoryRepository(), secrets.NewEnvStore())
 	workspaceSvc := workspaceapp.NewRuntimeService(
 		datasetSvc,
@@ -41,7 +47,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpapi.NewRouter(mediaSvc, annotationSvc, datasetSvc, workspaceSvc, providerSvc, cfg.WebRoot, cfg.DataRoot, logger),
+		Handler:           httpapi.NewRouter(mediaSvc, annotationSvc, datasetSvc, workspaceSvc, lifecycleSvc, providerSvc, cfg.WebRoot, cfg.DataRoot, logger),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
