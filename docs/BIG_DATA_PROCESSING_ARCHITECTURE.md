@@ -687,7 +687,7 @@ OpenTelemetry stack
 
 ## 15. 对当前仓库的具体设计建议
 
-当前 `video_label_tool` 不应该立即引入全套大数据栈。建议先在 Go 后端里抽象出这些接口：
+当前 `automated_training_model` 不应该立即引入全套大数据栈。建议先在 Go 后端里抽象出这些接口：
 
 ```go
 type ArtifactStore interface {

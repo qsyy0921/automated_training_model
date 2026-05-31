@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/workflow"
+	"github.com/qsyy0921/automated_training_model/internal/domain/workflow"
 )
 
 type MemoryQueue struct {

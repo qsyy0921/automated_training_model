@@ -1,6 +1,8 @@
-# video_label_tool labelserver
+# automated_training_model
 
-Go 主后端，采用 DDD / 六边形架构。
+面向“小模型从数据到部署”的工程平台。当前阶段先落地视频数据接入、tracking 审核、对象级异常标注和自动标注预留接口；后续继续扩展到训练、评估、压缩、发布和线上监控。
+
+Go 是主后端，采用 DDD / 六边形架构。Python/模型能力作为 worker 或模型服务接入，用于 YOLO/Tracking/SAM/VLM/LLM/训练任务。
 
 目录约定：
 
@@ -17,7 +19,32 @@ ops/                      部署、脚本、配置、迁移、工具和小测试
 web/                      前端工程目录
 ```
 
-第一版先适配现有 `merge` 目录，提供视频列表、视频详情、帧级 boxes、帧图读取和预览视频读取接口。
+## 当前功能
+
+- 视频/帧/tracking 数据浏览。
+- 前端 Canvas 渲染 tracking 框和对象 ID。
+- tracking 审核、删除预览、保存审核记录、彻底删除源 tracking CSV 并自动备份。
+- 对象级异常事件标注：视频 -> 异常片段 -> 异常事件 -> 多个相关对象。
+- 帧级异常 mask 自动切分为候选异常片段。
+- 三种数据接入方式：
+  - 注册本地文件夹：适合研究机器和内网服务器。
+  - 上传 zip 压缩包：适合小型数据集和团队临时共享。
+  - 注册 manifest：适合大数据索引、对象存储、Parquet/DuckDB/PostgreSQL 后续扩展。
+- Provider/API Key、任务队列、模型网关、Agent workflow 的后端边界已预留。
+
+## 平台目标
+
+```text
+数据接入
+  -> 标注/审核
+  -> 自动标注与模型辅助
+  -> 数据版本管理
+  -> 小模型训练
+  -> 评估与误差分析
+  -> 压缩/蒸馏/量化
+  -> 部署发布
+  -> 线上反馈回流
+```
 
 ## 本机运行
 
@@ -27,6 +54,12 @@ F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe run .\cmd\labelser
   -merge-root F:\keyan\token_compression\data\shanghai\new_tracking\merge `
   -frame-root F:\keyan\token_compression\data\shanghai\data\testing\frames `
   -annotation-root F:\keyan\token_compression\data\shanghai\new_tracking\merge\annotations_review
+```
+
+打开：
+
+```text
+http://127.0.0.1:7870/
 ```
 
 ## Docker 构建

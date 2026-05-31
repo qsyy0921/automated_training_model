@@ -31,9 +31,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: video_label_tool
-      POSTGRES_USER: video_label_tool
-      POSTGRES_PASSWORD: video_label_tool
+      POSTGRES_DB: automated_training_model
+      POSTGRES_USER: automated_training_model
+      POSTGRES_PASSWORD: automated_training_model
     ports:
       - "5432:5432"
     volumes:

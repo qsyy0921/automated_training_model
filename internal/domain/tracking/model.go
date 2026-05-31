@@ -30,7 +30,10 @@ type Track struct {
 	LastFrame    int     `json:"last_frame"`
 	Frames       int     `json:"frames"`
 	MeanConf     float64 `json:"mean_conf"`
+	AvgConf      float64 `json:"avg_conf"`
 	MeanArea     float64 `json:"mean_area"`
+	AvgArea      float64 `json:"avg_area"`
+	MaxArea      float64 `json:"max_area"`
 	ReviewStatus string  `json:"review_status,omitempty"`
 }
 

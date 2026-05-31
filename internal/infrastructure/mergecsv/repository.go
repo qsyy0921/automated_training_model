@@ -2,6 +2,7 @@ package mergecsv
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -11,22 +12,26 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/app"
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/media"
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/tracking"
+	"github.com/qsyy0921/automated_training_model/internal/app/mediaapp"
+	"github.com/qsyy0921/automated_training_model/internal/domain/annotation"
+	"github.com/qsyy0921/automated_training_model/internal/domain/media"
+	"github.com/qsyy0921/automated_training_model/internal/domain/tracking"
 )
 
 type Repository struct {
 	mergeRoot string
 	frameRoot string
+	maskRoot  string
 	videos    map[string]*media.Video
 }
 
-func NewRepository(mergeRoot string, frameRoot string) (*Repository, error) {
+func NewRepository(mergeRoot string, frameRoot string, maskRoot string) (*Repository, error) {
 	r := &Repository{
 		mergeRoot: mergeRoot,
 		frameRoot: frameRoot,
+		maskRoot:  maskRoot,
 		videos:    map[string]*media.Video{},
 	}
 	if err := r.reload(); err != nil {
@@ -46,6 +51,8 @@ func (r *Repository) ListVideos(ctx context.Context) ([]media.VideoSummary, erro
 			Classes:    classCounts(v.ClassCounts),
 			HasPreview: fileExists(filepath.Join(r.mergeRoot, "browser_videos", v.Scene+".mp4")) ||
 				fileExists(filepath.Join(r.mergeRoot, "vis_videos", v.Scene+".mp4")),
+			AnomalySegments:   v.AnomalySegments,
+			AnomalyFrameCount: v.AnomalyFrameCount,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Scene < rows[j].Scene })
@@ -75,7 +82,7 @@ func (r *Repository) GetBoxes(ctx context.Context, scene string, frame int) ([]t
 	return boxes, nil
 }
 
-func (r *Repository) OpenFrame(ctx context.Context, scene string, frame int) (app.ReadSeekCloser, string, error) {
+func (r *Repository) OpenFrame(ctx context.Context, scene string, frame int) (mediaapp.ReadSeekCloser, string, error) {
 	v, err := r.GetVideo(ctx, scene)
 	if err != nil {
 		return nil, "", err
@@ -112,6 +119,80 @@ func (r *Repository) PreviewPath(ctx context.Context, scene string) (string, err
 	return "", fmt.Errorf("preview not found: %s", scene)
 }
 
+func (r *Repository) PurgeTracks(ctx context.Context, scene string, trackKeys []string) (int, error) {
+	keySet := map[string]bool{}
+	for _, key := range trackKeys {
+		key = strings.TrimSpace(key)
+		if key != "" {
+			keySet[key] = true
+		}
+	}
+	if len(keySet) == 0 {
+		return 0, nil
+	}
+	path := filepath.Join(r.mergeRoot, "csv", scene+".csv")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	backupDir := filepath.Join(r.mergeRoot, "csv_backups", time.Now().Format("20060102_150405"))
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return 0, err
+	}
+	if err := os.WriteFile(filepath.Join(backupDir, scene+".csv"), raw, 0644); err != nil {
+		return 0, err
+	}
+
+	reader := csv.NewReader(strings.NewReader(string(raw)))
+	reader.FieldsPerRecord = -1
+	rows, err := reader.ReadAll()
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, fmt.Errorf("empty csv: %s", path)
+	}
+	idx := csvIndex(rows[0])
+	kept := [][]string{rows[0]}
+	removed := 0
+	for _, row := range rows[1:] {
+		classID := atoi(csvValue(row, idx, "class_id"))
+		trackID := atoi(csvValue(row, idx, "track_id"))
+		if keySet[tracking.Key(classID, trackID)] {
+			removed++
+			continue
+		}
+		kept = append(kept, row)
+	}
+	tmp := path + ".tmp"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return 0, err
+	}
+	writer := csv.NewWriter(f)
+	if err := writer.WriteAll(kept); err != nil {
+		_ = f.Close()
+		return 0, err
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		_ = f.Close()
+		return 0, err
+	}
+	if err := f.Close(); err != nil {
+		return 0, err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return 0, err
+	}
+	v, err := loadVideo(path, r.maskRoot)
+	if err != nil {
+		return removed, err
+	}
+	r.videos[scene] = v
+	return removed, nil
+}
+
 func (r *Repository) reload() error {
 	files, err := filepath.Glob(filepath.Join(r.mergeRoot, "csv", "*.csv"))
 	if err != nil {
@@ -121,7 +202,7 @@ func (r *Repository) reload() error {
 		return fmt.Errorf("no csv files found under %s", filepath.Join(r.mergeRoot, "csv"))
 	}
 	for _, path := range files {
-		v, err := loadVideo(path)
+		v, err := loadVideo(path, r.maskRoot)
 		if err != nil {
 			return err
 		}
@@ -130,7 +211,7 @@ func (r *Repository) reload() error {
 	return nil
 }
 
-func loadVideo(csvPath string) (*media.Video, error) {
+func loadVideo(csvPath string, maskRoot string) (*media.Video, error) {
 	file, err := os.Open(csvPath)
 	if err != nil {
 		return nil, err
@@ -230,12 +311,17 @@ func loadVideo(csvPath string) (*media.Video, error) {
 		st.Track.Frames++
 		st.confSum += conf
 		st.areaSum += box.W * box.H
+		if area := box.W * box.H; area > st.Track.MaxArea {
+			st.Track.MaxArea = area
+		}
 	}
 
 	for _, st := range stats {
 		if st.Track.Frames > 0 {
 			st.Track.MeanConf = st.confSum / float64(st.Track.Frames)
+			st.Track.AvgConf = st.Track.MeanConf
 			st.Track.MeanArea = st.areaSum / float64(st.Track.Frames)
+			st.Track.AvgArea = st.Track.MeanArea
 		}
 		v.Tracks = append(v.Tracks, st.Track)
 	}
@@ -245,7 +331,67 @@ func loadVideo(csvPath string) (*media.Video, error) {
 		}
 		return v.Tracks[i].TrackID < v.Tracks[j].TrackID
 	})
+	v.AnomalySegments, v.AnomalyFrameCount = loadMaskSegments(maskRoot, v.Scene)
 	return v, nil
+}
+
+func loadMaskSegments(maskRoot string, scene string) ([]annotation.Segment, int) {
+	if maskRoot == "" {
+		return []annotation.Segment{}, 0
+	}
+	path := filepath.Join(maskRoot, scene+".npy")
+	raw, err := os.ReadFile(path)
+	if err != nil || len(raw) < 16 || string(raw[:6]) != "\x93NUMPY" {
+		return []annotation.Segment{}, 0
+	}
+	pos := 8
+	if pos+2 > len(raw) {
+		return []annotation.Segment{}, 0
+	}
+	headerLen := int(binary.LittleEndian.Uint16(raw[pos : pos+2]))
+	pos += 2
+	if raw[6] >= 2 {
+		if pos+4 > len(raw) {
+			return []annotation.Segment{}, 0
+		}
+		headerLen = int(binary.LittleEndian.Uint32(raw[pos : pos+4]))
+		pos += 4
+	}
+	if pos+headerLen > len(raw) {
+		return []annotation.Segment{}, 0
+	}
+	header := string(raw[pos : pos+headerLen])
+	data := raw[pos+headerLen:]
+	if !(strings.Contains(header, "'descr': '|u1'") || strings.Contains(header, "\"descr\": \"|u1\"") || strings.Contains(header, "'descr': '|b1'")) {
+		return []annotation.Segment{}, 0
+	}
+	segments := []annotation.Segment{}
+	start := 0
+	count := 0
+	for i, v := range data {
+		frame := i + 1
+		isAnomaly := v != 0
+		if isAnomaly {
+			count++
+			if start == 0 {
+				start = frame
+			}
+		}
+		if (!isAnomaly || i == len(data)-1) && start != 0 {
+			end := frame - 1
+			if isAnomaly && i == len(data)-1 {
+				end = frame
+			}
+			segments = append(segments, annotation.Segment{
+				Index:      len(segments) + 1,
+				StartFrame: start,
+				EndFrame:   end,
+				Length:     end - start + 1,
+			})
+			start = 0
+		}
+	}
+	return segments, count
 }
 
 func classCounts(counts map[int]int) []media.ClassCount {

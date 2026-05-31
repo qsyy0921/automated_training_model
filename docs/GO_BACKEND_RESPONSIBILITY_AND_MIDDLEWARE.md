@@ -1188,7 +1188,7 @@ Audit/SIEM
 
 ## 17. 对本项目的具体建议
 
-针对当前 `video_label_tool`，建议路线是：
+针对当前 `automated_training_model`，建议路线是：
 
 1. GitHub 仓库以 Go 模块化单体开局。
 2. `cmd/labelserver` 作为主入口。

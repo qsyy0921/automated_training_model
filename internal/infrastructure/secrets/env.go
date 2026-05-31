@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/provider"
+	"github.com/qsyy0921/automated_training_model/internal/domain/provider"
 )
 
 type EnvStore struct{}

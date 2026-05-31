@@ -1,8 +1,8 @@
-# 模块化单体与六边形架构落地说明
+﻿# 模块化单体与六边形架构落地说明
 
 版本：v0.2  
 日期：2026-05-31  
-仓库：`_video_label_tool`
+仓库：`automated_training_model`
 
 ## 1. 当前选择
 
@@ -289,3 +289,4 @@ IdempotencyKey
 8. Web UI 接入新 API。
 9. object storage abstraction。
 10. 数据集 export snapshot。
+

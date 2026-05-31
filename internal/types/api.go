@@ -1,8 +1,9 @@
 package types
 
 import (
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/media"
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/tracking"
+	"github.com/qsyy0921/automated_training_model/internal/domain/annotation"
+	"github.com/qsyy0921/automated_training_model/internal/domain/media"
+	"github.com/qsyy0921/automated_training_model/internal/domain/tracking"
 )
 
 type ListVideosResponse struct {
@@ -10,12 +11,14 @@ type ListVideosResponse struct {
 }
 
 type VideoMetaResponse struct {
-	Scene             string             `json:"scene"`
-	FrameCount        int                `json:"frame_count"`
-	Rows              int                `json:"rows"`
-	Tracks            []tracking.Track   `json:"tracks"`
-	Classes           []media.ClassCount `json:"classes"`
-	AnomalyFrameCount int                `json:"anomaly_frame_count"`
+	Scene             string                  `json:"scene"`
+	FrameCount        int                     `json:"frame_count"`
+	Rows              int                     `json:"rows"`
+	Tracks            []tracking.Track        `json:"tracks"`
+	Classes           []media.ClassCount      `json:"classes"`
+	AnomalyFrameCount int                     `json:"anomaly_frame_count"`
+	AnomalySegments   []annotation.Segment    `json:"anomaly_segments"`
+	Annotations       []annotation.Annotation `json:"annotations"`
 }
 
 type BoxesResponse struct {

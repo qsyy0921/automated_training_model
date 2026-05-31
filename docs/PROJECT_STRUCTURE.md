@@ -83,13 +83,24 @@ internal/
   api/
     httpapi/
   app/
+    annotationapp/
+    datasetapp/
+    mediaapp/
+    providerapp/
+    workspaceapp/
+    workflowapp/
   domain/
+    annotation/
+    dataset/
     media/
     provider/
     tracking/
     workflow/
   infrastructure/
     config/
+    datasetruntime/
+    datasetrepo/
+    jsonannotation/
     mergecsv/
     middleware/
     modelgateway/

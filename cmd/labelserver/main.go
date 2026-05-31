@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/infrastructure/config"
-	httptrigger "github.com/qsyy0921/_video_label_tool/labelserver/internal/trigger/http"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/config"
+	httptrigger "github.com/qsyy0921/automated_training_model/internal/trigger/http"
 )
 
 func main() {

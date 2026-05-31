@@ -1,6 +1,9 @@
 package media
 
-import "github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/tracking"
+import (
+	"github.com/qsyy0921/automated_training_model/internal/domain/annotation"
+	"github.com/qsyy0921/automated_training_model/internal/domain/tracking"
+)
 
 type ClassCount struct {
 	ClassID   int    `json:"class_id"`
@@ -10,13 +13,15 @@ type ClassCount struct {
 }
 
 type VideoSummary struct {
-	Scene           string       `json:"scene"`
-	FrameCount      int          `json:"frame_count"`
-	Rows            int          `json:"rows"`
-	TrackCount      int          `json:"track_count"`
-	AnnotationCount int          `json:"annotation_count"`
-	Classes         []ClassCount `json:"classes"`
-	HasPreview      bool         `json:"has_preview"`
+	Scene             string               `json:"scene"`
+	FrameCount        int                  `json:"frame_count"`
+	Rows              int                  `json:"rows"`
+	TrackCount        int                  `json:"track_count"`
+	AnnotationCount   int                  `json:"annotation_count"`
+	Classes           []ClassCount         `json:"classes"`
+	HasPreview        bool                 `json:"has_preview"`
+	AnomalySegments   []annotation.Segment `json:"anomaly_segments"`
+	AnomalyFrameCount int                  `json:"anomaly_frame_count"`
 }
 
 type Video struct {
@@ -27,5 +32,6 @@ type Video struct {
 	ClassCounts       map[int]int
 	Tracks            []tracking.Track
 	Boxes             map[int][]tracking.Box
+	AnomalySegments   []annotation.Segment
 	AnomalyFrameCount int
 }

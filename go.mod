@@ -1,4 +1,5 @@
-module github.com/qsyy0921/_video_label_tool/labelserver
+module github.com/qsyy0921/automated_training_model
 
 go 1.22
+
 

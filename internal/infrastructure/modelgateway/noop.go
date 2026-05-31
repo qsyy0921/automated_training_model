@@ -3,15 +3,15 @@ package modelgateway
 import (
 	"context"
 
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/app"
-	"github.com/qsyy0921/_video_label_tool/labelserver/internal/domain/workflow"
+	"github.com/qsyy0921/automated_training_model/internal/app/workflowapp"
+	"github.com/qsyy0921/automated_training_model/internal/domain/workflow"
 )
 
 type NoopGateway struct {
-	queue app.TaskQueue
+	queue workflowapp.TaskQueue
 }
 
-func NewNoopGateway(queue app.TaskQueue) *NoopGateway {
+func NewNoopGateway(queue workflowapp.TaskQueue) *NoopGateway {
 	return &NoopGateway{queue: queue}
 }
 
