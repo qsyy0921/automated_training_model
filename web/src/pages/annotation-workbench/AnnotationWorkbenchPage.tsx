@@ -9,11 +9,15 @@ import { VideoReviewLayout } from "@widgets/video-review-layout/VideoReviewLayou
 import { useWorkbenchStore } from "@app/store/workbenchStore";
 import { apiClient } from "@shared/api/client";
 import { clamp } from "@shared/lib/format";
-import { trackKey } from "@entities/track/model";
+import { trackKey, type Box } from "@entities/track/model";
 import type { ObjectSlot, Segment } from "@entities/anomaly-event/model";
+import type { VideoSummary } from "@entities/video/model";
 import { addTrackToDeleteQueue } from "@features/review-tracking/model";
 import { compactObjectSlot, createEmptyObjectSlots } from "@features/annotate-anomaly-event/model";
 import { nextVideo } from "@features/select-video/model";
+
+const EMPTY_VIDEOS: VideoSummary[] = [];
+const EMPTY_BOXES: Box[] = [];
 
 export function AnnotationWorkbenchPage() {
   const queryClient = useQueryClient();
@@ -22,7 +26,7 @@ export function AnnotationWorkbenchPage() {
   const setState = useWorkbenchStore((s) => s.setState);
 
   const videosQuery = useQuery({ queryKey: ["videos"], queryFn: () => apiClient.listVideos() });
-  const videos = videosQuery.data?.videos || [];
+  const videos = videosQuery.data?.videos || EMPTY_VIDEOS;
   const scene = state.currentScene || videos[0]?.scene || "";
   const metaQuery = useQuery({ queryKey: ["video-meta", scene], queryFn: () => apiClient.videoMeta(scene), enabled: Boolean(scene) });
   const meta = metaQuery.data;
@@ -31,13 +35,14 @@ export function AnnotationWorkbenchPage() {
   const boxesQuery = useQuery({ queryKey: ["boxes", scene, frame], queryFn: () => apiClient.frameBoxes(scene, frame), enabled: Boolean(scene) });
 
   useEffect(() => {
+    if (!videosQuery.data) return;
     if (videos.length && !state.currentScene) setState({ videos, currentScene: videos[0].scene });
     else setState({ videos });
-  }, [setState, state.currentScene, videos]);
+  }, [setState, state.currentScene, videos, videosQuery.data]);
 
   useEffect(() => {
     if (meta) {
-      setState({ meta, tracks: meta.tracks || [], boxes: boxesQuery.data?.boxes || [] });
+      setState({ meta, tracks: meta.tracks || [], boxes: boxesQuery.data?.boxes || EMPTY_BOXES });
     }
   }, [boxesQuery.data?.boxes, meta, setState]);
 

@@ -267,20 +267,28 @@ small {
   background: #dce8f7;
 }
 
-.viewerSurface img,
-.viewerSurface canvas {
+.mediaLayer {
+  position: relative;
+  display: inline-block;
   max-width: 100%;
   max-height: 62vh;
+  line-height: 0;
 }
 
-.viewerSurface img {
+.mediaLayer img {
   display: block;
+  max-width: 100%;
+  max-height: 62vh;
   border-radius: var(--radius-sm);
 }
 
-.viewerSurface canvas {
+.mediaLayer canvas {
   position: absolute;
-  inset: auto;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
   cursor: crosshair;
 }
 
@@ -542,4 +550,3 @@ small {
     grid-template-columns: 320px minmax(650px, 1fr) 420px;
   }
 }
-

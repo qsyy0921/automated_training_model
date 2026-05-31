@@ -142,10 +142,10 @@ export function VideoReviewLayout({
       </div>
       <div className="viewerSurface">
         {scene ? (
-          <>
+          <div className="mediaLayer">
             <img ref={imgRef} src={`/api/video/${scene}/frame/${safeFrame}.jpg?ts=${Date.now()}`} onLoad={draw} alt={`${scene} frame ${safeFrame}`} />
             <canvas ref={canvasRef} onClick={pick} />
-          </>
+          </div>
         ) : (
           <div className="empty">请选择视频</div>
         )}
@@ -208,4 +208,3 @@ export function VideoReviewLayout({
     </section>
   );
 }
-
