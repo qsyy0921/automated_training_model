@@ -1,0 +1,43 @@
+# build output
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# runtime data
+tmp/
+logs/
+data_lake/
+uploads/
+artifacts/
+annotations_review/
+
+# local env
+.env
+.env.*
+!.env.example
+
+# editor/system
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# model/data artifacts
+*.pt
+*.pth
+*.onnx
+*.engine
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.jpg
+*.jpeg
+*.png
+*.parquet
+*.safetensors
+
