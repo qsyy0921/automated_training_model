@@ -26,6 +26,7 @@ export function AnnotationWorkbenchPage() {
   const setState = useWorkbenchStore((s) => s.setState);
 
   const videosQuery = useQuery({ queryKey: ["videos"], queryFn: () => apiClient.listVideos() });
+  const taxonomyQuery = useQuery({ queryKey: ["taxonomy"], queryFn: () => apiClient.taxonomy() });
   const videos = videosQuery.data?.videos || EMPTY_VIDEOS;
   const scene = state.currentScene || videos[0]?.scene || "";
   const metaQuery = useQuery({ queryKey: ["video-meta", scene], queryFn: () => apiClient.videoMeta(scene), enabled: Boolean(scene) });
@@ -152,6 +153,7 @@ export function AnnotationWorkbenchPage() {
           annotations={meta?.annotations || []}
           objectSlots={state.objectSlots}
           activeSlot={state.activeObjectSlot}
+          taxonomy={taxonomyQuery.data}
           onQueueDelete={queueDelete}
           onClearDeletes={() => setState({ pendingDeleteKeys: [] })}
           onPurgeDeletes={() => purgeTracks.mutate()}

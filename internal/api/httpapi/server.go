@@ -22,6 +22,7 @@ import (
 	"github.com/qsyy0921/automated_training_model/internal/domain/annotation"
 	"github.com/qsyy0921/automated_training_model/internal/domain/dataset"
 	"github.com/qsyy0921/automated_training_model/internal/domain/media"
+	"github.com/qsyy0921/automated_training_model/internal/domain/taxonomy"
 	"github.com/qsyy0921/automated_training_model/internal/domain/tracking"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/middleware"
 	"github.com/qsyy0921/automated_training_model/internal/types"
@@ -46,6 +47,7 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("GET /", s.index)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(s.staticWebRoot(), "assets")))))
 	mux.HandleFunc("GET /api/videos", s.listVideos)
+	mux.HandleFunc("GET /api/taxonomy", s.taxonomy)
 	mux.HandleFunc("GET /api/datasets", s.listDatasets)
 	mux.HandleFunc("POST /api/datasets/register-folder", s.registerFolderDataset)
 	mux.HandleFunc("POST /api/datasets/register-manifest", s.registerManifestDataset)
@@ -109,6 +111,10 @@ func (s *Server) listVideos(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, types.ListVideosResponse{Videos: videos})
+}
+
+func (s *Server) taxonomy(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, taxonomy.Default())
 }
 
 func (s *Server) listDatasets(w http.ResponseWriter, r *http.Request) {

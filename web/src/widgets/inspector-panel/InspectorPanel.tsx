@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@shared/ui/Button";
 import { Panel } from "@shared/ui/Panel";
-import { ANOMALY_TYPES, CARRYING, CLOTHING_COLORS, LOWER_CLOTHING, UPPER_CLOTHING } from "@shared/config/classCatalog";
+import { DEFAULT_ANOMALY_TYPES, DEFAULT_CARRYING, DEFAULT_CLOTHING_COLORS, DEFAULT_LOWER_CLOTHING, DEFAULT_UPPER_CLOTHING } from "@shared/config/classCatalog";
 import type { ObjectSlot, Segment } from "@entities/anomaly-event/model";
+import type { Taxonomy } from "@entities/taxonomy/model";
 import type { Track } from "@entities/track/model";
 import type { AnnotationRecord } from "@entities/video/model";
 import { className, trackKey, trackDisplayName } from "@entities/track/model";
@@ -17,6 +18,7 @@ interface Props {
   annotations: AnnotationRecord[];
   objectSlots: ObjectSlot[];
   activeSlot: number;
+  taxonomy?: Taxonomy;
   onQueueDelete: () => void;
   onClearDeletes: () => void;
   onPurgeDeletes: () => void;
@@ -45,6 +47,7 @@ export function InspectorPanel({
   annotations,
   objectSlots,
   activeSlot,
+  taxonomy,
   onQueueDelete,
   onClearDeletes,
   onPurgeDeletes,
@@ -57,7 +60,7 @@ export function InspectorPanel({
   const [start, setStart] = useState(lockedSegment?.start_frame || 1);
   const [end, setEnd] = useState(lockedSegment?.end_frame || 1);
   const [segmentIds, setSegmentIds] = useState<number[]>(lockedSegment ? [lockedSegment.index] : []);
-  const [anomalyType, setAnomalyType] = useState("骑车");
+  const [anomalyTypes, setAnomalyTypes] = useState<string[]>(["骑车"]);
   const [reason, setReason] = useState("");
   const [severity, setSeverity] = useState("中");
   const [appearance, setAppearance] = useState({ upper_color: "未填写", upper_clothing: "未填写", lower_color: "未填写", lower_clothing: "未填写", carrying: "未填写" });
@@ -65,6 +68,29 @@ export function InspectorPanel({
   const selectedText = selectedTrack ? `${trackDisplayName(selectedTrack)} · ${selectedTrack.first_frame}-${selectedTrack.last_frame}` : "未选择";
 
   const activeObject = useMemo(() => objectSlots[activeSlot], [activeSlot, objectSlots]);
+  const anomalyTypeOptions = taxonomy?.anomaly_types?.length ? taxonomy.anomaly_types : [...DEFAULT_ANOMALY_TYPES];
+  const clothingColors = taxonomy?.clothing_colors?.length ? taxonomy.clothing_colors : [...DEFAULT_CLOTHING_COLORS];
+  const upperClothing = taxonomy?.upper_clothing?.length ? taxonomy.upper_clothing : [...DEFAULT_UPPER_CLOTHING];
+  const lowerClothing = taxonomy?.lower_clothing?.length ? taxonomy.lower_clothing : [...DEFAULT_LOWER_CLOTHING];
+  const carrying = taxonomy?.carrying?.length ? taxonomy.carrying : [...DEFAULT_CARRYING];
+
+  useEffect(() => {
+    if (!lockedSegment) return;
+    setStart(lockedSegment.start_frame);
+    setEnd(lockedSegment.end_frame);
+    setSegmentIds((ids) => (ids.includes(lockedSegment.index) ? ids : [lockedSegment.index]));
+  }, [lockedSegment]);
+
+  const resetEventDraft = () => {
+    setStart(lockedSegment?.start_frame || 1);
+    setEnd(lockedSegment?.end_frame || 1);
+    setSegmentIds(lockedSegment ? [lockedSegment.index] : []);
+    setAnomalyTypes(["骑车"]);
+    setSeverity("中");
+    setReason("");
+    setAppearance({ upper_color: "未填写", upper_clothing: "未填写", lower_color: "未填写", lower_clothing: "未填写", carrying: "未填写" });
+    onSlots(createEmptyObjectSlots(), 0);
+  };
 
   const fillCurrentObject = () => {
     if (!selectedTrack) {
@@ -121,7 +147,7 @@ export function InspectorPanel({
       alert("请选择异常事件所属的异常时间段");
       return;
     }
-    onSaveEvent({ start, end, segmentIds, anomalyType, reason, severity, objects });
+    onSaveEvent({ start, end, segmentIds, anomalyType: anomalyTypes.join("|"), reason, severity, objects });
   };
 
   return (
@@ -158,7 +184,14 @@ export function InspectorPanel({
         </div>
       </Panel>
 
-      <Panel title="异常事件（一个事件可含多个对象）">
+      <Panel
+        title="异常事件（一个事件可含多个对象）"
+        action={
+          <Button type="button" onClick={resetEventDraft}>
+            新增异常事件
+          </Button>
+        }
+      >
         <label>
           所属异常时间段（可多选）
           <div className="segmentCheckGrid">
@@ -188,13 +221,22 @@ export function InspectorPanel({
         </div>
         <Button onClick={setRangeFromObjectAndSegment}>按当前对象 ∩ 当前锁定片段设置时间段</Button>
         <div className="formGrid two">
-          <label>
-            异常类型
-            <select value={anomalyType} onChange={(event) => setAnomalyType(event.target.value)}>
-              {ANOMALY_TYPES.map((item) => (
-                <option key={item}>{item}</option>
+          <label className="fullSpan">
+            异常类型（可多选）
+            <div className="checkGrid">
+              {anomalyTypeOptions.map((item) => (
+                <label className="segmentCheck" key={item}>
+                  <input
+                    type="checkbox"
+                    checked={anomalyTypes.includes(item)}
+                    onChange={(event) => {
+                      setAnomalyTypes(event.target.checked ? [...anomalyTypes, item] : anomalyTypes.filter((value) => value !== item));
+                    }}
+                  />
+                  {item}
+                </label>
               ))}
-            </select>
+            </div>
           </label>
           <label>
             严重程度
@@ -213,11 +255,11 @@ export function InspectorPanel({
         <div className="appearancePanel">
           <h4>当前对象在该异常中的描述</h4>
           <div className="formGrid two">
-            <Select label="上衣颜色" value={appearance.upper_color} options={CLOTHING_COLORS} onChange={(v) => setAppearance({ ...appearance, upper_color: v })} />
-            <Select label="上衣类型" value={appearance.upper_clothing} options={UPPER_CLOTHING} onChange={(v) => setAppearance({ ...appearance, upper_clothing: v })} />
-            <Select label="下装颜色" value={appearance.lower_color} options={CLOTHING_COLORS} onChange={(v) => setAppearance({ ...appearance, lower_color: v })} />
-            <Select label="下装类型" value={appearance.lower_clothing} options={LOWER_CLOTHING} onChange={(v) => setAppearance({ ...appearance, lower_clothing: v })} />
-            <Select label="携带/关联物" value={appearance.carrying} options={CARRYING} onChange={(v) => setAppearance({ ...appearance, carrying: v })} />
+            <Select label="上衣颜色" value={appearance.upper_color} options={clothingColors} onChange={(v) => setAppearance({ ...appearance, upper_color: v })} />
+            <Select label="上衣类型" value={appearance.upper_clothing} options={upperClothing} onChange={(v) => setAppearance({ ...appearance, upper_clothing: v })} />
+            <Select label="下装颜色" value={appearance.lower_color} options={clothingColors} onChange={(v) => setAppearance({ ...appearance, lower_color: v })} />
+            <Select label="下装类型" value={appearance.lower_clothing} options={lowerClothing} onChange={(v) => setAppearance({ ...appearance, lower_clothing: v })} />
+            <Select label="携带/关联物" value={appearance.carrying} options={carrying} onChange={(v) => setAppearance({ ...appearance, carrying: v })} />
           </div>
         </div>
 

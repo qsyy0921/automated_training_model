@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DatasetRecord } from "@entities/dataset/model";
 import type { TaskRecord } from "@entities/task/model";
+import type { Taxonomy } from "@entities/taxonomy/model";
 import type { Box } from "@entities/track/model";
 import type { VideoMeta, VideoSummary, AnnotationRecord } from "@entities/video/model";
 
@@ -27,6 +28,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const apiClient = {
   listVideos: async () => request<{ videos: VideoSummary[] }>("/api/videos"),
+  taxonomy: async () => request<Taxonomy>("/api/taxonomy"),
   videoMeta: async (scene: string) => request<VideoMeta>(`/api/video/${scene}/meta`),
   frameBoxes: async (scene: string, frame: number) => request<{ scene: string; frame: number; boxes: Box[] }>(`/api/video/${scene}/boxes?frame=${frame}`),
   saveAnnotation: async (scene: string, payload: Partial<AnnotationRecord>) =>

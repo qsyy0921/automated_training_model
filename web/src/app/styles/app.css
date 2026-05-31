@@ -442,11 +442,26 @@ small {
 }
 
 .segmentCheckGrid,
+.checkGrid,
 .objectSlots,
 .savedList,
 .datasetGrid {
   display: grid;
   gap: 10px;
+}
+
+.checkGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 170px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.fullSpan {
+  grid-column: 1 / -1;
 }
 
 .segmentCheck {
