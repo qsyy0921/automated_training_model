@@ -3,9 +3,10 @@
 This directory is the execution-layer boundary for model and data jobs.
 
 The Go backend owns control-plane state: agent registry, tool registry, workflow
-definitions, audit events, and task scheduling. Python workers own GPU-heavy or
-research-heavy execution: tracking, segmentation, VLM grounding, training,
-evaluation, and report materialization.
+definitions, audit events, remote Gateway, channel routing, and task scheduling.
+Python workers own LLM-heavy, GPU-heavy, or research-heavy execution: Agent
+Runtime planning, tracking, segmentation, VLM grounding, training, evaluation,
+and report materialization.
 
 The current worker is intentionally small. It accepts a JSON job envelope and
 prints a JSON result, so it can later be launched by a local process runner,
@@ -26,4 +27,19 @@ $job = @{
 } | ConvertTo-Json -Compress
 Set-Content -Path tmp\agent-job.json -Value $job -Encoding UTF8
 python -m agent_worker.main --job-file tmp\agent-job.json
+```
+
+Agent Runtime prototype:
+
+```powershell
+$request = @{
+  message_id = "msg_001"
+  channel = "qq"
+  account_id = "default"
+  peer_kind = "direct"
+  peer_id = "12345"
+  sender_id = "12345"
+  text = "/bot-run dry shanghaitech-original"
+} | ConvertTo-Json -Compress
+python -m agent_runtime.main --request-json $request
 ```

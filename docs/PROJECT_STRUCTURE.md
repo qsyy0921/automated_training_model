@@ -148,6 +148,7 @@ internal/app/channelapp/            Channel account/runtime/AgentIngress ports
 internal/app/intakeapp/             Quarantine/scan/Data Intake Plan ports
 internal/infrastructure/agentrepo/  JSON registry adapter for agent metadata
 workers/python/agent_worker/        Python execution-layer job envelope skeleton
+workers/python/agent_runtime/       Python Agent Runtime planning prototype
 skills/automated-training-data-lake/ Dataset/model ingest skill and scripts
 docs/SYSTEM_DESIGN_DOCUMENT.md      Current SDD source of truth
 docs/CODE_ARCHITECTURE.md           Code architecture mapped to the diagrams

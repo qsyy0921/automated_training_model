@@ -133,6 +133,12 @@ QQ 等 Channel 后续不仅能发送命令，也可以上传图片、zip、manif
 
 当前测试 provider 可以使用 Mimo 兼容接口：`mimo-v2.5-pro` 负责综合规划，`mimo-v2.5` 负责视觉理解。真实 key 只能放本机环境变量或 secret store，不能进入仓库、日志或浏览器端。详细设计见 [CHANNEL_DATA_INGEST_SDD.md](CHANNEL_DATA_INGEST_SDD.md)。
 
+## 3.5 Agent Runtime
+
+Agent Runtime 是 Web、CLI、桌面端、QQ/NapCat 以及后续 Channel 共享的会话运行时。它接收标准化的 `InboundMessage`，先做规则意图识别，再把自然语言和附件交给 LLM planner，最后通过 Reply Router 回到原入口。
+
+当前 MVP 已预留 QQ/NapCat OneBot HTTP 入口：`POST /api/channels/qq/onebot`。详细设计见 [AGENT_RUNTIME_SDD.md](AGENT_RUNTIME_SDD.md)。
+
 ## 4. 核心域边界
 
 ### Agent Serving Platform

@@ -30,6 +30,7 @@ internal/api/httpapi
 
 internal/app
   agentapp       Agent 控制面用例
+  agentruntime   多入口共享 Agent Runtime、规则意图识别和 Channel message 处理
   channelapp     QQ/Telegram/飞书等入口的统一 Channel 端口
   intakeapp      Channel 上传数据的 quarantine、scan 和 Data Intake Plan
   lifecycleapp   训练/评估/部署生命周期用例
@@ -53,6 +54,7 @@ internal/domain
 Channel 和 Intake 是刻意提前拆出的边界：
 
 - `internal/domain/channel` 只定义平台无关模型，不包含 QQ SDK、HTTP handler 或文件仓库。
+- `internal/app/agentruntime` 只处理标准化消息和结构化动作，不依赖 QQ/NapCat 细节。
 - `internal/app/channelapp` 只定义账号、运行时和 AgentIngress 端口，QQ/Telegram/飞书只能实现这些端口。
 - `internal/app/intakeapp` 只负责附件隔离、扫描和数据接入计划，不直接写训练数据或启动模型。
 - 具体平台实现后续放在 `internal/infrastructure/qqbot`、`internal/infrastructure/telegram`、`internal/infrastructure/feishu`。
@@ -110,6 +112,9 @@ internal/api/httpapi/agent_handlers.go
 ## 5. 执行与能力层
 
 ```text
+workers/python/agent_runtime
+  Python Agent Runtime prototype：LLM planner、skill resolver、tool-call plan
+
 workers/python/agent_worker
   Python worker JSON envelope
 
@@ -124,7 +129,7 @@ crates/tracking-math
   Rust/WASM 热点计算
 ```
 
-当前 Python worker 只完成契约和 dry-run，真实训练/评估/标注执行还没有接入。
+当前 Python runtime/worker 只完成契约和 dry-run，真实 LLM planner、训练/评估/标注执行还没有接入。
 
 ## 6. 数据与状态层
 
@@ -160,7 +165,23 @@ Web 当前定位：
 
 Web 不承担主 Agent 对话和自动化执行。
 
-## 8. 当前架构风险
+## 8. Channel 通信 MVP
+
+```text
+internal/infrastructure/qqbot/onebot.go
+  NapCat / OneBot event -> channel.InboundMessage
+  channel.OutboundMessage -> OneBot send_msg payload
+
+internal/api/httpapi/channel_handlers.go
+  GET  /api/channels
+  GET  /api/channels/qq/status
+  POST /api/channels/qq/test-message
+  POST /api/channels/qq/onebot
+```
+
+这个链路用于本机挂测试 QQ + NapCat 的通信验证。当前会返回 `onebot_reply`，下一步再实现主动调用 NapCat `send_msg` 的 outbound sender。
+
+## 9. 当前架构风险
 
 1. `workflowapp.ModelGateway` 当前接的是 noop gateway。
 2. `queue.MemoryQueue` 不持久化，重启丢任务。

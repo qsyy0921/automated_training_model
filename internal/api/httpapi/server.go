@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/agentapp"
+	"github.com/qsyy0921/automated_training_model/internal/app/agentruntime"
 	"github.com/qsyy0921/automated_training_model/internal/app/annotationapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/datasetapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/lifecycleapp"
@@ -37,6 +38,7 @@ type Server struct {
 	workspace   *workspaceapp.RuntimeService
 	lifecycle   *lifecycleapp.Service
 	agents      *agentapp.Service
+	runtime     *agentruntime.Service
 	providers   *providerapp.ProviderService
 	taxonomy    taxonomy.Taxonomy
 	webRoot     string
@@ -44,8 +46,8 @@ type Server struct {
 	logger      *slog.Logger
 }
 
-func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.AnnotationService, datasetSvc *datasetapp.DatasetService, workspaceSvc *workspaceapp.RuntimeService, lifecycleSvc *lifecycleapp.Service, agentSvc *agentapp.Service, providerSvc *providerapp.ProviderService, taxonomyCfg taxonomy.Taxonomy, webRoot string, dataRoot string, logger *slog.Logger) http.Handler {
-	s := &Server{media: mediaSvc, annotations: annotationSvc, datasets: datasetSvc, workspace: workspaceSvc, lifecycle: lifecycleSvc, agents: agentSvc, providers: providerSvc, taxonomy: taxonomyCfg.FillDefaults(), webRoot: webRoot, dataRoot: dataRoot, logger: logger}
+func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.AnnotationService, datasetSvc *datasetapp.DatasetService, workspaceSvc *workspaceapp.RuntimeService, lifecycleSvc *lifecycleapp.Service, agentSvc *agentapp.Service, runtimeSvc *agentruntime.Service, providerSvc *providerapp.ProviderService, taxonomyCfg taxonomy.Taxonomy, webRoot string, dataRoot string, logger *slog.Logger) http.Handler {
+	s := &Server{media: mediaSvc, annotations: annotationSvc, datasets: datasetSvc, workspace: workspaceSvc, lifecycle: lifecycleSvc, agents: agentSvc, runtime: runtimeSvc, providers: providerSvc, taxonomy: taxonomyCfg.FillDefaults(), webRoot: webRoot, dataRoot: dataRoot, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /", s.index)
@@ -70,6 +72,10 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("GET /api/agent-runs", s.listAgentRuns)
 	mux.HandleFunc("POST /api/agent-runs", s.submitAgentRun)
 	mux.HandleFunc("GET /api/audit-events", s.listAuditEvents)
+	mux.HandleFunc("GET /api/channels", s.listChannels)
+	mux.HandleFunc("GET /api/channels/qq/status", s.qqStatus)
+	mux.HandleFunc("POST /api/channels/qq/test-message", s.qqTestMessage)
+	mux.HandleFunc("POST /api/channels/qq/onebot", s.qqOneBotEvent)
 	mux.HandleFunc("GET /api/governance/enforcement-points", s.listEnforcementPoints)
 	mux.HandleFunc("GET /api/governance/data-policies", s.listDataGovernancePolicies)
 	mux.HandleFunc("GET /api/governance/release-policies", s.listReleasePolicies)

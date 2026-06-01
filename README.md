@@ -172,6 +172,8 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 - [统一 SDD 总纲](docs/SYSTEM_DESIGN_DOCUMENT.md)
 - [Agent 架构图](docs/AGENT_ARCHITECTURE_DIAGRAMS.md)
 - [Agent 系统设计](docs/AGENT_SYSTEM_DESIGN.md)
+- [Agent Runtime 设计](docs/AGENT_RUNTIME_SDD.md)
+- [Intent / Tool / Skill / MCP 设计](docs/INTENT_TOOL_SKILL_MCP_SDD.md)
 - [代码架构](docs/CODE_ARCHITECTURE.md)
 - [三端界面设计](docs/INTERFACE_DESIGN.md)
 - [远程连接策略](docs/REMOTE_CONNECTION_SDD.md)

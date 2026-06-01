@@ -9,6 +9,7 @@ import (
 
 	httpapi "github.com/qsyy0921/automated_training_model/internal/api/httpapi"
 	"github.com/qsyy0921/automated_training_model/internal/app/agentapp"
+	"github.com/qsyy0921/automated_training_model/internal/app/agentruntime"
 	"github.com/qsyy0921/automated_training_model/internal/app/annotationapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/datasetapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/lifecycleapp"
@@ -49,6 +50,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if err := agentSvc.BootstrapDefaults(ctx); err != nil {
 		return err
 	}
+	agentRuntimeSvc := agentruntime.NewService(agentSvc)
 	providerSvc := providerapp.NewProviderService(providerrepo.NewMemoryRepository(), secrets.NewEnvStore())
 	workspaceSvc := workspaceapp.NewRuntimeService(
 		datasetSvc,
@@ -59,7 +61,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpapi.NewRouter(mediaSvc, annotationSvc, datasetSvc, workspaceSvc, lifecycleSvc, agentSvc, providerSvc, taxonomyCfg, cfg.WebRoot, cfg.DataRoot, logger),
+		Handler:           httpapi.NewRouter(mediaSvc, annotationSvc, datasetSvc, workspaceSvc, lifecycleSvc, agentSvc, agentRuntimeSvc, providerSvc, taxonomyCfg, cfg.WebRoot, cfg.DataRoot, logger),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
