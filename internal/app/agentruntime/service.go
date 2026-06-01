@@ -29,6 +29,7 @@ func NewService(agents AgentControlPlane) *Service {
 func (s *Service) HandleChannelMessage(ctx context.Context, msg channel.InboundMessage) (channel.OutboundMessage, error) {
 	text := strings.TrimSpace(msg.Text)
 	intent := ClassifyIntent(msg)
+	delegation := DecideSubAgent(intent, msg)
 	reply := channel.OutboundMessage{
 		Channel:   msg.Channel,
 		AccountID: msg.AccountID,
@@ -53,11 +54,11 @@ func (s *Service) HandleChannelMessage(ctx context.Context, msg channel.InboundM
 	}
 
 	if intent.Kind == IntentDataIntake {
-		reply.Text = fmt.Sprintf("已收到 %d 个附件。下一步会进入隔离区并生成 Data Intake Plan；正式入湖前需要审批。", len(msg.Attachments))
+		reply.Text = fmt.Sprintf("已收到 %d 个附件。下一步由 %s 进入隔离区并生成 Data Intake Plan；正式入湖前需要审批。", len(msg.Attachments), delegation.AgentID)
 		return reply, nil
 	}
 
-	reply.Text = "已收到。我会通过 Agent Runtime 处理这条消息；当前最小运行时已支持 /bot-status、/bot-runs 和 /bot-run dry。"
+	reply.Text = fmt.Sprintf("已收到。意图会先交给 %s 做规划；当前最小运行时已支持 /bot-status、/bot-runs 和 /bot-run dry。", delegation.AgentID)
 	return reply, nil
 }
 
@@ -68,7 +69,7 @@ func (s *Service) handleCommand(ctx context.Context, msg channel.InboundMessage,
 	case IntentIdentifyActor:
 		return channel.OutboundMessage{Text: fmt.Sprintf("channel=%s account=%s peer=%s:%s sender=%s", msg.Channel, msg.AccountID, msg.Peer.Kind, msg.Peer.ID, msg.SenderID)}, nil
 	case IntentRuntimeStatus:
-		return channel.OutboundMessage{Text: fmt.Sprintf("Agent Gateway online. channel=%s account=%s runtime=ready time=%s", msg.Channel, msg.AccountID, s.now().Format(time.RFC3339))}, nil
+		return channel.OutboundMessage{Text: fmt.Sprintf("Agent Gateway online. channel=%s account=%s runtime=ready agent_loop=python-agent-runtime text_model=mimo-v2.5-pro vision_model=mimo-v2.5 time=%s", msg.Channel, msg.AccountID, s.now().Format(time.RFC3339))}, nil
 	case IntentListRuns:
 		runs, err := s.agents.ListRuns(ctx)
 		if err != nil {
@@ -117,6 +118,8 @@ func (s *Service) handleCommand(ctx context.Context, msg channel.InboundMessage,
 				"/bot-status",
 				"/bot-runs",
 				"/bot-run dry [dataset_id]",
+				"普通文本 -> planner-agent",
+				"图片/附件 -> vision-agent 或 data-intake-agent",
 			}, "\n")}, nil
 		}
 		return channel.OutboundMessage{Text: strings.Join([]string{

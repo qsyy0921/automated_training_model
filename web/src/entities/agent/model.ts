@@ -128,3 +128,48 @@ export interface ControlSurface {
   active_learning: Array<{ id: string; name: string; controls?: string[]; blocks_on?: string[] }>;
   recovery_policies: Array<{ id: string; name: string; protected_state?: string[]; recovery_checks?: string[] }>;
 }
+
+export interface RuntimeStatus {
+  runtime: string;
+  control_plane: string;
+  agent_loop: string;
+  policy: string;
+  entry_points: Array<{
+    id: string;
+    name: string;
+    transport: string;
+    status: string;
+    endpoint?: string;
+    description?: string;
+  }>;
+  provider_routes: Array<{
+    id: string;
+    use_case: string;
+    provider: string;
+    model: string;
+    secret_ref?: string;
+    boundary: string;
+  }>;
+  sub_agents: Array<{
+    id: string;
+    name: string;
+    runtime: string;
+    model_route: string;
+    capabilities?: string[];
+    status: string;
+  }>;
+  skill_evolution: {
+    enabled_by_default: boolean;
+    current_mode: string;
+    controls?: string[];
+  };
+}
+
+export interface ChannelStatus {
+  id: string;
+  name: string;
+  status: string;
+  runtime: string;
+  inbound_endpoint?: string;
+  test_endpoint?: string;
+}

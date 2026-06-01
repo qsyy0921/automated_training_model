@@ -5,10 +5,12 @@ import type {
   AgentSpec,
   AgentToolSpec,
   AuditEvent,
+  ChannelStatus,
   ControlSurface,
   DataGovernancePolicy,
   EnforcementPoint,
   ReleasePolicy,
+  RuntimeStatus,
   RuntimePolicy,
   WorkflowSpec
 } from "@entities/agent/model";
@@ -70,6 +72,22 @@ export const apiClient = {
     request<{ run: AgentRun }>("/api/agent-runs", { method: "POST", body: JSON.stringify(payload) }),
   listAgentRuns: async () => request<{ runs: AgentRun[] }>("/api/agent-runs"),
   listAuditEvents: async (limit = 30) => request<{ events: AuditEvent[] }>(`/api/audit-events?limit=${limit}`),
+  runtimeStatus: async () => request<{ runtime: RuntimeStatus }>("/api/runtime/status"),
+  desktopStatus: async () => request<{ desktop: Record<string, unknown> }>("/api/desktop/status"),
+  listChannels: async () => request<{ channels: ChannelStatus[] }>("/api/channels"),
+  qqStatus: async () => request<Record<string, unknown>>("/api/channels/qq/status"),
+  qqTestMessage: async (text: string) =>
+    request<Record<string, unknown>>("/api/channels/qq/test-message", {
+      method: "POST",
+      body: JSON.stringify({
+        id: `web_${Date.now()}`,
+        channel: "qq",
+        account_id: "default",
+        peer: { channel: "qq", account_id: "default", kind: "direct", id: "web-test" },
+        sender_id: "web-test",
+        text
+      })
+    }),
   listEnforcementPoints: async () => request<{ enforcement_points: EnforcementPoint[] }>("/api/governance/enforcement-points"),
   listDataGovernancePolicies: async () => request<{ data_policies: DataGovernancePolicy[] }>("/api/governance/data-policies"),
   listReleasePolicies: async () => request<{ release_policies: ReleasePolicy[] }>("/api/governance/release-policies"),

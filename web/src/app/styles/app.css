@@ -690,3 +690,136 @@ small {
     grid-template-columns: 320px minmax(650px, 1fr) 420px;
   }
 }
+
+.overviewShell {
+  min-height: 100vh;
+  padding: 28px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 18px;
+}
+
+.overviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.overviewHeader h1 {
+  margin: 4px 0 8px;
+  font-size: 30px;
+  letter-spacing: 0;
+}
+
+.overviewHeader p {
+  max-width: 900px;
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.overviewActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.overviewMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.overviewMetric,
+.overviewPanel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 30px rgba(50, 87, 125, 0.06);
+}
+
+.overviewMetric {
+  min-height: 88px;
+  padding: 14px 16px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.overviewMetric span,
+.overviewRow span {
+  color: var(--muted);
+}
+
+.overviewMetric strong {
+  overflow-wrap: anywhere;
+  font-size: 24px;
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.overviewPanel {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.overviewPanel h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.overviewList {
+  display: grid;
+  gap: 8px;
+}
+
+.overviewRow {
+  min-height: 64px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  gap: 3px;
+}
+
+.overviewRow strong,
+.overviewRow small {
+  overflow-wrap: anywhere;
+}
+
+.jsonPreview {
+  min-height: 180px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pageSwitcher {
+  min-height: 100vh;
+}
+
+.pageSwitcher > .btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
+}

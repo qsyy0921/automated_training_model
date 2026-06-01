@@ -82,6 +82,9 @@ CLI 是主入口：
 
 ```powershell
 go run .\cmd\labelctl agent run -workflow data-to-deployment-lifecycle -dataset workspace-dataset -dry-run=true
+go run .\cmd\labelctl runtime status
+go run .\cmd\labelctl channel qq test /bot-ping
+go run .\cmd\agentdesktop
 go run .\cmd\labelctl governance all
 go run .\cmd\labelctl workflows
 go run .\cmd\labelctl runs
@@ -181,7 +184,10 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 - [Agent 架构图](docs/AGENT_ARCHITECTURE_DIAGRAMS.md)
 - [Agent 系统设计](docs/AGENT_SYSTEM_DESIGN.md)
 - [Agent Runtime 设计](docs/AGENT_RUNTIME_SDD.md)
+- [Sub-Agent 使用策略](docs/SUB_AGENT_STRATEGY_SDD.md)
 - [Intent / Tool / Skill / MCP 设计](docs/INTENT_TOOL_SKILL_MCP_SDD.md)
+- [图片生成代理与 Skill 自进化](docs/IMAGE_PROXY_AND_SKILL_EVOLUTION_SDD.md)
+- [入口测试 SDD](docs/ENTRYPOINTS_TEST_SDD.md)
 - [代码架构](docs/CODE_ARCHITECTURE.md)
 - [三端界面设计](docs/INTERFACE_DESIGN.md)
 - [远程连接策略](docs/REMOTE_CONNECTION_SDD.md)

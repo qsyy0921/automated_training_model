@@ -9,7 +9,7 @@
 
 ```text
 F:\automated_training_model
-  cmd/        Go 可执行程序入口
+  cmd/        Go 可执行程序入口，包含 labelserver、labelctl、agentdesktop
   internal/   Go 后端核心代码
   web/        Vite + React + TypeScript 前端工程
   docs/       产品、SDD、架构和维护文档

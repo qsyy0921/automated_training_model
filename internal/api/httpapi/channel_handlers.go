@@ -12,10 +12,12 @@ func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channels": []map[string]any{
 			{
-				"id":      "qq",
-				"name":    "QQ / NapCat OneBot",
-				"status":  "adapter-ready",
-				"runtime": "agent-runtime",
+				"id":               "qq",
+				"name":             "QQ / NapCat OneBot",
+				"status":           "adapter-ready",
+				"runtime":          "agent-runtime",
+				"inbound_endpoint": "/api/channels/qq/onebot",
+				"test_endpoint":    "/api/channels/qq/test-message",
 			},
 		},
 	})

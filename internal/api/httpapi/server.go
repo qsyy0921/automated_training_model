@@ -72,6 +72,8 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("GET /api/agent-runs", s.listAgentRuns)
 	mux.HandleFunc("POST /api/agent-runs", s.submitAgentRun)
 	mux.HandleFunc("GET /api/audit-events", s.listAuditEvents)
+	mux.HandleFunc("GET /api/runtime/status", s.runtimeStatus)
+	mux.HandleFunc("GET /api/desktop/status", s.desktopStatus)
 	mux.HandleFunc("GET /api/channels", s.listChannels)
 	mux.HandleFunc("GET /api/channels/qq/status", s.qqStatus)
 	mux.HandleFunc("POST /api/channels/qq/test-message", s.qqTestMessage)

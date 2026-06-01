@@ -93,6 +93,14 @@ func dispatch(cfg Config, args []string) error {
 		return getJSON(cfg.addr + "/api/agent-runs")
 	case "audit":
 		return getJSON(cfg.addr + "/api/audit-events")
+	case "runtime":
+		return runRuntime(cfg, args[1:])
+	case "desktop":
+		return runDesktop(cfg, args[1:])
+	case "channels":
+		return getJSON(cfg.addr + "/api/channels")
+	case "channel":
+		return runChannel(cfg, args[1:])
 	case "governance":
 		return runGovernance(cfg, args[1:])
 	case "agent":
@@ -163,6 +171,61 @@ func runGovernance(cfg Config, args []string) error {
 		return getJSON(cfg.addr + "/api/governance/runtime-policies")
 	default:
 		return fmt.Errorf("unknown governance command: %s", args[0])
+	}
+}
+
+func runRuntime(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "status" {
+		return getJSON(cfg.addr + "/api/runtime/status")
+	}
+	return fmt.Errorf("unknown runtime command: %s", args[0])
+}
+
+func runDesktop(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "status" {
+		return getJSON(cfg.addr + "/api/desktop/status")
+	}
+	return fmt.Errorf("unknown desktop command: %s", args[0])
+}
+
+func runChannel(cfg Config, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: labelctl channel qq status|test [message]")
+	}
+	switch args[0] {
+	case "qq":
+		return runQQChannel(cfg, args[1:])
+	default:
+		return fmt.Errorf("unknown channel: %s", args[0])
+	}
+}
+
+func runQQChannel(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "status" {
+		return getJSON(cfg.addr + "/api/channels/qq/status")
+	}
+	switch args[0] {
+	case "test":
+		text := strings.TrimSpace(strings.Join(args[1:], " "))
+		if text == "" {
+			text = "/bot-ping"
+		}
+		body := map[string]any{
+			"id":         fmt.Sprintf("cli_%d", time.Now().UnixNano()),
+			"channel":    "qq",
+			"account_id": "default",
+			"peer": map[string]any{
+				"channel":    "qq",
+				"account_id": "default",
+				"kind":       "direct",
+				"id":         "cli-test",
+			},
+			"sender_id": "cli-test",
+			"text":      text,
+		}
+		return postJSON(cfg.addr+"/api/channels/qq/test-message", body)
+	default:
+		return fmt.Errorf("unknown qq channel command: %s", args[0])
 	}
 }
 
@@ -325,7 +388,7 @@ Allowed schemas:
 {"action":"download_hf_model","repo_id":"org/repo","pull_lfs":true}
 {"action":"agent_run","workflow_id":"data-to-deployment-lifecycle","dataset_id":"...","scene":"...","dry_run":true,"params":{"source":"cli-agent"}}
 {"action":"api_get","endpoint":"/api/agents"}
-Only choose api_get for safe read-only endpoints under /healthz, /api/agents, /api/tools, /api/workflows, /api/agent-runs, /api/audit-events, /api/videos, /api/governance/control-surface, /api/governance/enforcement-points, /api/governance/data-policies, /api/governance/release-policies, /api/governance/runtime-policies.
+Only choose api_get for safe read-only endpoints under /healthz, /api/runtime/status, /api/desktop/status, /api/channels, /api/channels/qq/status, /api/agents, /api/tools, /api/workflows, /api/agent-runs, /api/audit-events, /api/videos, /api/governance/control-surface, /api/governance/enforcement-points, /api/governance/data-policies, /api/governance/release-policies, /api/governance/runtime-policies.
 The CLI agent is the primary interface. Prefer workflow_id "data-to-deployment-lifecycle" for full lifecycle work from data collection to model deployment. Use "human-loop-autolabel" only when the user explicitly asks for video labeling or review.
 For download_hf_model, only use a repository id explicitly present in the user input. If it is missing, return chat asking for the repository id.`
 	content, err := callLLM(context.Background(), []chatMessage{
@@ -490,7 +553,7 @@ func writeResponse(resp *http.Response) error {
 
 func safeEndpoint(endpoint string) bool {
 	switch endpoint {
-	case "/healthz", "/api/agents", "/api/tools", "/api/workflows", "/api/agent-runs", "/api/audit-events", "/api/videos", "/api/governance/control-surface", "/api/governance/enforcement-points", "/api/governance/data-policies", "/api/governance/release-policies", "/api/governance/runtime-policies":
+	case "/healthz", "/api/runtime/status", "/api/desktop/status", "/api/channels", "/api/channels/qq/status", "/api/agents", "/api/tools", "/api/workflows", "/api/agent-runs", "/api/audit-events", "/api/videos", "/api/governance/control-surface", "/api/governance/enforcement-points", "/api/governance/data-policies", "/api/governance/release-policies", "/api/governance/runtime-policies":
 		return true
 	default:
 		return false
@@ -536,6 +599,11 @@ func usage() {
   workflows
   runs
   audit
+  runtime [status]
+  desktop [status]
+  channels
+  channel qq status
+  channel qq test [/bot-ping]
   governance all|enforcement|data|release|runtime
   agent [ask <prompt> | run [-workflow data-to-deployment-lifecycle] | auto | <prompt>]
   ask <prompt>

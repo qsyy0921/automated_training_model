@@ -73,9 +73,9 @@ class RuntimeResult:
     intent: Intent
     reply_text: str
     plan: list[dict[str, Any]] = field(default_factory=list)
+    delegations: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
         value["intent"] = self.intent.to_dict()
         return value
-
