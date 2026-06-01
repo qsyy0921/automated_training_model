@@ -8,6 +8,10 @@
 | [AGENT_ARCHITECTURE_DIAGRAMS.md](AGENT_ARCHITECTURE_DIAGRAMS.md) | 三张 imagegen 架构图与可维护 Mermaid 源图。 |
 | [AGENT_SYSTEM_DESIGN.md](AGENT_SYSTEM_DESIGN.md) | Agent Serving 与 Model/Data Training 的领域边界和治理 contract。 |
 | [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md) | 当前代码结构如何对应三张架构图。 |
+| [INTERFACE_DESIGN.md](INTERFACE_DESIGN.md) | CLI、本地客户端、Web 前端三类入口的界面设计和职责边界。 |
+| [REMOTE_CONNECTION_SDD.md](REMOTE_CONNECTION_SDD.md) | 以本机 Gateway 为中心的 Web、CLI、桌面端和 Channel 远程连接策略与 SDD 测试计划。 |
+| [QQ_CHANNEL_SDD.md](QQ_CHANNEL_SDD.md) | 当前阶段 QQ 消息入口的 SDD，定义 Channel Adapter、路由、群策略和治理边界。 |
+| [CHANNEL_DATA_INGEST_SDD.md](CHANNEL_DATA_INGEST_SDD.md) | 通过 QQ 等 Channel 上传数据并由 LLM Agent 规划入湖、审核和工作流触发的设计。 |
 | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | 仓库目录规则和长期结构。 |
 | [FRONTEND_ARCHITECTURE.md](FRONTEND_ARCHITECTURE.md) | TypeScript/React 前端分层。 |
 | [WASM_ACCELERATION.md](WASM_ACCELERATION.md) | Rust/WASM 加速层边界。 |

@@ -30,6 +30,8 @@ internal/api/httpapi
 
 internal/app
   agentapp       Agent 控制面用例
+  channelapp     QQ/Telegram/飞书等入口的统一 Channel 端口
+  intakeapp      Channel 上传数据的 quarantine、scan 和 Data Intake Plan
   lifecycleapp   训练/评估/部署生命周期用例
   workflowapp    队列和模型网关端口
   datasetapp     数据集接入用例
@@ -38,6 +40,7 @@ internal/app
 
 internal/domain
   agent          Agent / Tool / Workflow / Governance / Control Surface
+  channel        Channel account、message、attachment、session key、data intake plan
   dataset        数据源和数据集
   annotation     对象级异常事件与审核
   workflow       任务状态
@@ -46,6 +49,13 @@ internal/domain
 ```
 
 控制面负责稳定业务、状态、注册表、治理、审计和 API，不直接绑定 Python 或 PyTorch。
+
+Channel 和 Intake 是刻意提前拆出的边界：
+
+- `internal/domain/channel` 只定义平台无关模型，不包含 QQ SDK、HTTP handler 或文件仓库。
+- `internal/app/channelapp` 只定义账号、运行时和 AgentIngress 端口，QQ/Telegram/飞书只能实现这些端口。
+- `internal/app/intakeapp` 只负责附件隔离、扫描和数据接入计划，不直接写训练数据或启动模型。
+- 具体平台实现后续放在 `internal/infrastructure/qqbot`、`internal/infrastructure/telegram`、`internal/infrastructure/feishu`。
 
 ## 3. 生命周期 Agent 层
 
@@ -157,3 +167,4 @@ Web 不承担主 Agent 对话和自动化执行。
 3. Python worker 非 dry-run 未执行真实任务。
 4. 治理 contract 还没有接到强制 preflight。
 5. Lineage catalog 和 artifact manifest 还没有成为硬约束。
+6. Channel adapter、Data Intake 和 Gateway auth 目前只有边界，尚未接入实际运行路径。

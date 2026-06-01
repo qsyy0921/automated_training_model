@@ -31,7 +31,9 @@ internal/
   app/
     agentapp/             Agent/Tool/Workflow/Governance 控制面
     annotationapp/        标注用例
+    channelapp/           Channel 入口端口，屏蔽 QQ/Telegram/飞书差异
     datasetapp/           数据集注册与管理用例
+    intakeapp/            Channel 上传数据的隔离、扫描和入湖计划
     lifecycleapp/         自动标注、训练、评估、部署生命周期任务
     mediaapp/             视频、帧、轨迹读取用例
     providerapp/          Provider/API key 查询边界
@@ -41,6 +43,7 @@ internal/
     agent/
     annotation/
     autolabel/
+    channel/
     dataset/
     deployment/
     evaluation/
@@ -139,7 +142,10 @@ Agent additions:
 ```text
 internal/cli/labelctl/              CLI-first Agent command surface
 internal/domain/agent/              Agent, tool, workflow, run, audit domain model
+internal/domain/channel/            Channel account/message/attachment/intake plan model
 internal/app/agentapp/              Agent control-plane application service and ports
+internal/app/channelapp/            Channel account/runtime/AgentIngress ports
+internal/app/intakeapp/             Quarantine/scan/Data Intake Plan ports
 internal/infrastructure/agentrepo/  JSON registry adapter for agent metadata
 workers/python/agent_worker/        Python execution-layer job envelope skeleton
 skills/automated-training-data-lake/ Dataset/model ingest skill and scripts

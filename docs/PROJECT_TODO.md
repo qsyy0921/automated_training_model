@@ -5,6 +5,16 @@
 
 ## 近期必须做
 
+- [ ] 补齐 CLI 命令组：`dataset`、`models`、`deploy`、`logs`、`doctor`。
+- [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
+- [ ] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
+- [ ] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
+- [ ] 新增 `internal/app/intakeapp`，支持 Channel 附件 quarantine、scan、Data Intake Plan 和入湖 dry-run。
+- [ ] 实现 QQ MVP：单 account、私聊文本、群聊 @Bot、`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`。
+- [ ] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
+- [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
+- [ ] 拆出独立 `Task Center`、`Model Registry`、`Governance` 页面。
+- [ ] 设计并实现 Go TUI 本地客户端，复用 `internal/cli/labelctl` 能力。
 - [ ] 为 React 前端增加 Playwright UI smoke tests。
 - [ ] 为 API 响应增加 Zod runtime schema，避免字段变更导致白屏。
 - [ ] 把 `features/annotate-anomaly-event` 拆成事件表单、对象槽位、保存记录三个子模块。

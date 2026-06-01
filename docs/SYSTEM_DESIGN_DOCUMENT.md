@@ -82,6 +82,57 @@ Agent 核心层
   Queue Store
 ```
 
+## 3.1 三端入口界面
+
+当前先固定三类入口，后续 QQ、飞书、Telegram 等消息平台只作为 Channel Adapter 接到 Gateway。
+
+| 入口 | 定位 | 技术方向 |
+| --- | --- | --- |
+| CLI | Agent 主入口，负责对话、规划、执行、自动化、CI 和远程服务器操作。 | Go `labelctl`。 |
+| 本地客户端 | 面向研发和操作员的轻量 Agent Client，负责任务、日志、审批、模型和数据集操作。 | 短期 Go TUI，长期可选 Tauri + TypeScript/React。 |
+| Web 前端 | 团队控制台和人工审核面，负责可视化、视频审核、任务监控、治理审计和发布审批。 | TypeScript + React + Vite。 |
+
+详细界面设计见 [INTERFACE_DESIGN.md](INTERFACE_DESIGN.md)。
+
+## 3.2 远程连接策略
+
+当前以你的 Windows 电脑作为 Gateway Host。Web、CLI、桌面端、QQ 等 Channel 都远程连接 Gateway，不直接访问 Data Lake、模型目录、Python worker 或训练脚本。
+
+```text
+Web / CLI / Desktop / QQ Channel
+  -> local / LAN / HTTPS tunnel
+  -> Go Gateway
+  -> Session Router
+  -> Agent Core
+  -> Governance
+```
+
+默认本机监听 `127.0.0.1:7870`。局域网和远程访问必须启用 token auth；公网访问必须走 HTTPS 隧道或 VPN，不直接暴露 `7870`。连接策略和 SDD 测试计划见 [REMOTE_CONNECTION_SDD.md](REMOTE_CONNECTION_SDD.md)。
+
+## 3.3 QQ 消息入口
+
+当前消息平台只设计 QQ。QQ 作为 Channel Adapter 接入 Gateway，不直接调用训练、标注、模型注册或部署逻辑。
+
+```text
+QQ 私聊 / 群聊 / 频道
+  -> QQ Channel Adapter
+  -> Go Gateway
+  -> Session Router
+  -> Agent Core
+  -> Governance
+  -> Workflow / Tool / Worker
+```
+
+Go 负责 QQ 接入的控制面：账号、SecretRef、连接生命周期、消息归一化、会话路由、群策略、治理、审批和审计。模型训练、评估、多媒体处理仍然留在 Python worker 或专用 worker。
+
+详细设计见 [QQ_CHANNEL_SDD.md](QQ_CHANNEL_SDD.md)。
+
+## 3.4 Channel 数据接入
+
+QQ 等 Channel 后续不仅能发送命令，也可以上传图片、zip、manifest、CSV/JSON 等数据。Channel Adapter 只负责接收和归一化，LLM Agent 负责理解意图、选择本地或 API 模型、生成结构化 Data Intake Plan，Go 控制面负责治理、审批、隔离区、入湖、审计和 workflow 提交。
+
+当前测试 provider 可以使用 Mimo 兼容接口：`mimo-v2.5-pro` 负责综合规划，`mimo-v2.5` 负责视觉理解。真实 key 只能放本机环境变量或 secret store，不能进入仓库、日志或浏览器端。详细设计见 [CHANNEL_DATA_INGEST_SDD.md](CHANNEL_DATA_INGEST_SDD.md)。
+
 ## 4. 核心域边界
 
 ### Agent Serving Platform
