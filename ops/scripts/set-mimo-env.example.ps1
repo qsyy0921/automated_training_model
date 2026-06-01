@@ -1,3 +1,5 @@
+. "$PSScriptRoot\utf8.ps1" -Quiet
+
 $env:ANTHROPIC_BASE_URL = "https://token-plan-cn.xiaomimimo.com/anthropic"
 $env:ANTHROPIC_AUTH_TOKEN = "replace_me"
 $env:ANTHROPIC_MODEL = "mimo-v2.5-pro"
@@ -8,4 +10,3 @@ $env:MIMO_OPENAI_BASE_URL = "https://token-plan-cn.xiaomimimo.com/v1"
 $env:MIMO_DEFAULT_MODEL = "mimo-v2.5-pro"
 $env:MIMO_VISION_MODEL = "mimo-v2.5"
 Write-Host "Mimo provider environment variables are set for this PowerShell session."
-

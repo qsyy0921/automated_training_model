@@ -10,6 +10,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
+. (Join-Path $repoRoot "ops\scripts\utf8.ps1") -Quiet
+
 if (-not (Test-Path -LiteralPath $SourceRoot)) {
   throw "SourceRoot does not exist: $SourceRoot"
 }

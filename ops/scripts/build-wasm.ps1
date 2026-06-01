@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+. "$PSScriptRoot\utf8.ps1" -Quiet
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $crateRoot = Join-Path $repoRoot "crates\tracking-math"

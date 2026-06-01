@@ -127,6 +127,14 @@ ops/                      部署、脚本、配置、迁移和工具
 
 ## 本机运行
 
+先启用 PowerShell UTF-8 模式，避免中文文档、脚本输出和 Python/Go 输出在 Windows PowerShell 里乱码：
+
+```powershell
+cd F:\automated_training_model
+. .\ops\scripts\utf8.ps1
+.\ops\scripts\encoding-doctor.ps1
+```
+
 构建前端：
 
 ```powershell

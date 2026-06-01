@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+. "$PSScriptRoot\utf8.ps1" -Quiet
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location $root
 try {

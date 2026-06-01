@@ -132,7 +132,13 @@ F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe test ./...
 . .\ops\scripts\utf8.ps1
 ```
 
-否则中文文档容易在终端显示乱码。文件本身应保持 UTF-8。
+否则中文文档容易在 Windows PowerShell 5.1 或非 UTF-8 shell 里显示乱码。文件本身应保持 UTF-8。需要诊断时运行：
+
+```powershell
+.\ops\scripts\encoding-doctor.ps1
+```
+
+项目内 PowerShell 脚本应在开头 dot-source `ops\scripts\utf8.ps1 -Quiet`，不要依赖用户当前 shell 的默认编码。
 
 ## 6. GitHub 约定
 
@@ -156,4 +162,3 @@ Update SDD and project records
 将 automated_training_model 建成可持续演进的 Go 主后端 DDD/六边形架构项目：
 前端按平台化模块拆分，SDD/TODO/DONE/架构记录随代码更新，并持续推送到 GitHub。
 ```
-

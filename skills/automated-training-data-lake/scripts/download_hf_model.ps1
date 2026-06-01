@@ -9,6 +9,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
+. (Join-Path $repoRoot "ops\scripts\utf8.ps1") -Quiet
+
 if ($RepoId -notmatch "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") {
   throw "RepoId must look like org/repo, got: $RepoId"
 }
