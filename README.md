@@ -34,6 +34,20 @@ Model & Data Training Platform
 
 更多架构图见：[docs/AGENT_ARCHITECTURE_DIAGRAMS.md](docs/AGENT_ARCHITECTURE_DIAGRAMS.md)。
 
+## 架构图
+
+### 全流程模型训练与部署 Agent 助手架构图
+
+![全流程模型训练与部署 Agent 助手架构图](docs/assets/agent-lifecycle-overview-imagegen.png)
+
+### CLI-first Agent 运行时架构图
+
+![CLI-first Agent 运行时架构图](docs/assets/agent-cli-runtime-imagegen.png)
+
+### 从数据采集到模型部署的 Agent 闭环
+
+![从数据采集到模型部署的 Agent 闭环](docs/assets/agent-data-to-deploy-loop-imagegen.png)
+
 ## 当前能力
 
 - 视频、帧、tracking 数据浏览与 Canvas 渲染。
