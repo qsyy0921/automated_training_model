@@ -1,7 +1,7 @@
 # 项目目录结构
 
-版本：v0.4  
-日期：2026-06-01
+版本：v0.5  
+日期：2026-06-02
 
 ## 1. 根目录原则
 
@@ -26,7 +26,10 @@ Go 后端采用 DDD / 六边形架构。
 internal/
   api/
     httpapi/              HTTP handler / DTO adapter
+  cli/
+    labelctl/             CLI Agent 命令、LLM action planner、HTTP client
   app/
+    agentapp/             Agent/Tool/Workflow/Governance 控制面
     annotationapp/        标注用例
     datasetapp/           数据集注册与管理用例
     lifecycleapp/         自动标注、训练、评估、部署生命周期任务
@@ -35,6 +38,7 @@ internal/
     workspaceapp/         当前数据集运行时切换
     workflowapp/          Agent / worker workflow 边界
   domain/
+    agent/
     annotation/
     autolabel/
     dataset/
@@ -47,6 +51,7 @@ internal/
     training/
     workflow/
   infrastructure/
+    agentrepo/
     config/
     datasetrepo/
     datasetruntime/
@@ -132,12 +137,14 @@ ops/
 Agent additions:
 
 ```text
+internal/cli/labelctl/              CLI-first Agent command surface
 internal/domain/agent/              Agent, tool, workflow, run, audit domain model
 internal/app/agentapp/              Agent control-plane application service and ports
 internal/infrastructure/agentrepo/  JSON registry adapter for agent metadata
 workers/python/agent_worker/        Python execution-layer job envelope skeleton
 skills/automated-training-data-lake/ Dataset/model ingest skill and scripts
+docs/SYSTEM_DESIGN_DOCUMENT.md      Current SDD source of truth
+docs/CODE_ARCHITECTURE.md           Code architecture mapped to the diagrams
 docs/AGENT_SYSTEM_DESIGN.md         Agent architecture design
-docs/AGENT_SYSTEM_DESIGN_REVIEW.md  Design review and risks
 docs/AGENT_ARCHITECTURE_DIAGRAMS.md 可维护的中文 Agent 架构图与 imagegen 视觉版
 ```

@@ -114,6 +114,7 @@ go run .\cmd\labelctl agent "注册一个本地数据集并创建从数据采集
 cmd/                      Go 可执行程序入口
 internal/api/             HTTP/API 适配层
 internal/app/             应用服务与端口接口
+internal/cli/             CLI Agent 命令与规划逻辑
 internal/domain/          领域模型
 internal/infrastructure/  存储、队列、模型网关、中间件实现
 internal/trigger/         服务启动与外部触发器
@@ -167,12 +168,13 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 文档入口
 
+- [SDD 文档索引](docs/SDD_INDEX.md)
+- [统一 SDD 总纲](docs/SYSTEM_DESIGN_DOCUMENT.md)
 - [Agent 架构图](docs/AGENT_ARCHITECTURE_DIAGRAMS.md)
 - [Agent 系统设计](docs/AGENT_SYSTEM_DESIGN.md)
-- [Agent 系统设计审核](docs/AGENT_SYSTEM_DESIGN_REVIEW.md)
-- [小模型训练到部署 SDD](docs/SMALL_MODEL_LIFECYCLE_SDD.md)
-- [Go 后端 Agent 平台架构](docs/GO_BACKEND_AGENT_PLATFORM_ARCHITECTURE.md)
+- [代码架构](docs/CODE_ARCHITECTURE.md)
 - [前端架构](docs/FRONTEND_ARCHITECTURE.md)
+- [WASM 加速层](docs/WASM_ACCELERATION.md)
 - [LLM Provider 设置](docs/LLM_PROVIDER_SETUP.md)
 - [当前待办](docs/PROJECT_TODO.md)
 - [完成记录](docs/PROJECT_DONE.md)
