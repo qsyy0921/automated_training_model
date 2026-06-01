@@ -29,7 +29,7 @@
 
 ## 后端架构待办
 
-- [ ] 为 `lifecycleapp` 增加真实 repository，保存任务状态而不是只依赖内存队列。
+- [ ] 为 `lifecycleapp` 增加真实 task repository，保存任务状态而不是只依赖内存队列。
 - [ ] 为 `providerapp` 增加加密 secret store。
 - [ ] 补充 CLI：数据集注册、任务提交、导出标注、检查服务健康。
 - [ ] 增加 OpenAPI 文档生成。
@@ -41,3 +41,6 @@
 - [ ] 对 object query 检测模型做完整可视化误差分析。
 - [ ] 在检测 recall 稳定后重新开启 Q_track / MOTR-lite。
 - [ ] 设计 anomaly query 训练数据格式和评估协议。
+- [ ] Replace the in-memory workflow queue with Redis/NATS and persist agent run state across server restarts.
+- [ ] Wire Go workflow tasks to Python worker runners with heartbeat, logs, retries, and artifact manifests.
+- [ ] Add data/model lineage catalogs for dataset -> labels -> training run -> checkpoint -> evaluation report.

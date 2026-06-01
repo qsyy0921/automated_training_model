@@ -18,6 +18,7 @@ export interface WorkbenchState {
   playing: boolean;
   playRate: number;
   playbackMode: "frames" | "video";
+  playbackRangeMode: "full" | "segment" | "track";
   reviewFPS: number;
   trackListCollapsed: boolean;
   searchText: string;
@@ -40,6 +41,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   playing: false,
   playRate: 1,
   playbackMode: "frames",
+  playbackRangeMode: "full",
   reviewFPS: 30,
   trackListCollapsed: false,
   searchText: "",

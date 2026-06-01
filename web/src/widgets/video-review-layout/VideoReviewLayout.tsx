@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, type MouseEvent } from "react";
 import { Badge } from "@shared/ui/Badge";
 import { Button } from "@shared/ui/Button";
 import { clamp } from "@shared/lib/format";
+import { warmupTrackingMath } from "@shared/wasm/trackingMath";
 import type { Segment } from "@entities/anomaly-event/model";
-import type { Box } from "@entities/track/model";
+import type { Box, Track } from "@entities/track/model";
 import type { ClassCount, VideoMeta } from "@entities/video/model";
-import { classColor, className, trackKey } from "@entities/track/model";
+import { classColor, className, displayClassName, trackKey } from "@entities/track/model";
 
 type PlaybackMode = "frames" | "video";
+type PlaybackRangeMode = "full" | "segment" | "track";
 
 interface Props {
   scene: string;
@@ -15,15 +17,18 @@ interface Props {
   frame: number;
   boxes: Box[];
   selectedTrackKey: string;
+  selectedTrack?: Track;
   lockedSegment?: Segment;
   playRate: number;
   playbackMode: PlaybackMode;
+  playbackRangeMode: PlaybackRangeMode;
   reviewFPS: number;
   playing: boolean;
   pendingDeletes: string[];
   onFrameChange: (frame: number) => void;
   onSelectTrack: (key: string) => void;
   onSegmentLock: (segment?: Segment) => void;
+  onPlaybackRangeMode: (mode: PlaybackRangeMode) => void;
   onPlayRate: (rate: number) => void;
   onPlaybackMode: (mode: PlaybackMode) => void;
   onReviewFPS: (fps: number) => void;
@@ -47,15 +52,18 @@ export function VideoReviewLayout({
   frame,
   boxes,
   selectedTrackKey,
+  selectedTrack,
   lockedSegment,
   playRate,
   playbackMode,
+  playbackRangeMode,
   reviewFPS,
   playing,
   pendingDeletes,
   onFrameChange,
   onSelectTrack,
   onSegmentLock,
+  onPlaybackRangeMode,
   onPlayRate,
   onPlaybackMode,
   onReviewFPS,
@@ -67,11 +75,20 @@ export function VideoReviewLayout({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const safeFPS = Math.max(1, Math.min(120, reviewFPS || 30));
   const range = useMemo<[number, number]>(() => {
-    if (lockedSegment) return [lockedSegment.start_frame, lockedSegment.end_frame];
+    if (playbackRangeMode === "track" && selectedTrack) return [selectedTrack.first_frame, selectedTrack.last_frame];
+    if (playbackRangeMode === "segment" && lockedSegment) return [lockedSegment.start_frame, lockedSegment.end_frame];
     return [1, meta?.frame_count || 1];
-  }, [lockedSegment, meta]);
+  }, [lockedSegment, meta?.frame_count, playbackRangeMode, selectedTrack]);
   const safeFrame = clamp(frame, range[0], range[1]);
   const segmentOptions = meta?.anomaly_segments || [];
+
+  useEffect(() => {
+    warmupTrackingMath();
+  }, []);
+
+  useEffect(() => {
+    if (safeFrame !== frame) onFrameChange(safeFrame);
+  }, [frame, onFrameChange, safeFrame]);
 
   const draw = () => {
     const canvas = canvasRef.current;
@@ -86,6 +103,7 @@ export function VideoReviewLayout({
     const sy = canvas.height / size.naturalHeight;
     for (const box of boxes) {
       const key = trackKey(box);
+      if (playbackRangeMode === "track" && key !== selectedTrackKey) continue;
       if (pendingDeletes.includes(key)) continue;
       const color = box.color || classColor(box.class_id);
       const x = box.x * sx;
@@ -251,14 +269,27 @@ export function VideoReviewLayout({
         <label>
           播放范围
           <select
-            value={lockedSegment?.index ?? "full"}
+            value={playbackRangeMode === "track" ? "track" : lockedSegment?.index ?? "full"}
             onChange={(event) => {
               const value = event.target.value;
-              if (value === "full") onSegmentLock(undefined);
-              else onSegmentLock(segmentOptions.find((item) => String(item.index) === value));
+              if (value === "track") {
+                if (!selectedTrack) return;
+                onPlaybackRangeMode("track");
+                onFrameChange(selectedTrack.first_frame);
+              } else if (value === "full") {
+                onPlaybackRangeMode("full");
+                onSegmentLock(undefined);
+              } else {
+                const segment = segmentOptions.find((item) => String(item.index) === value);
+                onPlaybackRangeMode("segment");
+                onSegmentLock(segment);
+              }
             }}
           >
             <option value="full">整段视频</option>
+            <option value="track" disabled={!selectedTrack}>
+              {selectedTrack ? `current track ${selectedTrack.first_frame}-${selectedTrack.last_frame}` : "current track"}
+            </option>
             {segmentOptions.map((segment) => (
               <option key={segment.index} value={segment.index}>
                 异常片段 {segment.index}（{segment.start_frame}-{segment.end_frame}）
@@ -266,6 +297,16 @@ export function VideoReviewLayout({
             ))}
           </select>
         </label>
+        {selectedTrack ? (
+          <Button
+            onClick={() => {
+              onPlaybackRangeMode("track");
+              onFrameChange(selectedTrack.first_frame);
+            }}
+          >
+            Play track
+          </Button>
+        ) : null}
         <label>
           播放方式
           <select value={playbackMode} onChange={(event) => onPlaybackMode(event.target.value as PlaybackMode)}>
@@ -291,7 +332,7 @@ export function VideoReviewLayout({
       <div className="badgeRow">
         {(meta?.classes || []).map((item: ClassCount) => (
           <Badge key={item.class_id} color={item.color}>
-            {className(item.class_id)} {item.count}
+            {displayClassName(item)} {item.count}
           </Badge>
         ))}
       </div>

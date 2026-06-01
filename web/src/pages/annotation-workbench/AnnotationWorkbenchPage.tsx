@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@widgets/app-shell/AppShell";
+import { AgentControlPanel } from "@widgets/agent-control-panel/AgentControlPanel";
 import { DatasetSidebar } from "@widgets/dataset-sidebar/DatasetSidebar";
 import { InspectorPanel, type SaveEventPayload } from "@widgets/inspector-panel/InspectorPanel";
 import { TaskMonitorPanel } from "@widgets/task-monitor-panel/TaskMonitorPanel";
@@ -22,6 +23,7 @@ const EMPTY_BOXES: Box[] = [];
 export function AnnotationWorkbenchPage() {
   const queryClient = useQueryClient();
   const [showDataPanel, setShowDataPanel] = useState(false);
+  const [showAgentPanel, setShowAgentPanel] = useState(false);
   const state = useWorkbenchStore();
   const setState = useWorkbenchStore((s) => s.setState);
 
@@ -62,6 +64,39 @@ export function AnnotationWorkbenchPage() {
   }, [boxesQuery.data?.boxes, meta, setState]);
 
   const selectedTrack = useMemo(() => state.tracks.find((track) => trackKey(track) === state.selectedTrackKey), [state.selectedTrackKey, state.tracks]);
+  const sidebarVideos = useMemo(() => {
+    if (!scene || !state.pendingDeleteKeys.length) return videos;
+    const pending = new Set(state.pendingDeleteKeys);
+    const keptTracks = state.tracks.filter((track) => !pending.has(trackKey(track)));
+    const classMap = new Map<number, { class_id: number; class_name: string; color: string; count: number }>();
+    let rows = 0;
+    for (const track of keptTracks) {
+      const count = track.frames || 0;
+      rows += count;
+      const existing = classMap.get(track.class_id);
+      if (existing) {
+        existing.count += count;
+      } else {
+        classMap.set(track.class_id, {
+          class_id: track.class_id,
+          class_name: track.class_name,
+          color: track.color,
+          count
+        });
+      }
+    }
+    const classes = Array.from(classMap.values()).sort((a, b) => a.class_id - b.class_id);
+    return videos.map((video) =>
+      video.scene === scene
+        ? {
+            ...video,
+            rows,
+            track_count: keptTracks.length,
+            classes
+          }
+        : video
+    );
+  }, [scene, state.pendingDeleteKeys, state.tracks, videos]);
 
   const refreshVideo = async () => {
     await Promise.all([
@@ -147,7 +182,7 @@ export function AnnotationWorkbenchPage() {
       status={state.statusText}
       sidebar={
         <DatasetSidebar
-          videos={videos}
+          videos={sidebarVideos}
           currentScene={scene}
           searchText={state.searchText}
           classFilter={state.classFilter}
@@ -155,6 +190,7 @@ export function AnnotationWorkbenchPage() {
           onClassFilter={(classFilter) => setState({ classFilter })}
           onSelect={selectScene}
           onToggleDataPanel={() => setShowDataPanel((v) => !v)}
+          onToggleAgentPanel={() => setShowAgentPanel((v) => !v)}
         />
       }
       inspector={
@@ -185,15 +221,18 @@ export function AnnotationWorkbenchPage() {
         frame={frame}
         boxes={boxesQuery.data?.boxes || []}
         selectedTrackKey={state.selectedTrackKey}
+        selectedTrack={selectedTrack}
         lockedSegment={state.lockedSegment}
         playRate={state.playRate}
         playbackMode={state.playbackMode}
+        playbackRangeMode={state.playbackRangeMode}
         reviewFPS={state.reviewFPS}
         playing={state.playing}
         pendingDeletes={state.pendingDeleteKeys}
         onFrameChange={(currentFrame) => setState({ currentFrame: clamp(currentFrame, range[0], range[1]) })}
         onSelectTrack={(selectedTrackKey) => setState({ selectedTrackKey })}
         onSegmentLock={setLockedSegment}
+        onPlaybackRangeMode={(playbackRangeMode) => setState({ playbackRangeMode })}
         onPlayRate={(playRate) => setState({ playRate })}
         onPlaybackMode={(playbackMode) => setState({ playbackMode, playing: false })}
         onReviewFPS={(reviewFPS) => setState({ reviewFPS })}
@@ -201,6 +240,7 @@ export function AnnotationWorkbenchPage() {
         onAdjacentVideo={adjacentVideo}
       />
       <TaskMonitorPanel visible={showDataPanel} onDatasetActivated={refreshVideo} />
+      <AgentControlPanel visible={showAgentPanel} currentScene={scene} />
       <TrackList
         tracks={state.tracks}
         selectedTrackKey={state.selectedTrackKey}

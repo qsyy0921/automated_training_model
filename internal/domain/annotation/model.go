@@ -1,5 +1,7 @@
 package annotation
 
+import "strings"
+
 type Segment struct {
 	Index      int `json:"index"`
 	StartFrame int `json:"start_frame"`
@@ -37,11 +39,6 @@ type Annotation struct {
 	UpdatedAt      string `json:"updated_at"`
 }
 
-func (a Annotation) IsTrackReject() bool {
-	switch a.TrackingStatus {
-	case "reject", "删除":
-		return true
-	default:
-		return false
-	}
+func NormalizeStatus(status string) string {
+	return strings.ToLower(strings.TrimSpace(status))
 }

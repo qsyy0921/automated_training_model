@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/agentapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/annotationapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/datasetapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/lifecycleapp"
@@ -34,20 +36,22 @@ type Server struct {
 	datasets    *datasetapp.DatasetService
 	workspace   *workspaceapp.RuntimeService
 	lifecycle   *lifecycleapp.Service
+	agents      *agentapp.Service
 	providers   *providerapp.ProviderService
+	taxonomy    taxonomy.Taxonomy
 	webRoot     string
 	dataRoot    string
 	logger      *slog.Logger
 }
 
-func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.AnnotationService, datasetSvc *datasetapp.DatasetService, workspaceSvc *workspaceapp.RuntimeService, lifecycleSvc *lifecycleapp.Service, providerSvc *providerapp.ProviderService, webRoot string, dataRoot string, logger *slog.Logger) http.Handler {
-	s := &Server{media: mediaSvc, annotations: annotationSvc, datasets: datasetSvc, workspace: workspaceSvc, lifecycle: lifecycleSvc, providers: providerSvc, webRoot: webRoot, dataRoot: dataRoot, logger: logger}
+func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.AnnotationService, datasetSvc *datasetapp.DatasetService, workspaceSvc *workspaceapp.RuntimeService, lifecycleSvc *lifecycleapp.Service, agentSvc *agentapp.Service, providerSvc *providerapp.ProviderService, taxonomyCfg taxonomy.Taxonomy, webRoot string, dataRoot string, logger *slog.Logger) http.Handler {
+	s := &Server{media: mediaSvc, annotations: annotationSvc, datasets: datasetSvc, workspace: workspaceSvc, lifecycle: lifecycleSvc, agents: agentSvc, providers: providerSvc, taxonomy: taxonomyCfg.FillDefaults(), webRoot: webRoot, dataRoot: dataRoot, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /", s.index)
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(s.staticWebRoot(), "assets")))))
 	mux.HandleFunc("GET /api/videos", s.listVideos)
-	mux.HandleFunc("GET /api/taxonomy", s.taxonomy)
+	mux.HandleFunc("GET /api/taxonomy", s.taxonomyHandler)
 	mux.HandleFunc("GET /api/datasets", s.listDatasets)
 	mux.HandleFunc("POST /api/datasets/register-folder", s.registerFolderDataset)
 	mux.HandleFunc("POST /api/datasets/register-manifest", s.registerManifestDataset)
@@ -55,9 +59,22 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("POST /api/datasets/", s.datasetAction)
 	mux.HandleFunc("GET /api/providers", s.listProviders)
 	mux.HandleFunc("GET /api/secrets", s.listSecrets)
+	mux.HandleFunc("GET /api/agents", s.listAgents)
+	mux.HandleFunc("POST /api/agents", s.saveAgent)
+	mux.HandleFunc("GET /api/agents/", s.agentDetail)
+	mux.HandleFunc("GET /api/tools", s.listAgentTools)
+	mux.HandleFunc("POST /api/tools", s.saveAgentTool)
+	mux.HandleFunc("GET /api/workflows", s.listAgentWorkflows)
+	mux.HandleFunc("POST /api/workflows", s.saveAgentWorkflow)
+	mux.HandleFunc("GET /api/workflows/", s.agentWorkflowDetail)
+	mux.HandleFunc("GET /api/agent-runs", s.listAgentRuns)
+	mux.HandleFunc("POST /api/agent-runs", s.submitAgentRun)
+	mux.HandleFunc("GET /api/audit-events", s.listAuditEvents)
 	mux.HandleFunc("POST /api/autolabel/jobs", s.submitAutoLabel)
 	mux.HandleFunc("POST /api/training/runs", s.submitTraining)
 	mux.HandleFunc("POST /api/evaluation/runs", s.submitEvaluation)
+	mux.HandleFunc("GET /api/models", s.listModels)
+	mux.HandleFunc("GET /api/models/", s.modelDetail)
 	mux.HandleFunc("POST /api/models/register", s.registerModel)
 	mux.HandleFunc("POST /api/deployments", s.submitDeployment)
 	mux.HandleFunc("GET /api/tasks/", s.taskStatus)
@@ -109,12 +126,19 @@ func (s *Server) listVideos(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			videos[i].AnnotationCount = len(anns)
 		}
+		v, err := s.media.GetVideo(r.Context(), videos[i].Scene)
+		if err != nil {
+			continue
+		}
+		rejected, _ := s.annotations.RejectedTrackKeys(r.Context(), videos[i].Scene)
+		videos[i].TrackCount = len(filterTracks(v.Tracks, rejected))
+		videos[i].Classes, videos[i].Rows = classCountsFromBoxes(v, rejected)
 	}
 	writeJSON(w, http.StatusOK, types.ListVideosResponse{Videos: videos})
 }
 
-func (s *Server) taxonomy(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, taxonomy.Default())
+func (s *Server) taxonomyHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.taxonomy)
 }
 
 func (s *Server) listDatasets(w http.ResponseWriter, r *http.Request) {
@@ -294,12 +318,14 @@ func (s *Server) videoMeta(w http.ResponseWriter, r *http.Request, scene string)
 		writeError(w, http.StatusNotFound, err)
 		return
 	}
+	rejected, _ := s.annotations.RejectedTrackKeys(r.Context(), scene)
+	classes, rows := classCountsFromBoxes(v, rejected)
 	writeJSON(w, http.StatusOK, types.VideoMetaResponse{
 		Scene:             v.Scene,
 		FrameCount:        v.FrameCount,
-		Rows:              v.Rows,
-		Tracks:            s.filteredTracks(r, scene, v),
-		Classes:           classCounts(v),
+		Rows:              rows,
+		Tracks:            filterTracks(v.Tracks, rejected),
+		Classes:           classes,
 		AnomalyFrameCount: v.AnomalyFrameCount,
 		AnomalySegments:   v.AnomalySegments,
 		Annotations:       s.mustAnnotations(r, scene),
@@ -403,9 +429,24 @@ func (s *Server) purgeTracks(w http.ResponseWriter, r *http.Request, scene strin
 	})
 }
 
-func classCounts(v *media.Video) []media.ClassCount {
-	out := make([]media.ClassCount, 0, len(v.ClassCounts))
-	for id, count := range v.ClassCounts {
+func classCountsFromBoxes(v *media.Video, rejected map[string]bool) ([]media.ClassCount, int) {
+	counts := map[int]int{}
+	rows := 0
+	for _, boxes := range v.Boxes {
+		for _, box := range boxes {
+			if rejected[box.TrackKey] {
+				continue
+			}
+			counts[box.ClassID]++
+			rows++
+		}
+	}
+	return classCountsFromMap(counts), rows
+}
+
+func classCountsFromMap(counts map[int]int) []media.ClassCount {
+	out := make([]media.ClassCount, 0, len(counts))
+	for id, count := range counts {
 		out = append(out, media.ClassCount{
 			ClassID:   id,
 			ClassName: tracking.ClassName(id),
@@ -413,6 +454,9 @@ func classCounts(v *media.Video) []media.ClassCount {
 			Count:     count,
 		})
 	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ClassID < out[j].ClassID
+	})
 	return out
 }
 
@@ -426,8 +470,15 @@ func (s *Server) mustAnnotations(r *http.Request, scene string) []annotation.Ann
 
 func (s *Server) filteredTracks(r *http.Request, scene string, v *media.Video) []tracking.Track {
 	rejected, _ := s.annotations.RejectedTrackKeys(r.Context(), scene)
-	out := make([]tracking.Track, 0, len(v.Tracks))
-	for _, track := range v.Tracks {
+	return filterTracks(v.Tracks, rejected)
+}
+
+func filterTracks(tracks []tracking.Track, rejected map[string]bool) []tracking.Track {
+	if len(rejected) == 0 {
+		return tracks
+	}
+	out := make([]tracking.Track, 0, len(tracks))
+	for _, track := range tracks {
 		if rejected[track.TrackKey] {
 			continue
 		}

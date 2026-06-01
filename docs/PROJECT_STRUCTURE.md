@@ -54,6 +54,7 @@ internal/
     mergecsv/
     middleware/
     modelgateway/
+    modelrepo/
     providerrepo/
     queue/
     secrets/
@@ -119,6 +120,7 @@ ops/
 - token cache
 - checkpoint
 - 模型权重
+- `data_lake/models/` 中的模型注册表和本地 artifact 元数据
 - API key
 - `.env.local`
 - `data_lake/`
@@ -127,3 +129,14 @@ ops/
 - `web/node_modules/`
 
 只把最小可复现样例放入 `ops/testdata/`。
+Agent additions:
+
+```text
+internal/domain/agent/              Agent, tool, workflow, run, audit domain model
+internal/app/agentapp/              Agent control-plane application service and ports
+internal/infrastructure/agentrepo/  JSON registry adapter for agent metadata
+workers/python/agent_worker/        Python execution-layer job envelope skeleton
+skills/automated-training-data-lake/ Dataset/model ingest skill and scripts
+docs/AGENT_SYSTEM_DESIGN.md         Agent architecture design
+docs/AGENT_SYSTEM_DESIGN_REVIEW.md  Design review and risks
+```

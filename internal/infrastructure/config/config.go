@@ -13,6 +13,9 @@ type Config struct {
 	AnnotationRoot string
 	WebRoot        string
 	DataRoot       string
+	ModelRoot      string
+	AgentRoot      string
+	TaxonomyPath   string
 }
 
 func FromFlags() Config {
@@ -23,6 +26,9 @@ func FromFlags() Config {
 	annotationRoot := flag.String("annotation-root", filepath.Join(".", "annotations_review"), "annotation output directory")
 	webRoot := flag.String("web-root", filepath.Join(".", "web"), "static web directory")
 	dataRoot := flag.String("data-root", filepath.Join(".", "data_lake"), "dataset registry and upload storage directory")
+	modelRoot := flag.String("model-root", filepath.Join(".", "data_lake", "models"), "model registry and artifact metadata directory")
+	agentRoot := flag.String("agent-root", filepath.Join(".", "data_lake", "agents"), "agent registry and workflow metadata directory")
+	taxonomyPath := flag.String("taxonomy-path", filepath.Join(".", "configs", "taxonomy.review.json"), "review taxonomy JSON path")
 	flag.Parse()
 	return Config{
 		Addr:           *addr,
@@ -32,5 +38,8 @@ func FromFlags() Config {
 		AnnotationRoot: filepath.Clean(*annotationRoot),
 		WebRoot:        filepath.Clean(*webRoot),
 		DataRoot:       filepath.Clean(*dataRoot),
+		ModelRoot:      filepath.Clean(*modelRoot),
+		AgentRoot:      filepath.Clean(*agentRoot),
+		TaxonomyPath:   filepath.Clean(*taxonomyPath),
 	}
 }

@@ -13,15 +13,28 @@ import (
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/domain/annotation"
+	"github.com/qsyy0921/automated_training_model/internal/domain/taxonomy"
 )
 
 type Repository struct {
-	root string
-	mu   sync.Mutex
+	root           string
+	rejectStatuses map[string]bool
+	mu             sync.Mutex
 }
 
 func NewRepository(root string) *Repository {
-	return &Repository{root: root}
+	return NewRepositoryWithRejectStatuses(root, taxonomy.Default().TrackingRejectStatuses)
+}
+
+func NewRepositoryWithRejectStatuses(root string, statuses []string) *Repository {
+	rejectStatuses := map[string]bool{}
+	for _, status := range statuses {
+		normalized := annotation.NormalizeStatus(status)
+		if normalized != "" {
+			rejectStatuses[normalized] = true
+		}
+	}
+	return &Repository{root: root, rejectStatuses: rejectStatuses}
 }
 
 func (r *Repository) List(ctx context.Context, scene string) ([]annotation.Annotation, error) {
@@ -77,8 +90,7 @@ func (r *Repository) Delete(ctx context.Context, scene string, id string) error 
 func (r *Repository) RejectedTrackKeys(ctx context.Context, scene string) (map[string]bool, error) {
 	out := map[string]bool{}
 	for _, ann := range r.read(scene) {
-		status := strings.TrimSpace(strings.ToLower(ann.TrackingStatus))
-		if ann.TrackKey != "" && (status == "reject" || ann.TrackingStatus == "删除") {
+		if ann.TrackKey != "" && r.rejectStatuses[annotation.NormalizeStatus(ann.TrackingStatus)] {
 			out[ann.TrackKey] = true
 		}
 	}

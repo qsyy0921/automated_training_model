@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { DatasetRecord } from "@entities/dataset/model";
+import type { AgentRun, AgentSpec, AgentToolSpec, AuditEvent, WorkflowSpec } from "@entities/agent/model";
 import type { TaskRecord } from "@entities/task/model";
 import type { Taxonomy } from "@entities/taxonomy/model";
 import type { Box } from "@entities/track/model";
@@ -50,5 +51,12 @@ export const apiClient = {
   activateDataset: async (id: string) => request<{ dataset: DatasetRecord; active: boolean }>(`/api/datasets/${id}/activate`, { method: "POST", body: "{}" }),
   submitTask: async (path: string, payload: Record<string, unknown>) =>
     request<{ task: TaskRecord }>(path, { method: "POST", body: JSON.stringify(payload) }),
-  taskStatus: async (id: string) => request<TaskRecord>(`/api/tasks/${id}`)
+  taskStatus: async (id: string) => request<TaskRecord>(`/api/tasks/${id}`),
+  listAgents: async () => request<{ agents: AgentSpec[] }>("/api/agents"),
+  listAgentTools: async () => request<{ tools: AgentToolSpec[] }>("/api/tools"),
+  listWorkflows: async () => request<{ workflows: WorkflowSpec[] }>("/api/workflows"),
+  submitAgentRun: async (payload: Record<string, unknown>) =>
+    request<{ run: AgentRun }>("/api/agent-runs", { method: "POST", body: JSON.stringify(payload) }),
+  listAgentRuns: async () => request<{ runs: AgentRun[] }>("/api/agent-runs"),
+  listAuditEvents: async (limit = 30) => request<{ events: AuditEvent[] }>(`/api/audit-events?limit=${limit}`)
 };

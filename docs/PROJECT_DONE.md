@@ -27,6 +27,7 @@
   - `POST /api/evaluation/runs`
   - `POST /api/models/register`
   - `POST /api/deployments`
+- [x] 增加独立模型仓库 `internal/infrastructure/modelrepo`，模型注册元数据默认持久化到 `data_lake/models/models.json`。
   - `GET /api/tasks/{id}`
   - `DELETE /api/tasks/{id}`
 - [x] 修复项目级 PowerShell UTF-8 脚本，降低中文乱码概率。
@@ -48,4 +49,8 @@
 - [ ] lifecycle 任务目前仍通过 in-memory/noop gateway 模拟排队，尚未真正调度 Python worker。
 - [ ] Zod 只作为依赖接入，API runtime schema 尚未完整覆盖。
 - [ ] 前端仍有少量 `alert/confirm`，后续需要统一 toast/dialog。
-- [ ] 数据版本、标注版本、模型版本目前只有边界设计，尚未形成完整持久化模型。
+- [ ] 数据版本、标注版本目前只有边界设计；模型版本已有 JSON 元数据仓库，但还未接入真实训练 artifact 生命周期。
+- [x] Added Agent Control Plane MVP: agent/tool/workflow registries, workflow run API, audit API, and default automated-training agents.
+- [x] Added web Agent Control Panel for registry visibility and dry-run workflow submission.
+- [x] Added Python worker contract skeleton under `workers/python/agent_worker`.
+- [x] Added repo-local data lake ingest skill under `skills/automated-training-data-lake`.

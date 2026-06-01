@@ -44,6 +44,7 @@ web/src/
   - 注册 manifest，适合大数据索引、对象存储、Parquet/DuckDB/PostgreSQL 后续扩展。
 - Provider/API Key、任务队列、模型网关、Agent workflow 后端边界已预留。
 - 自动标注、训练、评估、模型注册、部署的 lifecycle API 已接入 Go 控制面。
+- 模型注册元数据通过独立模型仓库保存到 `data_lake/models/models.json`，模型权重和 checkpoint 不进入 Git。
 
 ## 本机运行
 
@@ -66,7 +67,9 @@ F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe run .\cmd\labelser
   -mask-root F:\keyan\token_compression\data\shanghai\data\testframemask `
   -annotation-root F:\keyan\token_compression\data\shanghai\new_tracking\merge\annotations_review `
   -web-root F:\automated_training_model\web `
-  -data-root F:\automated_training_model\data_lake
+  -data-root F:\automated_training_model\data_lake `
+  -model-root F:\automated_training_model\data_lake\models `
+  -agent-root F:\automated_training_model\data_lake\agents
 ```
 
 打开：
@@ -99,3 +102,10 @@ docker compose -f .\ops\deployments\docker\docker-compose.yml up --build
 - 已完成记录：`docs/PROJECT_DONE.md`
 - 前端架构：`docs/FRONTEND_ARCHITECTURE.md`
 - 小模型训练到部署 SDD：`docs/SMALL_MODEL_LIFECYCLE_SDD.md`
+
+## Agent System Docs
+
+- Agent system design: `docs/AGENT_SYSTEM_DESIGN.md`
+- Agent system review: `docs/AGENT_SYSTEM_DESIGN_REVIEW.md`
+- Agent architecture image: `docs/assets/agent-system-imagegen.png`
+- Data lake ingest skill: `skills/automated-training-data-lake/SKILL.md`

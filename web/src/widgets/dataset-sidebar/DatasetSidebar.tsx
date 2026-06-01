@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Badge } from "@shared/ui/Badge";
 import { Button } from "@shared/ui/Button";
 import type { VideoSummary } from "@entities/video/model";
-import { classColor, className } from "@entities/track/model";
+import { classColor, displayClassName } from "@entities/track/model";
 
 interface Props {
   videos: VideoSummary[];
@@ -13,13 +13,14 @@ interface Props {
   onClassFilter: (value: string) => void;
   onSelect: (scene: string) => void;
   onToggleDataPanel: () => void;
+  onToggleAgentPanel: () => void;
 }
 
-export function DatasetSidebar({ videos, currentScene, searchText, classFilter, onSearch, onClassFilter, onSelect, onToggleDataPanel }: Props) {
+export function DatasetSidebar({ videos, currentScene, searchText, classFilter, onSearch, onClassFilter, onSelect, onToggleDataPanel, onToggleAgentPanel }: Props) {
   const classOptions = useMemo(() => {
-    const ids = new Set<number>();
-    videos.forEach((video) => video.classes?.forEach((item) => ids.add(item.class_id)));
-    return Array.from(ids).sort((a, b) => a - b);
+    const options = new Map<number, string>();
+    videos.forEach((video) => video.classes?.forEach((item) => options.set(item.class_id, displayClassName(item))));
+    return Array.from(options, ([id, name]) => ({ id, name })).sort((a, b) => a.id - b.id);
   }, [videos]);
 
   const filtered = videos.filter((video) => {
@@ -39,14 +40,17 @@ export function DatasetSidebar({ videos, currentScene, searchText, classFilter, 
         <input value={searchText} onChange={(event) => onSearch(event.target.value)} placeholder="搜索视频，如 04_0012" />
         <select value={classFilter} onChange={(event) => onClassFilter(event.target.value)}>
           <option value="">全部类别</option>
-          {classOptions.map((id) => (
-            <option key={id} value={id}>
-              {className(id)}
+          {classOptions.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
             </option>
           ))}
         </select>
         <Button className="wide" onClick={onToggleDataPanel}>
           数据接入 / 训练任务
+        </Button>
+        <Button className="wide" onClick={onToggleAgentPanel}>
+          Agent 控制台
         </Button>
       </section>
       <section className="videoList">
@@ -59,7 +63,7 @@ export function DatasetSidebar({ videos, currentScene, searchText, classFilter, 
             <span className="badgeRow">
               {video.classes?.slice(0, 5).map((item) => (
                 <Badge key={item.class_id} color={item.color || classColor(item.class_id)}>
-                  {className(item.class_id)} {item.count}
+                  {displayClassName(item)} {item.count}
                 </Badge>
               ))}
             </span>
@@ -72,4 +76,3 @@ export function DatasetSidebar({ videos, currentScene, searchText, classFilter, 
     </>
   );
 }
-

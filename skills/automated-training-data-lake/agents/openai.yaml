@@ -1,0 +1,3 @@
+display_name: Automated Training Data Lake
+short_description: Ingest datasets and model artifacts safely.
+default_prompt: Ingest a dataset or model artifact into the Automated Training Model data lake without committing large files.

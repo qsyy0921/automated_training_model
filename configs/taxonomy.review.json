@@ -1,0 +1,9 @@
+{
+  "anomaly_types": ["无", "骑车", "跑步", "滑板", "车辆进入", "摩托车", "打斗", "摔倒", "跳跃", "徘徊", "投掷", "婴儿车", "其他异常"],
+  "clothing_colors": ["未填写", "白色", "黑色", "灰色", "蓝色", "红色", "黄色", "绿色", "橙色", "紫色", "棕色"],
+  "upper_clothing": ["未填写", "短袖", "长袖", "外套", "背心", "连帽衫", "衬衣"],
+  "lower_clothing": ["未填写", "长裤", "短裤", "裙子", "运动裤", "牛仔裤"],
+  "carrying": ["未填写", "背包", "手提包", "推车", "自行车", "滑板", "其他"],
+  "tracking_statuses": ["unchecked", "accepted", "rejected", "通过", "删除"],
+  "tracking_reject_statuses": ["rejected", "reject", "delete", "deleted", "删除"]
+}

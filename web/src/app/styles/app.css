@@ -562,6 +562,123 @@ small {
   background: #fff;
 }
 
+.agentPanel {
+  max-height: 42vh;
+  overflow: auto;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  background: rgba(249, 252, 255, 0.94);
+}
+
+.metricStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.metricStrip span,
+.runRow,
+.auditRow {
+  min-height: 54px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.metricStrip b {
+  font-size: 20px;
+}
+
+.agentRunBar,
+.inlineCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agentRunBar {
+  justify-content: space-between;
+}
+
+.inlineCheck input {
+  width: auto;
+}
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agentCard {
+  min-height: 126px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  gap: 8px;
+}
+
+.agentCard p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tagPill {
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #c4d8f0;
+  background: #f2f8ff;
+  color: #29435d;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.badgeRow.compact {
+  gap: 5px;
+}
+
+.workflowDetail {
+  display: grid;
+  gap: 10px;
+}
+
+.workflowDetail ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.workflowDetail li {
+  padding-left: 4px;
+}
+
+.workflowDetail li small {
+  display: block;
+}
+
+.runList,
+.auditList {
+  display: grid;
+  gap: 8px;
+}
+
+.auditList {
+  margin-top: 10px;
+}
+
 @media (max-width: 1500px) {
   .appShell {
     grid-template-columns: 320px minmax(650px, 1fr) 420px;

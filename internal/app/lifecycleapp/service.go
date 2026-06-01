@@ -2,8 +2,13 @@ package lifecycleapp
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/workflowapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/autolabel"
@@ -14,12 +19,23 @@ import (
 	"github.com/qsyy0921/automated_training_model/internal/domain/workflow"
 )
 
+type ModelRepository interface {
+	List(ctx context.Context) ([]modelregistry.ModelVersion, error)
+	Get(ctx context.Context, id string) (*modelregistry.ModelVersion, error)
+	Save(ctx context.Context, model modelregistry.ModelVersion) (modelregistry.ModelVersion, error)
+}
+
 type Service struct {
 	gateway workflowapp.ModelGateway
+	models  ModelRepository
 }
 
 func NewService(gateway workflowapp.ModelGateway) *Service {
 	return &Service{gateway: gateway}
+}
+
+func NewServiceWithModelRepository(gateway workflowapp.ModelGateway, models ModelRepository) *Service {
+	return &Service{gateway: gateway, models: models}
 }
 
 func (s *Service) TaskStatus(ctx context.Context, id string) (*workflow.Task, error) {
@@ -69,7 +85,26 @@ func (s *Service) SubmitEvaluation(ctx context.Context, req evaluation.Request) 
 	return evaluation.Run{TaskID: taskID, DatasetID: req.DatasetID, ModelID: req.ModelID, Status: "queued"}, nil
 }
 
+func (s *Service) ListModels(ctx context.Context) ([]modelregistry.ModelVersion, error) {
+	if s.models == nil {
+		return []modelregistry.ModelVersion{}, nil
+	}
+	return s.models.List(ctx)
+}
+
+func (s *Service) GetModel(ctx context.Context, id string) (*modelregistry.ModelVersion, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, fmt.Errorf("model id is required")
+	}
+	if s.models == nil {
+		return nil, fmt.Errorf("model repository is not configured")
+	}
+	return s.models.Get(ctx, id)
+}
+
 func (s *Service) RegisterModel(ctx context.Context, req modelregistry.RegisterRequest) (modelregistry.ModelVersion, error) {
+	req.Name = strings.TrimSpace(req.Name)
+	req.ArtifactURI = strings.TrimSpace(req.ArtifactURI)
 	if req.Name == "" {
 		return modelregistry.ModelVersion{}, fmt.Errorf("name is required")
 	}
@@ -80,7 +115,29 @@ func (s *Service) RegisterModel(ctx context.Context, req modelregistry.RegisterR
 	if err != nil {
 		return modelregistry.ModelVersion{}, err
 	}
-	return modelregistry.ModelVersion{TaskID: taskID, Name: req.Name, ModelFamily: req.ModelFamily, Task: req.Task, ArtifactURI: req.ArtifactURI, Status: "queued"}, nil
+	now := time.Now()
+	model := modelregistry.ModelVersion{
+		ID:          newModelID(req.Name),
+		Version:     "v" + now.Format("20060102-150405"),
+		TaskID:      taskID,
+		Name:        req.Name,
+		ModelFamily: strings.TrimSpace(req.ModelFamily),
+		Task:        strings.TrimSpace(req.Task),
+		ArtifactURI: req.ArtifactURI,
+		MetricsURI:  strings.TrimSpace(req.MetricsURI),
+		DatasetID:   strings.TrimSpace(req.DatasetID),
+		Tags:        compactStrings(req.Tags),
+		RuntimeSpec: compactMap(req.RuntimeSpec),
+		Description: strings.TrimSpace(req.Description),
+		Status:      "registered",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if s.models == nil {
+		model.Status = "queued"
+		return model, nil
+	}
+	return s.models.Save(ctx, model)
 }
 
 func (s *Service) SubmitDeployment(ctx context.Context, req deployment.Request) (deployment.Deployment, error) {
@@ -103,4 +160,59 @@ func (s *Service) submit(ctx context.Context, taskType string, req any) (string,
 		return "", err
 	}
 	return s.gateway.Submit(ctx, taskType, map[string]string{"request_json": string(raw)})
+}
+
+func newModelID(name string) string {
+	slug := strings.ToLower(strings.TrimSpace(name))
+	slug = strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+			return r
+		}
+		return '-'
+	}, slug)
+	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		slug = "model"
+	}
+	buf := make([]byte, 4)
+	if _, err := rand.Read(buf); err != nil {
+		return slug + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+	return slug + "-" + hex.EncodeToString(buf)
+}
+
+func compactStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func compactMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

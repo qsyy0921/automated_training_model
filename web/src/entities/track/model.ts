@@ -57,6 +57,10 @@ export function className(classID: ClassID): string {
   return names[Number(classID)] ?? `类别 ${classID}`;
 }
 
+export function displayClassName(input: Pick<Track | Box, "class_id"> & { class_name?: string }): string {
+  return input.class_name || className(input.class_id);
+}
+
 export function classColor(classID: ClassID): string {
   const colors: Record<number, string> = {
     0: "#00B8D9",
@@ -70,4 +74,3 @@ export function classColor(classID: ClassID): string {
   };
   return colors[Number(classID)] ?? "#7A8CA8";
 }
-

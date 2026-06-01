@@ -54,6 +54,29 @@ func (s *Server) submitEvaluation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"run": run})
 }
 
+func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
+	models, err := s.lifecycle.ListModels(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": models})
+}
+
+func (s *Server) modelDetail(w http.ResponseWriter, r *http.Request) {
+	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/models/"), "/")
+	if id == "" {
+		writeErrorText(w, http.StatusNotFound, "model id missing")
+		return
+	}
+	model, err := s.lifecycle.GetModel(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"model": model})
+}
+
 func (s *Server) registerModel(w http.ResponseWriter, r *http.Request) {
 	var req modelregistry.RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
