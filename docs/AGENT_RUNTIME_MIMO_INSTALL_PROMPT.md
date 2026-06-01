@@ -48,6 +48,7 @@ Channel Message
    - repo_id: HuggingFace 仓库 ID，例如 nvidia/LocateAnything-3B。
    - local_dir: 本地下载目录。
    - manifest: 下载完成后写入的小型 manifest JSON。
+   - approved: 是否已人工批准真实下载；默认不填，由 ToolExecutor 返回审批提示。
 
 2. model.verify_hf
    用途：校验本地 HuggingFace 模型目录并生成 manifest。
@@ -194,6 +195,7 @@ Mimo 应输出：
 
 - Codex 不直接下载安装模型。
 - Mimo 只输出 plan，不能绕过 ToolExecutor。
+- `model.download_hf` 默认只是下载预检；真实下载必须由人工审批后追加 `approved=true`，或由服务端设置 `AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD=true`。
 - ToolExecutor 可以执行下载脚本，但必须把目录限制在 `data_lake/models/artifacts/huggingface` 下。
 - 下载中断后，残留目录必须删除或通过 `model.download_hf` 重新恢复，不能作为已完成模型使用。
 - 如果 Mimo 输出非 JSON、空文本或偏离工具契约，Python planner 会先尝试 JSON 修复；仍失败时只允许使用保守 guard plan，例如 LocateAnything 安装请求映射为 `model.download_hf`，ShanghaiTech 测试请求映射为 `model.verify_hf` + `workflow.submit_run(dry_run=true)`。

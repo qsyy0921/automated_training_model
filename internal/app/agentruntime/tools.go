@@ -98,6 +98,16 @@ func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionReques
 }
 
 func (e *GoToolExecutor) downloadHFModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {
+	if !modelDownloadApproved(call) {
+		repoID := strings.TrimSpace(call.Params["repo_id"])
+		if repoID == "" {
+			repoID = "nvidia/LocateAnything-3B"
+		}
+		return ToolExecutionResult{
+			ReplyText: fmt.Sprintf("已生成 HuggingFace 模型下载预检：repo=%s。真实下载会写入 data_lake，需人工审批后带 approved=true，或由服务端设置 AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD=true。", repoID),
+			Status:    "approval_required",
+		}, nil
+	}
 	return e.runHFModelScript(ctx, call, false)
 }
 
@@ -202,6 +212,13 @@ func hfDownloadTimeout() time.Duration {
 		return 360 * time.Minute
 	}
 	return time.Duration(minutes) * time.Minute
+}
+
+func modelDownloadApproved(call ToolCall) bool {
+	if strings.EqualFold(strings.TrimSpace(call.Params["approved"]), "true") {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD")), "true")
 }
 
 func (e *GoToolExecutor) listRuns(ctx context.Context) (ToolExecutionResult, error) {

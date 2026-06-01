@@ -20,6 +20,10 @@ keeping Git clean.
   - `HF_HOME` for global HuggingFace cache location if needed.
 - Prefer resumable snapshot download through `huggingface_hub`.
 - Record only small manifests or verification notes in Git.
+- In Agent Runtime, `model.download_hf` is protected by an approval gate. The
+  default response is a preflight plan; real downloads require `approved=true`
+  in the tool-call params or `AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD=true` on the
+  server.
 
 ## Download
 

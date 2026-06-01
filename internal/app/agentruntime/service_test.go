@@ -106,3 +106,36 @@ func TestWorkflowSubmitToolRequiresDryRunPreflight(t *testing.T) {
 		t.Fatal("workflow should not be submitted when dry-run preflight fails")
 	}
 }
+
+func TestModelDownloadRequiresApproval(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "planner-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{
+				"repo_id":   "nvidia/LocateAnything-3B",
+				"local_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+				"manifest":  "data_lake/catalog/models/nvidia_LocateAnything-3B.download.json",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "approval_required" {
+		t.Fatalf("expected approval_required, got %s", result.Status)
+	}
+}

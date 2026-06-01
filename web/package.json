@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
-    "wasm:build": "powershell -ExecutionPolicy Bypass -File ../ops/scripts/build-wasm.ps1",
+    "wasm:build": "powershell -NoProfile -ExecutionPolicy Bypass -File ../ops/scripts/build-wasm.ps1",
     "build": "npm run wasm:build && tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },

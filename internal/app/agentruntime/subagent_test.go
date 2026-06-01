@@ -36,6 +36,24 @@ func TestDecideSubAgentUsesVisionForImages(t *testing.T) {
 	}
 }
 
+func TestDecideSubAgentUsesDataIntakeForNonVisualFiles(t *testing.T) {
+	msg := channel.InboundMessage{
+		Text:        "导入这个数据集",
+		Attachments: []channel.Attachment{{ID: "att1", Name: "dataset.zip", MediaType: "application/zip"}},
+	}
+	intent := ClassifyIntent(msg)
+	decision := DecideSubAgent(intent, msg)
+	if !decision.UseSubAgent {
+		t.Fatalf("expected delegation")
+	}
+	if decision.AgentID != "data-intake-agent" {
+		t.Fatalf("expected data-intake-agent, got %s", decision.AgentID)
+	}
+	if decision.ModelRoute != "text-planning" {
+		t.Fatalf("expected text-planning route, got %s", decision.ModelRoute)
+	}
+}
+
 func TestDecideSubAgentUsesPlannerForChat(t *testing.T) {
 	msg := channel.InboundMessage{Text: "帮我创建一个训练 dry-run"}
 	intent := ClassifyIntent(msg)

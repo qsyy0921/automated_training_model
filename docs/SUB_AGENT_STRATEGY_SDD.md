@@ -15,6 +15,14 @@
 
 ## 什么时候使用 sub-agent
 
+当前判断顺序：
+
+1. 先判断是不是确定性低风险命令。`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 由 Go control plane 直接处理，不进入 sub-agent。
+2. 再判断是否有附件。图片、截图、异常帧等视觉附件交给 `vision-agent`；zip、manifest、目录索引等非视觉数据交给 `data-intake-agent`。
+3. 再判断是否是自由文本。自然语言请求先交给 `planner-agent` 做意图细化、tool-call plan 和 preflight。
+4. 长流程任务只规划，不直接执行。训练、评估、部署、模型下载等有副作用任务必须经过 tool executor 的权限和审批边界。
+5. skill 自进化默认关闭。只有成功 trace 可以进入 `skill-miner-agent` 生成草稿，草稿必须人工审批后才启用。
+
 使用 sub-agent：
 
 | 场景 | 原因 | 默认 sub-agent |

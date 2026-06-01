@@ -33,6 +33,7 @@
 - [x] 修复项目级 PowerShell UTF-8 脚本，降低中文乱码概率。
 - [x] 为项目 PowerShell 脚本统一接入 UTF-8 初始化，并增加 `ops/scripts/encoding-doctor.ps1` 检查中文文档读取。
 - [x] 增加 sub-agent 决策契约、runtime status API、CLI/桌面/QQ 最小入口和测试 SDD。
+- [x] 固化 sub-agent 使用时机：确定性低风险命令不委派；视觉附件走 `vision-agent`；zip/manifest/文件入湖走 `data-intake-agent`；自由文本走 `planner-agent`；高风险写操作不能绕过 approval gate。
 - [x] 增加 QQ/NapCat OneBot outbound sender，可通过环境变量开启真实 `send_msg` 回发。
 - [x] 拆分 Agent Runtime 为 `Service`、`SessionRunner`、`PlannerPort`、`ToolExecutorPort`、内存 session/trace store，并新增 `/api/runtime/sessions`、`/api/runtime/traces` 可观测入口。
 - [x] 删除中断留下的不完整 `LocateAnything-3B` 下载目录，确认模型权重残留不进入 Git。
@@ -66,5 +67,7 @@
 - [x] 新增 repo-local HuggingFace 模型下载 skill：`skills/huggingface-model-downloader`，覆盖依赖、token、HF_HOME/cache、断点续传、manifest、校验和 Git 排除要求。
 - [x] 完成 `nvidia/LocateAnything-3B` 下载 skill dry-run：确认默认本地目录、manifest 路径和不提交权重的边界。
 - [x] 验证 Mimo planner 对 LocateAnything-3B 安装请求会输出 `model.download_hf` tool-call plan，而不是直接输出 shell 命令。
+- [x] 为 `model.download_hf` 增加 approval gate：默认只返回 `approval_required` 预检提示，真实下载必须带 `approved=true` 或服务端设置 `AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD=true`。
 - [x] 验证 ShanghaiTech original 数据目录存在，并完成 `model.verify_hf` + `workflow.submit_run(dry_run=true)` 的测试计划生成。
 - [x] 前端 Agent Overview 接入 runtime status、sessions、traces 和入口测试面板；CLI 接入 runtime status/sessions/traces/send；桌面端复用 Gateway runtime snapshot。
+- [x] 将前端 `wasm:build` 改为 `powershell -NoProfile`，避免 Conda PowerShell profile 的 GBK 乱码异常污染 `npm run build` 输出。
