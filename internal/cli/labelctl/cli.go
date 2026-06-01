@@ -184,6 +184,9 @@ func runRuntime(cfg Config, args []string) error {
 	if args[0] == "traces" {
 		return getJSON(cfg.addr + "/api/runtime/traces")
 	}
+	if args[0] == "model-jobs" || args[0] == "jobs" {
+		return getJSON(cfg.addr + "/api/runtime/model-jobs")
+	}
 	if args[0] == "send" {
 		text := strings.TrimSpace(strings.Join(args[1:], " "))
 		if text == "" {
@@ -488,7 +491,7 @@ Allowed schemas:
 {"action":"download_hf_model","repo_id":"org/repo","pull_lfs":true}
 {"action":"agent_run","workflow_id":"data-to-deployment-lifecycle","dataset_id":"...","scene":"...","dry_run":true,"params":{"source":"cli-agent"}}
 {"action":"api_get","endpoint":"/api/agents"}
-Only choose api_get for safe read-only endpoints under /healthz, /api/runtime/status, /api/runtime/sessions, /api/runtime/traces, /api/desktop/status, /api/channels, /api/channels/qq/status, /api/agents, /api/tools, /api/workflows, /api/agent-runs, /api/audit-events, /api/videos, /api/governance/control-surface, /api/governance/enforcement-points, /api/governance/data-policies, /api/governance/release-policies, /api/governance/runtime-policies. Use runtime_send for sending a message through the Agent Runtime test channel.
+Only choose api_get for safe read-only endpoints under /healthz, /api/runtime/status, /api/runtime/sessions, /api/runtime/traces, /api/runtime/model-jobs, /api/desktop/status, /api/channels, /api/channels/qq/status, /api/agents, /api/tools, /api/workflows, /api/agent-runs, /api/audit-events, /api/videos, /api/governance/control-surface, /api/governance/enforcement-points, /api/governance/data-policies, /api/governance/release-policies, /api/governance/runtime-policies. Use runtime_send for sending a message through the Agent Runtime test channel.
 The CLI agent is the primary interface. Prefer workflow_id "data-to-deployment-lifecycle" for full lifecycle work from data collection to model deployment. Use "human-loop-autolabel" only when the user explicitly asks for video labeling or review.
 For download_hf_model, only use a repository id explicitly present in the user input. If it is missing, return chat asking for the repository id.`
 	content, err := callLLM(context.Background(), []chatMessage{
@@ -653,7 +656,7 @@ func writeResponse(resp *http.Response) error {
 
 func safeEndpoint(endpoint string) bool {
 	switch endpoint {
-	case "/healthz", "/api/runtime/status", "/api/runtime/sessions", "/api/runtime/traces", "/api/desktop/status", "/api/channels", "/api/channels/qq/status", "/api/agents", "/api/tools", "/api/workflows", "/api/agent-runs", "/api/audit-events", "/api/videos", "/api/governance/control-surface", "/api/governance/enforcement-points", "/api/governance/data-policies", "/api/governance/release-policies", "/api/governance/runtime-policies":
+	case "/healthz", "/api/runtime/status", "/api/runtime/sessions", "/api/runtime/traces", "/api/runtime/model-jobs", "/api/desktop/status", "/api/channels", "/api/channels/qq/status", "/api/agents", "/api/tools", "/api/workflows", "/api/agent-runs", "/api/audit-events", "/api/videos", "/api/governance/control-surface", "/api/governance/enforcement-points", "/api/governance/data-policies", "/api/governance/release-policies", "/api/governance/runtime-policies":
 		return true
 	default:
 		return false

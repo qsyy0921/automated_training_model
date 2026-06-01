@@ -183,7 +183,7 @@ $env:AGENT_RUNTIME_PYTHONPATH="F:\automated_training_model\workers\python"
 Mimo / VLM provider key 只允许放在服务端环境变量或 SecretRef 中，不能写入仓库、前端代码或 channel payload。
 HuggingFace 模型安装不由 Codex 直接执行；Codex 只维护 prompt、skill、tool contract 和测试入口。实际安装流程必须由 Agent Runtime 调用 Mimo 输出 `model.download_hf` / `model.verify_hf` tool-call plan，再由 Go ToolExecutor 受控执行。Mimo 安装提示词见 [AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md](AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md)。
 
-当前本机开发策略是 Agent Runtime 默认拥有执行权限：`model.download_hf` 可以直接执行真实下载，但仍被限制在 `data_lake/models/artifacts/huggingface` 目录内，不能写入 Git 路径或任意路径。需要收紧权限时，服务端设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`，此时真实下载必须由 tool-call params 显式包含 `approved=true`。
+当前本机开发策略是 Agent Runtime 默认拥有执行权限：`model.download_hf` 可以创建真实下载任务，但必须以异步 `ModelJob` 形式运行，写入仍被限制在 `data_lake/models/artifacts/huggingface` 目录内，不能写入 Git 路径或任意路径。需要收紧权限时，服务端设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`，此时真实下载必须由 tool-call params 显式包含 `approved=true`。
 
 Mimo 路由规则：
 - `mimo-v2.5-pro`：文本意图识别、任务规划、tool-call JSON、workflow reasoning。
@@ -198,7 +198,7 @@ Mimo 路由规则：
 | Intent | Go `ClassifyIntent` 规则层 | Python/Mimo planner 做二级语义识别 |
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Executor | `GoToolExecutor` 支持 runtime、workflow、intake、vision、llm.plan 最小工具 | 拆到 `internal/app/toolapp`，增加 schema、permission、approval |
-| Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；本机开发默认全权限，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务状态和断点续传 UI |
+| Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
 | Trace | 每条消息写入 `TraceEvent` | 持久化、检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
 | Channel | QQ/NapCat webhook/test-message | OneBot WebSocket reader、Telegram、飞书 |
@@ -271,3 +271,71 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 - 尚未由 Agent Runtime 正式执行真实 `model.download_hf` 下载完整 `nvidia/LocateAnything-3B`。
 - 尚未完成 LocateAnything-3B 的加载 smoke 或真实 ShanghaiTech 推理。
 - QQ/NapCat 真实账号回发需要本机 NapCat 登录态和 outbound 环境变量，本仓库 smoke 先覆盖 HTTP test-message / OneBot webhook 闭环。
+
+## 10. 2026-06-02 Runtime 长任务问题分析与修正
+
+### 10.1 问题结论
+
+这次真实触发 `nvidia/LocateAnything-3B` 下载时，下载体量约 7.26 GiB。原实现把 `model.download_hf` 当作同步 Tool 执行，导致 `labelctl runtime send ...`、QQ、Web 或桌面端入口都必须等待下载完成。
+
+这暴露出的根因不是单纯 HTTPS、代理或 HuggingFace 问题，而是 Agent Runtime 的执行模型问题：长任务不能阻塞 Channel request。
+
+同步执行的具体风险：
+
+- 入口请求会长期占用，无法快速回包。
+- 用户中断终端后，Go server、labelctl 或 Python downloader 可能继续留在后台。
+- Runtime trace 只能在工具完成或失败后落地，无法在下载进行中展示状态。
+- QQ/Web/CLI/桌面端无法统一观察同一个长任务。
+
+### 10.2 参考项目对齐
+
+- OpenClaw 的 Gateway 思路：入口只做接入、校验、路由和结果回传，长任务应进入任务系统。
+- Claude Code / cc 的 QueryEngine + ToolExecutor 思路：Agent loop 产生 tool-call，ToolExecutor 负责执行 envelope、权限、状态和结果。
+- Hermes 的 Gateway + Python runtime 思路：会话上下文、工具执行和外部平台连接分离，长耗时能力不应绑死入口 adapter。
+
+本项目采用 `Go Gateway + Python Agent Runtime + Go ToolExecutor + Runtime Job Store` 的最小落地方式。
+
+### 10.3 新执行契约
+
+`model.download_hf` 默认仍拥有本机开发全权限，但不再同步下载：
+
+1. Mimo planner 输出 `model.download_hf` tool-call。
+2. Go ToolExecutor 校验 `repo_id`、`local_dir`、`manifest` 和 `data_lake` 写入边界。
+3. ToolExecutor 创建 `ModelJob`，立即返回 `queued` 和 `job_id`。
+4. 后台 goroutine 调用 `skills/huggingface-model-downloader/scripts/download_hf_snapshot.py`。
+5. Web、CLI、桌面端和 QQ 后续都通过 runtime job 状态查询进度。
+
+新增可观测入口：
+
+```text
+GET /api/runtime/model-jobs
+labelctl runtime model-jobs
+```
+
+如确实需要调试同步模式，可显式设置：
+
+```powershell
+$env:AGENT_RUNTIME_HF_DOWNLOAD_SYNC="true"
+```
+
+生产或安全模式仍可收紧下载权限：
+
+```powershell
+$env:AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL="true"
+```
+
+### 10.4 SDD 测试补充
+
+| ID | 场景 | 验收标准 |
+| --- | --- | --- |
+| ART-007 | 通过 runtime 请求下载 `nvidia/LocateAnything-3B` | 入口立即返回 `status=queued` 和 `job_id`，不等待 7GB 下载完成。 |
+| ART-008 | 查询 `/api/runtime/model-jobs` | 返回模型下载任务，状态至少包括 `queued`、`running`、`succeeded`、`failed`。 |
+| ART-009 | CLI 查询 `labelctl runtime model-jobs` | 能看到与 Web/API 一致的任务列表。 |
+| ART-010 | 用户中断 CLI/Web 请求 | 已经排队的后台任务由 Runtime job store 管理，入口中断不再等同于 runtime 会话失败。 |
+| ART-011 | 设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` | `model.download_hf` 返回 `approval_required`，不会创建后台下载任务。 |
+
+### 10.5 当前边界
+
+- 当前 `ModelJobStore` 是进程内内存实现，服务重启会丢失 job 状态；后续应迁移到 SQLite/Postgres 或统一 task repository。
+- 下载脚本本身使用 HuggingFace snapshot cache 支持恢复，但 UI 进度目前只有任务状态和最终结果，尚未接入逐文件进度。
+- 后续应把 `model.download_hf`、训练、评估、部署统一迁移到 `internal/app/taskapp` 或持久化 workflow queue。

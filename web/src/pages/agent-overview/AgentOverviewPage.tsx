@@ -10,6 +10,7 @@ export function AgentOverviewPage() {
   const channels = useQuery({ queryKey: ["channels"], queryFn: () => apiClient.listChannels() });
   const sessions = useQuery({ queryKey: ["runtime-sessions"], queryFn: () => apiClient.runtimeSessions(), refetchInterval: 3000 });
   const traces = useQuery({ queryKey: ["runtime-traces"], queryFn: () => apiClient.runtimeTraces(12), refetchInterval: 3000 });
+  const modelJobs = useQuery({ queryKey: ["runtime-model-jobs"], queryFn: () => apiClient.runtimeModelJobs(8), refetchInterval: 3000 });
   const desktop = useQuery({ queryKey: ["desktop-status"], queryFn: () => apiClient.desktopStatus() });
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => apiClient.listAgents() });
   const runs = useQuery({ queryKey: ["agent-runs"], queryFn: () => apiClient.listAgentRuns() });
@@ -131,6 +132,19 @@ export function AgentOverviewPage() {
                 <strong>{trace.intent}</strong>
                 <span>{trace.status} · {(trace.tool_ids ?? []).join(", ") || "no tool"}</span>
                 <small>{trace.reply_text || trace.error || trace.session_key}</small>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Model Jobs">
+          <div className="overviewList">
+            {(modelJobs.data?.jobs ?? []).length === 0 ? <p className="empty">no model jobs</p> : null}
+            {(modelJobs.data?.jobs ?? []).slice(0, 6).map((job) => (
+              <div className="overviewRow" key={job.id}>
+                <strong>{job.repo_id}</strong>
+                <span>{job.status}</span>
+                <small>{job.message || job.error || job.id}</small>
               </div>
             ))}
           </div>

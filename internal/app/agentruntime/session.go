@@ -105,6 +105,13 @@ func (r *DefaultSessionRunner) ListTraces(limit int) []TraceEvent {
 	return r.store.ListTraces(limit)
 }
 
+func (r *DefaultSessionRunner) ListModelJobs(limit int) []ModelJob {
+	if tools, ok := r.tools.(interface{ ListModelJobs(int) []ModelJob }); ok {
+		return tools.ListModelJobs(limit)
+	}
+	return nil
+}
+
 func (r *DefaultSessionRunner) record(session SessionContext, msg channel.InboundMessage, intent Intent, calls []ToolCall, status string, reply string, errorText string) {
 	now := r.now()
 	callToolIDs := collectToolIDs(calls)

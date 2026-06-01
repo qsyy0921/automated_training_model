@@ -71,3 +71,5 @@
 - [x] 验证 ShanghaiTech original 数据目录存在，并完成 `model.verify_hf` + `workflow.submit_run(dry_run=true)` 的测试计划生成。
 - [x] 前端 Agent Overview 接入 runtime status、sessions、traces 和入口测试面板；CLI 接入 runtime status/sessions/traces/send；桌面端复用 Gateway runtime snapshot。
 - [x] 将前端 `wasm:build` 改为 `powershell -NoProfile`，避免 Conda PowerShell profile 的 GBK 乱码异常污染 `npm run build` 输出。
+- [x] 分析并修正 Agent Runtime 长任务阻塞问题：`model.download_hf` 默认改为创建异步 `ModelJob`，入口立即返回 `queued/job_id`，新增 `/api/runtime/model-jobs`、`labelctl runtime model-jobs` 和 Web Model Jobs 面板。
+- [x] 在 `AGENT_RUNTIME_SDD.md` 记录 2026-06-02 长任务问题结论、参考 OpenClaw/cc/Hermes 的对齐原则、新执行契约和 ART-007 至 ART-011 验收项。

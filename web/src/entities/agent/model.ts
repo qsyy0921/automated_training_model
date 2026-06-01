@@ -199,6 +199,23 @@ export interface RuntimeTrace {
   created_at: string;
 }
 
+export interface RuntimeModelJob {
+  id: string;
+  kind: string;
+  repo_id: string;
+  local_dir: string;
+  manifest: string;
+  verify_only: boolean;
+  status: string;
+  message?: string;
+  error?: string;
+  metadata?: Record<string, string>;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+  updated_at: string;
+}
+
 export interface RuntimeSnapshot {
   started_at: string;
   updated_at: string;

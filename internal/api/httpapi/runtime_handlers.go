@@ -22,6 +22,10 @@ func (s *Server) runtimeTraces(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"traces": s.runtime.ListTraces(runtimeTraceLimit(r))})
 }
 
+func (s *Server) runtimeModelJobs(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": s.runtime.ListModelJobs(runtimeTraceLimit(r))})
+}
+
 func (s *Server) desktopStatus(w http.ResponseWriter, r *http.Request) {
 	status := agentruntime.Status()
 	writeJSON(w, http.StatusOK, map[string]any{

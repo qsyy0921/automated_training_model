@@ -15,15 +15,23 @@ import (
 )
 
 type GoToolExecutor struct {
-	agents AgentControlPlane
-	now    func() time.Time
+	agents         AgentControlPlane
+	now            func() time.Time
+	modelJobs      *ModelJobStore
+	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
 }
 
 func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolExecutor {
 	if now == nil {
 		now = time.Now
 	}
-	return &GoToolExecutor{agents: agents, now: now}
+	executor := &GoToolExecutor{
+		agents:    agents,
+		now:       now,
+		modelJobs: NewModelJobStore(now),
+	}
+	executor.runHFModelTool = executor.runHFModelScript
+	return executor
 }
 
 func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) (ToolExecutionResult, error) {
@@ -32,6 +40,7 @@ func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) 
 	}
 	results := make([]string, 0, len(req.ToolCalls))
 	status := "ok"
+	metadata := map[string]string{}
 	for _, call := range req.ToolCalls {
 		result, err := e.executeOne(ctx, req, call)
 		if err != nil {
@@ -43,8 +52,14 @@ func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) 
 		if result.ReplyText != "" {
 			results = append(results, result.ReplyText)
 		}
+		for key, value := range result.Metadata {
+			metadata[key] = value
+		}
 	}
-	return ToolExecutionResult{ReplyText: strings.Join(results, "\n"), Status: status}, nil
+	if len(metadata) == 0 {
+		metadata = nil
+	}
+	return ToolExecutionResult{ReplyText: strings.Join(results, "\n"), Status: status, Metadata: metadata}, nil
 }
 
 func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
@@ -67,22 +82,22 @@ func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionReques
 		return e.submitWorkflowRun(ctx, req, call)
 	case "intake.quarantine":
 		return ToolExecutionResult{
-			ReplyText: fmt.Sprintf("已生成隔离区计划：attachments=%d session=%s", len(req.Message.Attachments), req.Session.Key),
+			ReplyText: fmt.Sprintf("已生成数据接入隔离计划：attachments=%d session=%s", len(req.Message.Attachments), req.Session.Key),
 			Status:    "planned",
 		}, nil
 	case "intake.plan":
 		return ToolExecutionResult{
-			ReplyText: "已生成 Data Intake Plan 草案；正式入湖前需要人工审批。",
+			ReplyText: "已生成 Data Intake Plan 草案；正式入湖前仍需要人工审批。",
 			Status:    "planned",
 		}, nil
 	case "vlm.inspect":
 		return ToolExecutionResult{
-			ReplyText: "已进入视觉检查队列：使用 mimo-v2.5 路由，当前不会直接写入 Data Lake。",
+			ReplyText: "已进入视觉检查队列：使用 mimo-v2.5 路由，当前 MVP 不会自动写入 Data Lake。",
 			Status:    "planned",
 		}, nil
 	case "llm.plan":
 		return ToolExecutionResult{
-			ReplyText: fmt.Sprintf("已进入 planner-agent 会话：%s；当前默认规则 runtime 已就绪，可切换 Python/Mimo planner。", req.Session.Key),
+			ReplyText: fmt.Sprintf("已进入 planner-agent 会话：%s；可通过 AGENT_RUNTIME_PLANNER=python 启用 Python/Mimo planner。", req.Session.Key),
 			Status:    "planned",
 		}, nil
 	case "model.download_hf":
@@ -108,20 +123,30 @@ func (e *GoToolExecutor) downloadHFModel(ctx context.Context, call ToolCall) (To
 			Status:    "approval_required",
 		}, nil
 	}
-	return e.runHFModelScript(ctx, call, false)
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_HF_DOWNLOAD_SYNC")), "true") {
+		return e.runHFModelTool(ctx, call, false)
+	}
+	return e.enqueueHFModelDownload(call)
 }
 
 func (e *GoToolExecutor) verifyHFModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {
-	return e.runHFModelScript(ctx, call, true)
+	return e.runHFModelTool(ctx, call, true)
 }
 
-func (e *GoToolExecutor) runHFModelScript(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {
+type hfModelRequest struct {
+	RepoID     string
+	LocalDir   string
+	Manifest   string
+	VerifyOnly bool
+}
+
+func prepareHFModelRequest(call ToolCall, verifyOnly bool) (hfModelRequest, error) {
 	repoID := strings.TrimSpace(call.Params["repo_id"])
 	if repoID == "" {
 		repoID = "nvidia/LocateAnything-3B"
 	}
 	if !regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`).MatchString(repoID) {
-		return ToolExecutionResult{}, fmt.Errorf("invalid HuggingFace repo_id: %s", repoID)
+		return hfModelRequest{}, fmt.Errorf("invalid HuggingFace repo_id: %s", repoID)
 	}
 	localDir := strings.TrimSpace(call.Params["local_dir"])
 	if localDir == "" {
@@ -134,15 +159,78 @@ func (e *GoToolExecutor) runHFModelScript(ctx context.Context, call ToolCall, ve
 	if strings.EqualFold(call.Params["verify_only"], "true") {
 		verifyOnly = true
 	}
-	localDir, err := safeRepoPath(localDir, filepath.Join("data_lake", "models", "artifacts", "huggingface"))
+	safeLocalDir, err := safeRepoPath(localDir, filepath.Join("data_lake", "models", "artifacts", "huggingface"))
 	if err != nil {
-		return ToolExecutionResult{}, err
+		return hfModelRequest{}, err
 	}
-	manifest, err = safeRepoPath(manifest, filepath.Join("data_lake", "catalog", "models"))
+	safeManifest, err := safeRepoPath(manifest, filepath.Join("data_lake", "catalog", "models"))
 	if err != nil {
-		return ToolExecutionResult{}, err
+		return hfModelRequest{}, err
 	}
+	return hfModelRequest{RepoID: repoID, LocalDir: safeLocalDir, Manifest: safeManifest, VerifyOnly: verifyOnly}, nil
+}
 
+func (e *GoToolExecutor) enqueueHFModelDownload(call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareHFModelRequest(call, false)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	job := e.modelJobs.Create(ModelJob{
+		ID:       fmt.Sprintf("model-job-%d", e.now().UnixNano()),
+		Kind:     "model.download_hf",
+		RepoID:   req.RepoID,
+		LocalDir: req.LocalDir,
+		Manifest: req.Manifest,
+		Status:   "queued",
+		Message:  "queued by Agent Runtime",
+	})
+	go e.runHFModelJob(job.ID, call)
+	return ToolExecutionResult{
+		ReplyText: fmt.Sprintf("HuggingFace 模型下载任务已排队：job=%s repo=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", job.ID, req.RepoID),
+		Status:    "queued",
+		Metadata: map[string]string{
+			"job_id":    job.ID,
+			"repo_id":   req.RepoID,
+			"local_dir": req.LocalDir,
+			"manifest":  req.Manifest,
+		},
+	}, nil
+}
+
+func (e *GoToolExecutor) runHFModelJob(jobID string, call ToolCall) {
+	started := e.now()
+	e.modelJobs.Update(jobID, func(job *ModelJob) {
+		job.Status = "running"
+		job.StartedAt = &started
+		job.Message = "running HuggingFace snapshot download"
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), hfDownloadTimeout())
+	defer cancel()
+	result, err := e.runHFModelTool(ctx, call, false)
+	finished := e.now()
+	e.modelJobs.Update(jobID, func(job *ModelJob) {
+		job.FinishedAt = &finished
+		if err != nil {
+			job.Status = "failed"
+			job.Error = err.Error()
+			job.Message = "download failed"
+			return
+		}
+		job.Status = "succeeded"
+		job.Message = result.ReplyText
+		job.Metadata = result.Metadata
+	})
+}
+
+func (e *GoToolExecutor) ListModelJobs(limit int) []ModelJob {
+	return e.modelJobs.List(limit)
+}
+
+func (e *GoToolExecutor) runHFModelScript(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {
+	req, err := prepareHFModelRequest(call, verifyOnly)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
 	timeout := hfDownloadTimeout()
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -152,11 +240,11 @@ func (e *GoToolExecutor) runHFModelScript(ctx context.Context, call ToolCall, ve
 	}
 	args := []string{
 		filepath.Join("skills", "huggingface-model-downloader", "scripts", "download_hf_snapshot.py"),
-		"--repo-id", repoID,
-		"--local-dir", localDir,
-		"--manifest", manifest,
+		"--repo-id", req.RepoID,
+		"--local-dir", req.LocalDir,
+		"--manifest", req.Manifest,
 	}
-	if verifyOnly {
+	if req.VerifyOnly {
 		args = append(args, "--verify-only")
 	}
 	cmd := exec.CommandContext(runCtx, python, args...)
@@ -169,16 +257,16 @@ func (e *GoToolExecutor) runHFModelScript(ctx context.Context, call ToolCall, ve
 		return ToolExecutionResult{}, fmt.Errorf("HuggingFace model tool failed: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	action := "下载"
-	if verifyOnly {
+	if req.VerifyOnly {
 		action = "校验"
 	}
 	return ToolExecutionResult{
-		ReplyText: fmt.Sprintf("HuggingFace 模型%s完成：repo=%s local_dir=%s manifest=%s", action, repoID, localDir, manifest),
+		ReplyText: fmt.Sprintf("HuggingFace 模型%s完成：repo=%s local_dir=%s manifest=%s", action, req.RepoID, req.LocalDir, req.Manifest),
 		Status:    "ok",
 		Metadata: map[string]string{
-			"repo_id":   repoID,
-			"local_dir": localDir,
-			"manifest":  manifest,
+			"repo_id":   req.RepoID,
+			"local_dir": req.LocalDir,
+			"manifest":  req.Manifest,
 		},
 	}, nil
 }

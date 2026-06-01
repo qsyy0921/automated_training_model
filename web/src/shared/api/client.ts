@@ -14,6 +14,7 @@ import type {
   RuntimeSnapshot,
   RuntimeStatus,
   RuntimeTrace,
+  RuntimeModelJob,
   RuntimePolicy,
   WorkflowSpec
 } from "@entities/agent/model";
@@ -78,6 +79,7 @@ export const apiClient = {
   runtimeStatus: async () => request<{ runtime: RuntimeStatus; snapshot: RuntimeSnapshot }>("/api/runtime/status"),
   runtimeSessions: async () => request<{ sessions: RuntimeSession[] }>("/api/runtime/sessions"),
   runtimeTraces: async (limit = 30) => request<{ traces: RuntimeTrace[] | null }>(`/api/runtime/traces?limit=${limit}`),
+  runtimeModelJobs: async (limit = 30) => request<{ jobs: RuntimeModelJob[] | null }>(`/api/runtime/model-jobs?limit=${limit}`),
   runtimeSend: async (text: string) =>
     request<Record<string, unknown>>("/api/channels/qq/test-message", {
       method: "POST",

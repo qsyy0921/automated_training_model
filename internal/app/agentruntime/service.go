@@ -56,3 +56,10 @@ func (s *Service) ListTraces(limit int) []TraceEvent {
 	}
 	return nil
 }
+
+func (s *Service) ListModelJobs(limit int) []ModelJob {
+	if runner, ok := s.runner.(interface{ ListModelJobs(int) []ModelJob }); ok {
+		return runner.ListModelJobs(limit)
+	}
+	return nil
+}

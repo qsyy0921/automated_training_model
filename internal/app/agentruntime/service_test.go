@@ -2,7 +2,9 @@ package agentruntime
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
@@ -144,5 +146,70 @@ func TestModelDownloadCanBeRestrictedByServerPolicy(t *testing.T) {
 func TestModelDownloadDefaultPolicyAllowsExecution(t *testing.T) {
 	if modelDownloadRequiresApproval(ToolCall{Params: map[string]string{}}) {
 		t.Fatal("default runtime policy should grant model download permission")
+	}
+}
+
+func TestModelDownloadDefaultPolicyQueuesAsyncJob(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	executor.runHFModelTool = func(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {
+		close(started)
+		<-release
+		return ToolExecutionResult{
+			ReplyText: "fake download completed",
+			Status:    "ok",
+			Metadata:  map[string]string{"repo_id": call.Params["repo_id"]},
+		}, nil
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "planner-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "queued" {
+		t.Fatalf("expected queued, got %s", result.Status)
+	}
+	if !strings.Contains(result.ReplyText, "model-job-") {
+		t.Fatalf("expected job id in reply, got %q", result.ReplyText)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected background model job to start")
+	}
+	close(release)
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		if jobs[0].Status == "succeeded" {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected job to succeed, got %+v", jobs[0])
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
