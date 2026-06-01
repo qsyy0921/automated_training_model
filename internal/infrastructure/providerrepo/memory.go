@@ -14,54 +14,43 @@ type MemoryRepository struct {
 
 func NewMemoryRepository() *MemoryRepository {
 	r := &MemoryRepository{providers: map[string]provider.Provider{}}
-	r.providers["openai"] = provider.Provider{
-		ID:           "openai",
-		Type:         provider.ProviderOpenAI,
-		DisplayName:  "OpenAI",
-		BaseURL:      "https://api.openai.com/v1",
-		APIKeyRef:    "env:OPENAI_API_KEY",
-		DefaultModel: "gpt-4.1",
-		VisionModel:  "gpt-4.1",
+	r.providers["chat_default"] = provider.Provider{
+		ID:           "chat_default",
+		Type:         provider.ProviderChatCompatible,
+		DisplayName:  "Generic Chat Endpoint",
+		BaseURL:      "env:LLM_BASE_URL",
+		APIKeyRef:    "env:LLM_API_KEY",
+		DefaultModel: "env:LLM_MODEL",
 		Enabled:      true,
 	}
-	r.providers["qwen"] = provider.Provider{
-		ID:           "qwen",
-		Type:         provider.ProviderQwen,
-		DisplayName:  "Qwen/DashScope",
-		BaseURL:      "https://dashscope.aliyuncs.com/compatible-mode/v1",
-		APIKeyRef:    "env:DASHSCOPE_API_KEY",
-		DefaultModel: "qwen-plus",
-		VisionModel:  "qwen-vl-max",
+	r.providers["vision_default"] = provider.Provider{
+		ID:           "vision_default",
+		Type:         provider.ProviderVisionCompatible,
+		DisplayName:  "Generic Vision Endpoint",
+		BaseURL:      "env:VLM_BASE_URL",
+		APIKeyRef:    "env:VLM_API_KEY",
+		DefaultModel: "env:VLM_MODEL",
+		VisionModel:  "env:VLM_MODEL",
 		Enabled:      true,
 	}
-	r.providers["openrouter"] = provider.Provider{
-		ID:           "openrouter",
-		Type:         provider.ProviderOpenRouter,
-		DisplayName:  "OpenRouter",
-		BaseURL:      "https://openrouter.ai/api/v1",
-		APIKeyRef:    "env:OPENROUTER_API_KEY",
-		DefaultModel: "openai/gpt-4.1",
-		VisionModel:  "openai/gpt-4.1",
+	r.providers["model_router"] = provider.Provider{
+		ID:           "model_router",
+		Type:         provider.ProviderModelRouter,
+		DisplayName:  "Model Router",
+		BaseURL:      "env:MODEL_ROUTER_BASE_URL",
+		APIKeyRef:    "env:MODEL_ROUTER_API_KEY",
+		DefaultModel: "env:MODEL_ROUTER_MODEL",
+		VisionModel:  "env:MODEL_ROUTER_VISION_MODEL",
 		Enabled:      true,
 	}
-	r.providers["mimo_anthropic"] = provider.Provider{
-		ID:           "mimo_anthropic",
-		Type:         provider.ProviderMimo,
-		DisplayName:  "Mimo Anthropic-compatible",
-		BaseURL:      "https://token-plan-cn.xiaomimimo.com/anthropic",
-		APIKeyRef:    "env:ANTHROPIC_AUTH_TOKEN",
-		DefaultModel: "mimo-v2.5-pro",
-		VisionModel:  "mimo-v2.5",
-		Enabled:      true,
-	}
-	r.providers["mimo_openai"] = provider.Provider{
-		ID:           "mimo_openai",
-		Type:         provider.ProviderMimo,
-		DisplayName:  "Mimo OpenAI-compatible",
-		BaseURL:      "https://token-plan-cn.xiaomimimo.com/v1",
-		APIKeyRef:    "env:ANTHROPIC_AUTH_TOKEN",
-		DefaultModel: "mimo-v2.5-pro",
-		VisionModel:  "mimo-v2.5",
+	r.providers["local_runtime"] = provider.Provider{
+		ID:           "local_runtime",
+		Type:         provider.ProviderLocal,
+		DisplayName:  "Local Model Runtime",
+		BaseURL:      "env:LOCAL_MODEL_BASE_URL",
+		APIKeyRef:    "env:LOCAL_MODEL_API_KEY",
+		DefaultModel: "env:LOCAL_MODEL_ID",
+		VisionModel:  "env:LOCAL_VISION_MODEL_ID",
 		Enabled:      true,
 	}
 	return r

@@ -2,7 +2,16 @@
 
 面向“小模型从数据到部署”的工程平台。当前阶段先落地视频数据接入、tracking 审核、对象级异常标注、自动标注和训练任务入口；后续继续扩展到训练、评估、压缩、发布、线上监控和反馈回流。
 
-Go 是主后端，采用 DDD / 六边形架构。Python、YOLO、Tracking、SAM、VLM、LLM 与训练脚本作为 worker 或模型服务接入，由 Go 控制面负责数据、任务、状态、权限和生命周期编排。
+## 最新架构图
+
+架构图已改为可维护的 Mermaid 文档，并保留 imagegen 视觉版 PNG：`docs/AGENT_ARCHITECTURE_DIAGRAMS.md`。
+
+当前拆成四张图：
+
+- 总体分层架构
+- CLI-first 运行时架构
+- 数据到部署闭环
+- 强制治理路径
 
 ## 当前架构
 
@@ -45,6 +54,8 @@ web/src/
 - Provider/API Key、任务队列、模型网关、Agent workflow 后端边界已预留。
 - 自动标注、训练、评估、模型注册、部署的 lifecycle API 已接入 Go 控制面。
 - 模型注册元数据通过独立模型仓库保存到 `data_lake/models/models.json`，模型权重和 checkpoint 不进入 Git。
+- Agent Serving 与 Model/Data Training 已拆成两个核心域，并通过版本化数据集、模型 artifact、评估报告、发布事件和审计事件连接。
+- Governance control surface 已提供强制检查点、数据治理、发布治理、运行时策略、版本注册表、Schema、可观测性、预算、失败语义、多租户隔离和恢复策略。
 
 ## 本机运行
 
@@ -102,10 +113,11 @@ docker compose -f .\ops\deployments\docker\docker-compose.yml up --build
 - 已完成记录：`docs/PROJECT_DONE.md`
 - 前端架构：`docs/FRONTEND_ARCHITECTURE.md`
 - 小模型训练到部署 SDD：`docs/SMALL_MODEL_LIFECYCLE_SDD.md`
+- 通用 LLM provider 设置：`docs/LLM_PROVIDER_SETUP.md`
 
 ## Agent System Docs
 
 - Agent system design: `docs/AGENT_SYSTEM_DESIGN.md`
 - Agent system review: `docs/AGENT_SYSTEM_DESIGN_REVIEW.md`
-- Agent architecture image: `docs/assets/agent-system-imagegen.png`
+- Agent architecture diagrams: `docs/AGENT_ARCHITECTURE_DIAGRAMS.md`
 - Data lake ingest skill: `skills/automated-training-data-lake/SKILL.md`

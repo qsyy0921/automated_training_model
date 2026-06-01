@@ -33,19 +33,24 @@ const (
 )
 
 type ToolSpec struct {
-	ID              string            `json:"id"`
-	Name            string            `json:"name"`
-	Kind            string            `json:"kind"`
-	Version         string            `json:"version"`
-	Description     string            `json:"description,omitempty"`
-	InputSchemaURI  string            `json:"input_schema_uri,omitempty"`
-	OutputSchemaURI string            `json:"output_schema_uri,omitempty"`
-	PermissionLevel string            `json:"permission_level,omitempty"`
-	Runtime         string            `json:"runtime,omitempty"`
-	Metadata        map[string]string `json:"metadata,omitempty"`
-	Status          ToolStatus        `json:"status"`
-	CreatedAt       time.Time         `json:"created_at"`
-	UpdatedAt       time.Time         `json:"updated_at"`
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Kind             string            `json:"kind"`
+	Version          string            `json:"version"`
+	Description      string            `json:"description,omitempty"`
+	InputSchemaURI   string            `json:"input_schema_uri,omitempty"`
+	OutputSchemaURI  string            `json:"output_schema_uri,omitempty"`
+	PermissionLevel  string            `json:"permission_level,omitempty"`
+	PermissionScopes []string          `json:"permission_scopes,omitempty"`
+	RiskLevel        string            `json:"risk_level,omitempty"`
+	ApprovalRequired bool              `json:"approval_required,omitempty"`
+	SandboxPolicyID  string            `json:"sandbox_policy_id,omitempty"`
+	BudgetPolicyID   string            `json:"budget_policy_id,omitempty"`
+	Runtime          string            `json:"runtime,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+	Status           ToolStatus        `json:"status"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
 }
 
 type WorkflowStatus string
@@ -71,14 +76,19 @@ type WorkflowSpec struct {
 }
 
 type WorkflowStep struct {
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	AgentID    string            `json:"agent_id,omitempty"`
-	ToolID     string            `json:"tool_id,omitempty"`
-	Action     string            `json:"action"`
-	Input      map[string]string `json:"input,omitempty"`
-	DependsOn  []string          `json:"depends_on,omitempty"`
-	PolicyTags []string          `json:"policy_tags,omitempty"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	AgentID         string            `json:"agent_id,omitempty"`
+	ToolID          string            `json:"tool_id,omitempty"`
+	Action          string            `json:"action"`
+	Input           map[string]string `json:"input,omitempty"`
+	DependsOn       []string          `json:"depends_on,omitempty"`
+	PolicyTags      []string          `json:"policy_tags,omitempty"`
+	InputSchemaURI  string            `json:"input_schema_uri,omitempty"`
+	OutputSchemaURI string            `json:"output_schema_uri,omitempty"`
+	FailurePolicyID string            `json:"failure_policy_id,omitempty"`
+	ApprovalGateID  string            `json:"approval_gate_id,omitempty"`
+	TimeoutSeconds  int               `json:"timeout_seconds,omitempty"`
 }
 
 type RunRequest struct {

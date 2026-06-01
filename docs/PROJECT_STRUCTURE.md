@@ -139,4 +139,5 @@ workers/python/agent_worker/        Python execution-layer job envelope skeleton
 skills/automated-training-data-lake/ Dataset/model ingest skill and scripts
 docs/AGENT_SYSTEM_DESIGN.md         Agent architecture design
 docs/AGENT_SYSTEM_DESIGN_REVIEW.md  Design review and risks
+docs/AGENT_ARCHITECTURE_DIAGRAMS.md 可维护的中文 Agent 架构图与 imagegen 视觉版
 ```

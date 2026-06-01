@@ -1,84 +1,128 @@
 # Automated Training Model Agent 系统设计
 
-![Agent architecture](assets/agent-system-imagegen.png)
+本设计把项目从“页面上的一个小功能”调整为 **从数据采集到模型部署的全流程 Agent 助手**。核心是 CLI-first Agent，Go 后端承接稳定控制面，Web 只是控制台、审核和运维界面。
 
-## 目标
+系统拆成两个核心域：
 
-这个系统要把现有视频标注台扩展为可迭代的训练闭环：人审、自动标注、主动学习、模型训练、评估反馈、Skill 沉淀。核心原则是低耦合：Go 只做控制面和状态管理，Python 只做 GPU/模型执行，前端只做操作台和可观测性。
+- **Agent Serving Platform**：入口、会话、路由、规划、工具调用、运行时审批、沙箱、结果过滤和审计。
+- **Model/Data Training Platform**：数据治理、数据集版本、训练运行、评估报告、模型产物、发布门禁、灰度发布和回滚元数据。
 
-## 参考项目结论
+两者只通过显式契约连接：工作流请求、数据集版本、模型 artifact 版本、评估报告、发布事件和审计事件。不共享隐藏运行时状态。
 
-- `E:\agent\cc`：工具执行按可并发和不可并发分批，适合我们后续把只读数据扫描、指标汇总并行化，把写数据/训练任务串行化。
-- `E:\agent\Hermes`：工具、平台、Skill 采用自注册 registry，控制面不硬编码所有执行器。这一模式适合我们的 Agent Registry、Tool Registry、Workflow Registry。
-- `E:\agent\openclaw`：Gateway、agent、session、plugin SDK 分离，外部入口通过 RPC/事件访问控制面。我们借鉴其 Gateway 边界，但后端技术栈固定为 Go。
+## 当前架构图
 
-## 技术选择
+架构图维护在 `docs/AGENT_ARCHITECTURE_DIAGRAMS.md`，包含 Mermaid 源图和 imagegen 视觉版：
 
-- 后端：Go。负责 HTTP API、注册表、工作流编排、策略、审计、任务队列、数据湖/模型仓库元数据。
-- 前端：React + TypeScript。负责视频审核工作台、Agent 控制台、任务状态、数据/模型可观测性。
-- 执行层：Python。负责 YOLO/BoT-SORT、SAM/SAM2、LocateAnything、训练、评估等模型相关工作。
-- Agent 协议：先用 JSON job envelope，后续可替换为 NATS、gRPC、Docker/Kubernetes Job，不改变 domain 层。
-- 存储：当前 MVP 用 JSON 文件落地到 `data_lake/agents` 和 `data_lake/models`；后续升级为 PostgreSQL/MinIO/Redis/NATS。
+- 总体分层架构
+- CLI-first 运行时架构
+- 数据到部署闭环
+- 强制治理路径
 
-## 分层架构
+## P0 Decisions Implemented
 
-1. 输入层：Web UI、CLI、Bot/Webhook、第三方 API。
-2. Go Control Plane：Agent Registry、Tool Registry、Workflow Orchestrator、Task Scheduler、Policy、Audit、MCP/Gateway 适配。
-3. Python Workers：Tracking、Segmentation、VLM Label、Training、Evaluation、Report。
-4. Data Lake：原始数据、派生标签、训练输入、训练输出、报告。
-5. Model Registry：原始模型、训练中 checkpoints、最终模型版本、评估指标。
+1. **Runtime and training boundaries are separate.**
+   Agent serving owns session/runtime concerns. Training owns curation,
+   dataset versions, evaluation, release, and rollback.
 
-## 当前已搭建的 MVP
+2. **Governance is a forced path.**
+   The new control surface exposes ingress, tool pre-call, execution
+   preflight, model pre-call, result egress, training ingest, and release
+   promotion enforcement points.
 
-- 新增 `internal/domain/agent`：Agent、Tool、Workflow、Run、Audit 的领域模型。
-- 新增 `internal/app/agentapp`：控制面服务，只有 Repository 和 ModelGateway 端口依赖。
-- 新增 `internal/infrastructure/agentrepo`：JSON repository，自动 bootstrap 默认 agents/tools/workflows。
-- 新增 API：
-  - `GET /api/agents`
-  - `POST /api/agents`
-  - `GET /api/agents/{id}`
-  - `GET /api/tools`
-  - `POST /api/tools`
-  - `GET /api/workflows`
-  - `POST /api/workflows`
-  - `GET /api/workflows/{id}`
-  - `GET /api/agent-runs`
-  - `POST /api/agent-runs`
-  - `GET /api/audit-events`
-- 新增前端 Agent 控制台：展示 agent/tool/workflow 数量、默认工作流、运行记录、审计事件，并可提交 dry-run 工作流。
-- 新增 Python worker 边界：`workers/python/agent_worker` 接受 JSON job envelope 并返回 JSON result。
-- 新增数据湖 skill：`skills/automated-training-data-lake`，用于后续复制原始数据和下载 Hugging Face 模型。
+3. **Runtime data cannot enter training directly.**
+   `runtime-to-training-curation` requires consent, tenant isolation,
+   redaction, deduplication, label quality, split isolation, version freezing,
+   and lineage.
 
-## 默认 Agent 与工作流
+4. **Tools and workers carry risk metadata.**
+   Tool specs now include permission scopes, risk level, approval requirement,
+   sandbox policy, and budget policy.
 
-默认注册六类 agent：
+5. **Release is gated.**
+   Promotion requires offline evaluation, safety evaluation, regression tests,
+   human approval, artifact lineage, staged rollout, and rollback readiness.
 
-- `tracking-agent`：检测和多目标跟踪。
-- `segmentation-agent`：交互式分割和 mask 传播。
-- `vlm-label-agent`：VLM/grounding 自动标注。
-- `training-agent`：训练和 checkpoint 产出。
-- `evaluation-agent`：模型评估与指标汇总。
-- `report-agent`：报告与 dashboard 输出。
+## P1 Decisions Implemented
 
-默认工作流：
+1. **Version registries are explicit.**
+   Prompt templates, policies, workflow definitions, tool contracts, skills,
+   and evaluation suites have registry contracts.
 
-- `human-loop-autolabel`：tracking -> VLM label -> human review -> train -> evaluate -> report。
-- `dataset-to-tracking`：只跑 tracking，用于生成待审派生标签。
+2. **Schema contracts are explicit.**
+   User requests, workflow node IO, tool parameters, dataset samples, and audit
+   events have named schema contracts and failure modes.
 
-## 解耦约束
+3. **Observability is broader than audit.**
+   Runtime traces, cost metrics, data lineage, and incident response are part of
+   the control surface.
 
-- Domain 不导入 HTTP、文件系统、Python、React。
-- App 层只依赖端口接口，不关心 JSON、数据库或队列实现。
-- Infrastructure 层负责 JSON 文件、未来数据库、队列、worker runner。
-- API 层只做 JSON 编解码和错误映射。
-- Python worker 不读 Go 内部结构，只读稳定 JSON envelope。
-- 前端不拼装执行逻辑，只调用 API 并展示状态。
+4. **Workflow failure semantics are named.**
+   The default framework includes idempotent retry, hold-for-approval, and
+   stop-without-compensation policies.
 
-## 后续演进
+5. **Memory, terminal, and subagent policies are isolated.**
+   Runtime policies define reduced context, bounded delegation, explicit shell
+   execution scope, and memory lifecycle rules.
 
-1. 把内存任务队列替换为 Redis/NATS，并增加 worker ack、retry、heartbeat。
-2. 给 Python worker 增加 tool adapter：YOLO/BoT-SORT、SAM2、LocateAnything、训练 runner。
-3. 给 `data_lake/catalog` 加 artifact manifest，记录输入数据、输出标签、模型版本和指标之间的 lineage。
-4. 把 JSON repository 迁移到 PostgreSQL，同时保留本地开发 JSON adapter。
-5. 增加策略系统：GPU 权限、模型下载权限、数据写权限、远程入口权限。
-6. 前端增加 workflow DAG、run log stream、模型/数据 lineage 视图。
+## P2 Decisions Implemented As Contracts
+
+1. **Budget control** is represented by runtime and training budget policies.
+2. **Model abstraction** uses capability declarations, not provider names.
+3. **Active learning** is guarded by sampling, label consistency, split
+   isolation, drift monitoring, and contamination checks.
+4. **Tenant isolation** covers data lake paths, memory, vector indexes, secrets,
+   audit logs, model access, and cost budgets.
+5. **Recovery policy** protects queue state, workflow runs, audit logs, catalog
+   metadata, model artifacts, and secret references.
+
+These P2 items are not full distributed infrastructure yet. They are now
+first-class contracts so the implementation can grow without changing the
+domain model.
+
+## Current Code Surface
+
+- `internal/domain/agent`: agent, tool, workflow, run, audit, governance, and
+  control-surface domain models.
+- `internal/app/agentapp`: application service and repository ports.
+- `internal/infrastructure/agentrepo`: JSON repository for local MVP state.
+- `internal/api/httpapi`: REST API for registries, runs, audit, and governance.
+- `workers/python/agent_worker`: stable JSON worker envelope.
+- `cmd/labelctl`: CLI for API inspection, skill execution, and generic LLM
+  agent planning.
+- `web/src/widgets/agent-control-panel`: frontend operator view for agents,
+  workflows, runs, audit, and governance.
+
+## Governance API
+
+```text
+GET /api/governance/control-surface
+GET /api/governance/enforcement-points
+GET /api/governance/data-policies
+GET /api/governance/release-policies
+GET /api/governance/runtime-policies
+```
+
+CLI:
+
+```powershell
+go run .\cmd\labelctl governance all
+go run .\cmd\labelctl governance enforcement
+go run .\cmd\labelctl governance data
+go run .\cmd\labelctl governance release
+go run .\cmd\labelctl governance runtime
+```
+
+## Default Workflows
+
+- `data-to-deployment-lifecycle`: primary CLI-driven lifecycle workflow from
+  data collection through governance, curation, labeling/review, training,
+  evaluation, release, deployment, monitoring, and feedback.
+- `agent-serving-request`: runtime request guard, planning, tool preflight,
+  sandboxed execution, result filtering, and audit.
+- `dataset-to-tracking`: perception artifact generation for review.
+- `human-loop-autolabel`: perception, label proposal, data curation, human
+  review, training, evaluation, release gate, and report.
+
+The workflow names remain product-facing, but tools and model adapters are
+generic. Concrete model choices belong in local adapters, skills, or runtime
+configuration, not in the control-plane architecture.

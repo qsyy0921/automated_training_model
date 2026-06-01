@@ -303,5 +303,8 @@ func writeJSON[T any](path string, rows []T) error {
 	if err := os.WriteFile(tmp, append(raw, '\n'), 0644); err != nil {
 		return err
 	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return os.Rename(tmp, path)
 }

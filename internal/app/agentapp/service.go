@@ -205,6 +205,26 @@ func (s *Service) ListAuditEvents(ctx context.Context, limit int) ([]agent.Audit
 	return s.repo.ListAuditEvents(ctx, limit)
 }
 
+func (s *Service) ListEnforcementPoints(ctx context.Context) ([]agent.EnforcementPoint, error) {
+	return agent.DefaultEnforcementPoints(), nil
+}
+
+func (s *Service) ListDataGovernancePolicies(ctx context.Context) ([]agent.DataGovernancePolicy, error) {
+	return agent.DefaultDataGovernancePolicies(), nil
+}
+
+func (s *Service) ListReleasePolicies(ctx context.Context) ([]agent.ReleasePolicy, error) {
+	return agent.DefaultReleasePolicies(), nil
+}
+
+func (s *Service) ListRuntimePolicies(ctx context.Context) ([]agent.RuntimePolicy, error) {
+	return agent.DefaultRuntimePolicies(), nil
+}
+
+func (s *Service) GetControlSurface(ctx context.Context) (agent.ControlSurface, error) {
+	return agent.DefaultControlSurface(), nil
+}
+
 func (s *Service) audit(ctx context.Context, actor string, action string, resourceType string, resourceID string, details map[string]string) error {
 	return s.repo.AppendAuditEvent(ctx, agent.AuditEvent{
 		ID:           "audit_" + randomSuffix(),

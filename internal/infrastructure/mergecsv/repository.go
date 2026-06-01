@@ -182,6 +182,9 @@ func (r *Repository) PurgeTracks(ctx context.Context, scene string, trackKeys []
 	if err := f.Close(); err != nil {
 		return 0, err
 	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return 0, err
+	}
 	if err := os.Rename(tmp, path); err != nil {
 		return 0, err
 	}

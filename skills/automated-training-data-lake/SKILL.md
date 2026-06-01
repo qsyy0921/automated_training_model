@@ -1,6 +1,6 @@
 ---
 name: automated-training-data-lake
-description: Use when ingesting raw datasets, copied training inputs, derived labels, model checkpoints, or Hugging Face model artifacts into this project's data_lake without committing large files.
+description: Use when ingesting raw datasets, copied training inputs, derived labels, model checkpoints, or external model repository artifacts into this project's data_lake without committing large files.
 ---
 
 # Automated Training Data Lake
@@ -40,13 +40,13 @@ The script copies with `robocopy`, writes a catalog JSON under
 `data_lake/catalog/datasets`, and does not touch the app's active dataset
 registry.
 
-## Hugging Face Model Ingest
+## External Model Repository Ingest
 
 Use `scripts/download_hf_model.ps1` for model repositories:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File skills\automated-training-data-lake\scripts\download_hf_model.ps1 `
-  -RepoId nvidia/LocateAnything-3B `
+  -RepoId <org>/<repo> `
   -PullLFS
 ```
 

@@ -1,6 +1,17 @@
 import { z } from "zod";
 import type { DatasetRecord } from "@entities/dataset/model";
-import type { AgentRun, AgentSpec, AgentToolSpec, AuditEvent, WorkflowSpec } from "@entities/agent/model";
+import type {
+  AgentRun,
+  AgentSpec,
+  AgentToolSpec,
+  AuditEvent,
+  ControlSurface,
+  DataGovernancePolicy,
+  EnforcementPoint,
+  ReleasePolicy,
+  RuntimePolicy,
+  WorkflowSpec
+} from "@entities/agent/model";
 import type { TaskRecord } from "@entities/task/model";
 import type { Taxonomy } from "@entities/taxonomy/model";
 import type { Box } from "@entities/track/model";
@@ -58,5 +69,10 @@ export const apiClient = {
   submitAgentRun: async (payload: Record<string, unknown>) =>
     request<{ run: AgentRun }>("/api/agent-runs", { method: "POST", body: JSON.stringify(payload) }),
   listAgentRuns: async () => request<{ runs: AgentRun[] }>("/api/agent-runs"),
-  listAuditEvents: async (limit = 30) => request<{ events: AuditEvent[] }>(`/api/audit-events?limit=${limit}`)
+  listAuditEvents: async (limit = 30) => request<{ events: AuditEvent[] }>(`/api/audit-events?limit=${limit}`),
+  listEnforcementPoints: async () => request<{ enforcement_points: EnforcementPoint[] }>("/api/governance/enforcement-points"),
+  listDataGovernancePolicies: async () => request<{ data_policies: DataGovernancePolicy[] }>("/api/governance/data-policies"),
+  listReleasePolicies: async () => request<{ release_policies: ReleasePolicy[] }>("/api/governance/release-policies"),
+  listRuntimePolicies: async () => request<{ runtime_policies: RuntimePolicy[] }>("/api/governance/runtime-policies"),
+  getControlSurface: async () => request<{ control_surface: ControlSurface }>("/api/governance/control-surface")
 };

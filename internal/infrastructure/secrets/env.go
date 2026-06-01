@@ -37,10 +37,10 @@ func (s *EnvStore) ListAPIKeys(ctx context.Context) ([]provider.APIKeySecret, er
 		providerID string
 		name       string
 	}{
-		{"env:OPENAI_API_KEY", "openai", "OpenAI API Key"},
-		{"env:ANTHROPIC_AUTH_TOKEN", "mimo_anthropic", "Mimo Anthropic-compatible Token"},
-		{"env:DASHSCOPE_API_KEY", "qwen", "DashScope/Qwen API Key"},
-		{"env:OPENROUTER_API_KEY", "openrouter", "OpenRouter API Key"},
+		{"env:LLM_API_KEY", "chat_default", "Generic Chat Endpoint Token"},
+		{"env:VLM_API_KEY", "vision_default", "Generic Vision Endpoint Token"},
+		{"env:MODEL_ROUTER_API_KEY", "model_router", "Model Router Token"},
+		{"env:LOCAL_MODEL_API_KEY", "local_runtime", "Local Model Runtime Token"},
 	}
 	out := []provider.APIKeySecret{}
 	for _, c := range candidates {

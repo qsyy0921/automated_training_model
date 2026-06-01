@@ -1,29 +1,65 @@
-# Agent 系统设计审核
+# Agent System Design Review
 
-## 结论
+## Conclusion
 
-当前方案适合作为第一阶段骨架：控制面、执行层、前端、数据湖已经分边界，后续替换队列、存储、Python worker 不需要推翻现有结构。
+The architecture has been refactored from a single platform overview into a
+set of enforceable boundaries and contracts. The most important change is that
+agent runtime concerns and training lifecycle concerns no longer share an
+implicit control plane.
 
-## 主要风险
+## Issues Addressed
 
-- P1：当前队列仍是内存队列，服务重启后 run task 状态会丢失。下一阶段需要 Redis/NATS 或持久化任务表。
-- P1：Python worker 还没有被 Go runner 真正调度，只完成了 job envelope 契约。下一阶段需要本地进程 runner 或 Docker runner。
-- P1：数据湖 catalog 还只是轻量 JSON，没有强制 lineage 关系。训练闭环上线前需要记录 dataset -> derived labels -> train run -> checkpoint -> eval report。
-- P2：权限策略当前是 metadata 字段，还没有 enforce。接入远程 Bot/Webhook 之前必须增加 policy check。
-- P2：前端 Agent 控制台是 MVP，只展示和提交 dry-run，缺 workflow DAG、日志流和 artifact 链路。
+- Runtime/training coupling: split into Agent Serving Platform and Model/Data
+  Training Platform.
+- Safety as sidecar: converted into forced enforcement points across ingress,
+  tool calls, execution, model calls, egress, training ingest, and release.
+- Training data risk: added curation policy with authorization, redaction,
+  quality checks, split isolation, versioning, and lineage.
+- Release risk: added promotion gate, staged rollout, rollback signals, and
+  approval requirements.
+- Skill self-modification risk: skill changes now belong to a version registry
+  and promotion gate before release.
+- Subagent risk: added delegation policy with reduced context, bounded depth,
+  bounded fanout, and parent approval for writes.
+- Memory risk: added memory lifecycle policy covering retention, deletion,
+  vector cleanup, and separation from training data.
+- Tool permission risk: tool specs now include scopes, risk level, approval,
+  sandbox, and budget policy.
+- Terminal risk: terminal execution policy requires scoped filesystem access,
+  audited command metadata, timeout, and sandbox policy.
+- Observability gap: added trace, cost, lineage, and incident response
+  contracts in addition to audit.
+- Cost risk: added runtime and training budget policies.
+- Workflow failure ambiguity: added retry, hold, stop, recovery, and
+  compensation policy contracts.
+- Data lineage gap: lineage is now part of data governance and observability.
+- Model abstraction risk: provider routing uses capability declarations and
+  policy, not a provider name.
+- Human review gap: approval gates are available across runtime, data,
+  training, and release.
+- Versioning gap: prompt, policy, workflow, tool, skill, and evaluation suite
+  registries are explicit.
+- Schema drift risk: request, workflow node, tool, dataset, and audit schemas
+  are named contracts.
+- Active learning bias: active learning policy includes sampling, label
+  consistency, split isolation, drift, and contamination checks.
+- Multi-tenant gap: tenant isolation now covers data, memory, vector indexes,
+  secrets, audit, model access, and budget.
+- Recovery gap: recovery policy names protected state and rebuild checks.
 
-## 通过点
+## Remaining Implementation Risk
 
-- Go 后端使用 domain/app/infrastructure/api 分层，没有把 Python、文件系统、HTTP 细节放进 domain。
-- Agent、Tool、Workflow 都以 registry 管理，符合 `Hermes` 和 `OpenClaw` 的可扩展方向。
-- Workflow 提交只依赖 `ModelGateway` 端口，后续切队列或 worker backend 成本较低。
-- 前端新增 panel 没有侵入视频播放器和标注逻辑，标注工作流仍保持原路径。
-- 大文件仍在 `data_lake`，Git 只提交代码、文档、skill 和小型 manifest。
+The current implementation is still an MVP skeleton. The contract surfaces are
+now in code and API, but production durability still requires a real durable
+queue, persisted policy store, worker runner, secret backend, lineage catalog,
+and deployment controller.
 
-## 下一步优先级
+## Next Engineering Steps
 
-1. 增加 durable queue + worker runner。
-2. 给 Python worker 接入一个真实 dry-run command runner，并输出 artifact manifest。
-3. 建立 `data_lake/catalog/lineage`，把训练消费和产出数据串起来。
-4. 在前端增加 run log 和 artifact 链接。
-5. 引入策略检查，至少覆盖模型下载、数据写入、远程入口三类权限。
+1. Replace JSON repository and in-memory task queue with durable adapters.
+2. Add policy enforcement middleware before tool/model/worker execution.
+3. Add lineage manifests for every dataset, derived artifact, run, checkpoint,
+   evaluation report, and release event.
+4. Add a worker runner with sandbox, filesystem scope, timeout, and command
+   audit.
+5. Add frontend views for lineage, release gates, run logs, and policy holds.

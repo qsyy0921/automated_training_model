@@ -10,10 +10,12 @@ interface Props {
   currentScene: string;
 }
 
+const primaryWorkflowID = "data-to-deployment-lifecycle";
+
 export function AgentControlPanel({ visible, currentScene }: Props) {
   const queryClient = useQueryClient();
   const [workflowID, setWorkflowID] = useState("");
-  const [datasetID, setDatasetID] = useState("shanghaitech-original");
+  const [datasetID, setDatasetID] = useState("workspace-dataset");
   const [dryRun, setDryRun] = useState(true);
 
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => apiClient.listAgents(), enabled: visible });
@@ -21,12 +23,15 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
   const workflows = useQuery({ queryKey: ["workflows"], queryFn: () => apiClient.listWorkflows(), enabled: visible });
   const runs = useQuery({ queryKey: ["agent-runs"], queryFn: () => apiClient.listAgentRuns(), enabled: visible, refetchInterval: visible ? 3000 : false });
   const audit = useQuery({ queryKey: ["audit-events"], queryFn: () => apiClient.listAuditEvents(24), enabled: visible, refetchInterval: visible ? 5000 : false });
+  const controlSurface = useQuery({ queryKey: ["control-surface"], queryFn: () => apiClient.getControlSurface(), enabled: visible });
 
   const workflowList = workflows.data?.workflows || [];
   const selectedWorkflow = useMemo(() => workflowList.find((item) => item.id === workflowID) || workflowList[0], [workflowID, workflowList]);
 
   useEffect(() => {
-    if (!workflowID && workflowList[0]) setWorkflowID(workflowList[0].id);
+    if (!workflowID && workflowList[0]) {
+      setWorkflowID(workflowList.find((item) => item.id === primaryWorkflowID)?.id || workflowList[0].id);
+    }
   }, [workflowID, workflowList]);
 
   const submitRun = useMutation({
@@ -48,11 +53,11 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
 
   return (
     <section className="agentPanel">
-      <Panel title="Agent 控制面">
+      <Panel title="Agent 生命周期控制台">
         <div className="metricStrip">
           <span>
             <b>{agents.data?.agents.length || 0}</b>
-            <small>智能体</small>
+            <small>Agent</small>
           </span>
           <span>
             <b>{tools.data?.tools.length || 0}</b>
@@ -60,7 +65,7 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
           </span>
           <span>
             <b>{workflowList.length}</b>
-            <small>工作流</small>
+            <small>生命周期工作流</small>
           </span>
           <span>
             <b>{runs.data?.runs.length || 0}</b>
@@ -89,12 +94,12 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
             <span>只做调度预演</span>
           </label>
           <Button variant="primary" onClick={() => selectedWorkflow && submitRun.mutate(selectedWorkflow)} disabled={!selectedWorkflow || submitRun.isPending}>
-            提交工作流
+            提交 Agent 工作流
           </Button>
         </div>
       </Panel>
 
-      <Panel title="智能体与工具">
+      <Panel title="Agent 与工具">
         <div className="agentGrid">
           {(agents.data?.agents || []).map((agent) => (
             <article key={agent.id} className="agentCard">
@@ -115,6 +120,37 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
         </div>
       </Panel>
 
+      <Panel title="治理强制路径">
+        <div className="metricStrip governanceMetrics">
+          <span>
+            <b>{controlSurface.data?.control_surface.boundaries.length || 0}</b>
+            <small>核心边界</small>
+          </span>
+          <span>
+            <b>{controlSurface.data?.control_surface.enforcement_points.length || 0}</b>
+            <small>强制检查点</small>
+          </span>
+          <span>
+            <b>{controlSurface.data?.control_surface.version_registries.length || 0}</b>
+            <small>版本注册表</small>
+          </span>
+          <span>
+            <b>{controlSurface.data?.control_surface.schema_contracts.length || 0}</b>
+            <small>Schema 契约</small>
+          </span>
+        </div>
+        <div className="policyList">
+          {(controlSurface.data?.control_surface.enforcement_points || []).slice(0, 6).map((point) => (
+            <div key={point.id} className="policyRow">
+              <b>{point.name}</b>
+              <small>
+                {point.stage} · {(point.checks || []).slice(0, 3).join(" / ")}
+              </small>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
       <Panel title="工作流详情">
         {selectedWorkflow ? (
           <div className="workflowDetail">
@@ -126,7 +162,9 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
               {(selectedWorkflow.steps || []).map((step) => (
                 <li key={step.id}>
                   <b>{step.name}</b>
-                  <small>{step.agent_id || "human"} · {step.action}</small>
+                  <small>
+                    {step.agent_id || "human"} · {step.action}
+                  </small>
                 </li>
               ))}
             </ol>
@@ -141,7 +179,9 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
           {(runs.data?.runs || []).slice(0, 6).map((run) => (
             <div key={run.id} className="runRow">
               <b>{run.workflow_id}</b>
-              <small>{run.status} · {run.task_id}</small>
+              <small>
+                {run.status} · {run.task_id}
+              </small>
             </div>
           ))}
         </div>
@@ -149,7 +189,9 @@ export function AgentControlPanel({ visible, currentScene }: Props) {
           {(audit.data?.events || []).slice(0, 6).map((event) => (
             <div key={event.id} className="auditRow">
               <b>{event.action}</b>
-              <small>{event.resource_type}:{event.resource_id}</small>
+              <small>
+                {event.resource_type}:{event.resource_id}
+              </small>
             </div>
           ))}
         </div>

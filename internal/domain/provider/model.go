@@ -3,12 +3,10 @@ package provider
 type ProviderType string
 
 const (
-	ProviderOpenAI     ProviderType = "openai"
-	ProviderAnthropic  ProviderType = "anthropic"
-	ProviderQwen       ProviderType = "qwen"
-	ProviderOpenRouter ProviderType = "openrouter"
-	ProviderMimo       ProviderType = "mimo"
-	ProviderLocal      ProviderType = "local"
+	ProviderChatCompatible   ProviderType = "chat-compatible"
+	ProviderVisionCompatible ProviderType = "vision-compatible"
+	ProviderModelRouter      ProviderType = "model-router"
+	ProviderLocal            ProviderType = "local"
 )
 
 type Provider struct {

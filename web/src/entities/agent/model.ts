@@ -18,6 +18,11 @@ export interface AgentToolSpec {
   version: string;
   description?: string;
   permission_level?: string;
+  permission_scopes?: string[];
+  risk_level?: string;
+  approval_required?: boolean;
+  sandbox_policy_id?: string;
+  budget_policy_id?: string;
   runtime?: string;
   status: string;
 }
@@ -30,6 +35,9 @@ export interface WorkflowStep {
   action: string;
   depends_on?: string[];
   policy_tags?: string[];
+  failure_policy_id?: string;
+  approval_gate_id?: string;
+  timeout_seconds?: number;
 }
 
 export interface WorkflowSpec {
@@ -64,4 +72,59 @@ export interface AuditEvent {
   resource_id: string;
   details?: Record<string, string>;
   created_at: string;
+}
+
+export interface EnforcementPoint {
+  id: string;
+  name: string;
+  stage: string;
+  description?: string;
+  checks?: string[];
+  blocks_on?: string[];
+  audit_level?: string;
+}
+
+export interface DataGovernancePolicy {
+  id: string;
+  name: string;
+  description?: string;
+  required_checks?: string[];
+  versioning_rule?: string;
+  lineage_rule?: string;
+  training_eligibility?: string;
+}
+
+export interface ReleasePolicy {
+  id: string;
+  name: string;
+  description?: string;
+  required_gates?: string[];
+  rollout_stages?: string[];
+  rollback_signals?: string[];
+}
+
+export interface RuntimePolicy {
+  id: string;
+  name: string;
+  description?: string;
+  scope?: string;
+  required_fields?: string[];
+  limits?: string[];
+}
+
+export interface ControlSurface {
+  boundaries: Array<{ id: string; name: string; owns?: string[]; does_not_own?: string[]; integration_types?: string[] }>;
+  enforcement_points: EnforcementPoint[];
+  data_policies: DataGovernancePolicy[];
+  release_policies: ReleasePolicy[];
+  runtime_policies: RuntimePolicy[];
+  version_registries: Array<{ id: string; name: string; governs: string; required_metadata?: string[]; promotion_gate?: string }>;
+  schema_contracts: Array<{ id: string; name: string; scope: string; required_for?: string[]; failure_mode?: string }>;
+  observability: Array<{ id: string; name: string; covers?: string[]; required_for?: string[]; alerts?: string[] }>;
+  budget_policies: Array<{ id: string; name: string; scope: string; limits?: string[]; kill_signals?: string[] }>;
+  failure_policies: Array<{ id: string; name: string; failure_classes?: string[]; retry_rule?: string; recovery_rule?: string; compensation_rule?: string }>;
+  model_capabilities: Array<{ id: string; name: string; required_fields?: string[]; routing_rule?: string }>;
+  tenant_isolation: Array<{ id: string; name: string; isolates?: string[]; required_for?: string[] }>;
+  active_learning: Array<{ id: string; name: string; controls?: string[]; blocks_on?: string[] }>;
+  recovery_policies: Array<{ id: string; name: string; protected_state?: string[]; recovery_checks?: string[] }>;
 }

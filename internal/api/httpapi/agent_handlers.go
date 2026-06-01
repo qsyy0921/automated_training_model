@@ -130,3 +130,48 @@ func (s *Server) listAuditEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": rows})
 }
+
+func (s *Server) listEnforcementPoints(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.agents.ListEnforcementPoints(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"enforcement_points": rows})
+}
+
+func (s *Server) listDataGovernancePolicies(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.agents.ListDataGovernancePolicies(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data_policies": rows})
+}
+
+func (s *Server) listReleasePolicies(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.agents.ListReleasePolicies(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"release_policies": rows})
+}
+
+func (s *Server) listRuntimePolicies(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.agents.ListRuntimePolicies(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runtime_policies": rows})
+}
+
+func (s *Server) getControlSurface(w http.ResponseWriter, r *http.Request) {
+	row, err := s.agents.GetControlSurface(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"control_surface": row})
+}

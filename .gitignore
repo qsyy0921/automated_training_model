@@ -46,6 +46,6 @@ Thumbs.db
 *.jpg
 *.jpeg
 *.png
-!docs/assets/agent-system-imagegen.png
+!docs/assets/agent-*.png
 *.parquet
 *.safetensors
