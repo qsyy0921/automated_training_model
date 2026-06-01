@@ -107,7 +107,8 @@ func TestWorkflowSubmitToolRequiresDryRunPreflight(t *testing.T) {
 	}
 }
 
-func TestModelDownloadRequiresApproval(t *testing.T) {
+func TestModelDownloadCanBeRestrictedByServerPolicy(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL", "true")
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	msg := channel.InboundMessage{
 		ID:        "msg1",
@@ -137,5 +138,11 @@ func TestModelDownloadRequiresApproval(t *testing.T) {
 	}
 	if result.Status != "approval_required" {
 		t.Fatalf("expected approval_required, got %s", result.Status)
+	}
+}
+
+func TestModelDownloadDefaultPolicyAllowsExecution(t *testing.T) {
+	if modelDownloadRequiresApproval(ToolCall{Params: map[string]string{}}) {
+		t.Fatal("default runtime policy should grant model download permission")
 	}
 }

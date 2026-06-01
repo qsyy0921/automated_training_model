@@ -16,7 +16,7 @@
 - [ ] 实现 QQ MVP：单 account、私聊文本、群聊 @Bot、`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`。
 - [x] 接入 NapCat outbound sender，让 `/api/channels/qq/onebot` 在环境变量开启后主动调用 OneBot `send_msg` 回发 QQ。
 - [x] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
-- [ ] 通过 Agent Runtime + Mimo planner 在人工批准后真实执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；Codex 不再直接运行下载命令。
+- [ ] 通过 Agent Runtime + Mimo planner 真实执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [ ] 为 LocateAnything-3B 补齐加载 smoke 和 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [ ] 拆出独立 `Task Center`、`Model Registry`、`Governance` 页面。

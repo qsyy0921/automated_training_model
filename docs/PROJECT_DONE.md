@@ -67,7 +67,7 @@
 - [x] 新增 repo-local HuggingFace 模型下载 skill：`skills/huggingface-model-downloader`，覆盖依赖、token、HF_HOME/cache、断点续传、manifest、校验和 Git 排除要求。
 - [x] 完成 `nvidia/LocateAnything-3B` 下载 skill dry-run：确认默认本地目录、manifest 路径和不提交权重的边界。
 - [x] 验证 Mimo planner 对 LocateAnything-3B 安装请求会输出 `model.download_hf` tool-call plan，而不是直接输出 shell 命令。
-- [x] 为 `model.download_hf` 增加 approval gate：默认只返回 `approval_required` 预检提示，真实下载必须带 `approved=true` 或服务端设置 `AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD=true`。
+- [x] 调整 `model.download_hf` 权限策略：本机开发默认授予 Agent Runtime 执行权限；如需收紧，设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 后才要求 `approved=true`。
 - [x] 验证 ShanghaiTech original 数据目录存在，并完成 `model.verify_hf` + `workflow.submit_run(dry_run=true)` 的测试计划生成。
 - [x] 前端 Agent Overview 接入 runtime status、sessions、traces 和入口测试面板；CLI 接入 runtime status/sessions/traces/send；桌面端复用 Gateway runtime snapshot。
 - [x] 将前端 `wasm:build` 改为 `powershell -NoProfile`，避免 Conda PowerShell profile 的 GBK 乱码异常污染 `npm run build` 输出。

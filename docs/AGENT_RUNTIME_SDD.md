@@ -183,9 +183,7 @@ $env:AGENT_RUNTIME_PYTHONPATH="F:\automated_training_model\workers\python"
 Mimo / VLM provider key 只允许放在服务端环境变量或 SecretRef 中，不能写入仓库、前端代码或 channel payload。
 HuggingFace 模型安装不由 Codex 直接执行；Codex 只维护 prompt、skill、tool contract 和测试入口。实际安装流程必须由 Agent Runtime 调用 Mimo 输出 `model.download_hf` / `model.verify_hf` tool-call plan，再由 Go ToolExecutor 受控执行。Mimo 安装提示词见 [AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md](AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md)。
 
-模型下载是有副作用的大文件操作，默认只做 preflight：`model.download_hf` 会返回 `approval_required`，不会写入权重目录。真实下载必须满足二者之一：
-- tool-call params 显式包含 `approved=true`。
-- 服务端环境变量显式设置 `AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD=true`。
+当前本机开发策略是 Agent Runtime 默认拥有执行权限：`model.download_hf` 可以直接执行真实下载，但仍被限制在 `data_lake/models/artifacts/huggingface` 目录内，不能写入 Git 路径或任意路径。需要收紧权限时，服务端设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`，此时真实下载必须由 tool-call params 显式包含 `approved=true`。
 
 Mimo 路由规则：
 - `mimo-v2.5-pro`：文本意图识别、任务规划、tool-call JSON、workflow reasoning。
@@ -200,7 +198,7 @@ Mimo 路由规则：
 | Intent | Go `ClassifyIntent` 规则层 | Python/Mimo planner 做二级语义识别 |
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Executor | `GoToolExecutor` 支持 runtime、workflow、intake、vision、llm.plan 最小工具 | 拆到 `internal/app/toolapp`，增加 schema、permission、approval |
-| Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；下载默认需要 approval gate | 后续接入模型注册、下载任务状态和断点续传 UI |
+| Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；本机开发默认全权限，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务状态和断点续传 UI |
 | Trace | 每条消息写入 `TraceEvent` | 持久化、检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
 | Channel | QQ/NapCat webhook/test-message | OneBot WebSocket reader、Telegram、飞书 |
@@ -261,7 +259,7 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 - Mimo API smoke 已通过：`mimo-v2.5-pro` 和 `mimo-v2.5` 都能通过 `C:\Users\10495\Desktop\mimo.txt` 加载到服务端环境变量后访问；测试脚本只输出模型名、HTTP 状态和响应摘要，不打印密钥。
 - Mimo 路由已验证：文本规划默认走 `mimo-v2.5-pro`，视觉附件或 `delegation.model_route=vision` 走 `mimo-v2.5`。
 - Mimo planner 安装请求已验证：用户请求安装 `nvidia/LocateAnything-3B` 时，planner 输出 `model.download_hf` tool-call plan，而不是直接输出 shell 命令。
-- Go ToolExecutor 下载审批边界已验证：`model.download_hf` 默认返回 `approval_required`，只有 `approved=true` 或 `AGENT_RUNTIME_ALLOW_MODEL_DOWNLOAD=true` 时才会执行真实下载脚本。
+- Go ToolExecutor 权限边界已验证：本机开发默认允许 Agent Runtime 执行 `model.download_hf`；设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 后才会返回 `approval_required`，并要求 `approved=true`。
 - ShanghaiTech original 数据目录已验证存在：`F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original`，顶层包含 `training`、`testing`、`testframemask`。
 - ShanghaiTech 测试计划已验证：当用户要求用 ShanghaiTech original 测试 LocateAnything-3B 时，runtime 会规划 `model.verify_hf` + `workflow.submit_run(dry_run=true)`，并生成 trace；真实推理仍依赖模型权重下载、依赖安装和显存条件。
 - HuggingFace downloader skill dry-run 已通过：`nvidia/LocateAnything-3B` 的下载路径限制在 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，manifest 路径为 `data_lake/catalog/models/nvidia_LocateAnything-3B.download.json`；dry-run 不创建权重目录。

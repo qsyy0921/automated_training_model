@@ -20,7 +20,7 @@
 1. 先判断是不是确定性低风险命令。`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 由 Go control plane 直接处理，不进入 sub-agent。
 2. 再判断是否有附件。图片、截图、异常帧等视觉附件交给 `vision-agent`；zip、manifest、目录索引等非视觉数据交给 `data-intake-agent`。
 3. 再判断是否是自由文本。自然语言请求先交给 `planner-agent` 做意图细化、tool-call plan 和 preflight。
-4. 长流程任务只规划，不直接执行。训练、评估、部署、模型下载等有副作用任务必须经过 tool executor 的权限和审批边界。
+4. 长流程任务只规划，不直接绕过 Tool Executor。当前本机开发默认授予 Agent Runtime 全部执行权限；生产/安全模式可以在 Tool Executor 打开审批、预算和 sandbox 边界。
 5. skill 自进化默认关闭。只有成功 trace 可以进入 `skill-miner-agent` 生成草稿，草稿必须人工审批后才启用。
 
 使用 sub-agent：
@@ -41,7 +41,7 @@
 | `/bot-ping`、`/bot-me`、`/bot-status` | 低风险确定性命令，Go 控制面直接返回。 |
 | `/bot-runs`、`/bot-run dry` | 已有明确 workflow API，不需要再让 LLM 决策。 |
 | 单次只读 API 查询 | 直接由 CLI/Web 调 Gateway。 |
-| 高风险写操作未获得审批 | 不能通过 sub-agent 绕过审批。 |
+| 生产/安全模式下未获审批的高风险写操作 | 不能通过 sub-agent 绕过审批；本机开发默认是 allow-all。 |
 | 需要同一个可变状态的强一致事务 | 暂时由 Go 应用服务串行处理，避免并发写坏状态。 |
 
 ## 调度规则
