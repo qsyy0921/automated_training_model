@@ -165,6 +165,49 @@ export interface RuntimeStatus {
   };
 }
 
+export interface RuntimeSession {
+  key: string;
+  agent_id: string;
+  channel: string;
+  account_id: string;
+  peer_kind: string;
+  peer_id: string;
+  sender_id: string;
+  message_count: number;
+  last_intent?: string;
+  last_tool_ids?: string[];
+  last_status?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RuntimeTrace {
+  id: string;
+  session_key: string;
+  message_id?: string;
+  channel: string;
+  account_id: string;
+  peer_kind: string;
+  peer_id: string;
+  sender_id: string;
+  intent: string;
+  agent_id: string;
+  tool_ids?: string[];
+  status: string;
+  reply_text?: string;
+  error?: string;
+  created_at: string;
+}
+
+export interface RuntimeSnapshot {
+  started_at: string;
+  updated_at: string;
+  session_count: number;
+  trace_count: number;
+  sessions: RuntimeSession[];
+  recent_traces: RuntimeTrace[] | null;
+}
+
 export interface ChannelStatus {
   id: string;
   name: string;

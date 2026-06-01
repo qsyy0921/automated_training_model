@@ -34,6 +34,9 @@
 - [x] 为项目 PowerShell 脚本统一接入 UTF-8 初始化，并增加 `ops/scripts/encoding-doctor.ps1` 检查中文文档读取。
 - [x] 增加 sub-agent 决策契约、runtime status API、CLI/桌面/QQ 最小入口和测试 SDD。
 - [x] 增加 QQ/NapCat OneBot outbound sender，可通过环境变量开启真实 `send_msg` 回发。
+- [x] 拆分 Agent Runtime 为 `Service`、`SessionRunner`、`PlannerPort`、`ToolExecutorPort`、内存 session/trace store，并新增 `/api/runtime/sessions`、`/api/runtime/traces` 可观测入口。
+- [x] 删除中断留下的不完整 `LocateAnything-3B` 下载目录，确认模型权重残留不进入 Git。
+- [x] 新增 Mimo Agent 安装提示词，明确 Codex 只维护 prompt/tool contract，模型下载必须由 Agent Runtime 调用 Mimo 规划后通过受控工具执行。
 - [x] 前端从原生 ES Modules 迁移到 Vite + React + TypeScript。
 - [x] 前端按 FSD / 前端 DDD 拆分：
   - `app`
@@ -57,3 +60,11 @@
 - [x] Added web Agent Control Panel for registry visibility and dry-run workflow submission.
 - [x] Added Python worker contract skeleton under `workers/python/agent_worker`.
 - [x] Added repo-local data lake ingest skill under `skills/automated-training-data-lake`.
+- [x] 接入 Python Agent Runtime 的 Mimo planner wrapper：文本规划默认 `mimo-v2.5-pro`，视觉路由默认 `mimo-v2.5`，密钥只从本机环境变量 / `C:\Users\10495\Desktop\mimo.txt` 加载。
+- [x] 新增 `ops/scripts/load-mimo-env.ps1` 和 `ops/scripts/smoke-mimo-api.ps1`，完成 `mimo-v2.5-pro` 与 `mimo-v2.5` API smoke；脚本不打印 API Key。
+- [x] 新增 `ops/scripts/smoke-mimo-planner.ps1`，验证 LocateAnything 安装请求输出 `model.download_hf`，ShanghaiTech dry-run 请求输出 `model.verify_hf` + `workflow.submit_run`。
+- [x] 新增 repo-local HuggingFace 模型下载 skill：`skills/huggingface-model-downloader`，覆盖依赖、token、HF_HOME/cache、断点续传、manifest、校验和 Git 排除要求。
+- [x] 完成 `nvidia/LocateAnything-3B` 下载 skill dry-run：确认默认本地目录、manifest 路径和不提交权重的边界。
+- [x] 验证 Mimo planner 对 LocateAnything-3B 安装请求会输出 `model.download_hf` tool-call plan，而不是直接输出 shell 命令。
+- [x] 验证 ShanghaiTech original 数据目录存在，并完成 `model.verify_hf` + `workflow.submit_run(dry_run=true)` 的测试计划生成。
+- [x] 前端 Agent Overview 接入 runtime status、sessions、traces 和入口测试面板；CLI 接入 runtime status/sessions/traces/send；桌面端复用 Gateway runtime snapshot。

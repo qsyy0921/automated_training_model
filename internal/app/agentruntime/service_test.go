@@ -50,6 +50,13 @@ func TestBotRunDrySubmitsWorkflow(t *testing.T) {
 	if out.Text == "" {
 		t.Fatal("expected reply text")
 	}
+	snapshot := svc.Snapshot(10)
+	if snapshot.SessionCount != 1 {
+		t.Fatalf("expected one runtime session, got %d", snapshot.SessionCount)
+	}
+	if snapshot.TraceCount != 1 {
+		t.Fatalf("expected one runtime trace, got %d", snapshot.TraceCount)
+	}
 }
 
 func TestAttachmentMessageDoesNotWriteData(t *testing.T) {
@@ -67,5 +74,35 @@ func TestAttachmentMessageDoesNotWriteData(t *testing.T) {
 	}
 	if out.Text == "" {
 		t.Fatal("expected intake planning reply")
+	}
+}
+
+func TestWorkflowSubmitToolRequiresDryRunPreflight(t *testing.T) {
+	plane := &fakeAgentPlane{}
+	executor := NewGoToolExecutor(plane, nil)
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "please run workflow",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "planner-agent"})
+	_, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "workflow.submit_run",
+			Params: map[string]string{"workflow_id": defaultWorkflowID},
+		}},
+	})
+	if err == nil {
+		t.Fatal("expected dry-run preflight error")
+	}
+	if plane.submitted.WorkflowID != "" {
+		t.Fatal("workflow should not be submitted when dry-run preflight fails")
 	}
 }

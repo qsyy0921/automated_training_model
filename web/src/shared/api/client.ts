@@ -10,7 +10,10 @@ import type {
   DataGovernancePolicy,
   EnforcementPoint,
   ReleasePolicy,
+  RuntimeSession,
+  RuntimeSnapshot,
   RuntimeStatus,
+  RuntimeTrace,
   RuntimePolicy,
   WorkflowSpec
 } from "@entities/agent/model";
@@ -72,7 +75,21 @@ export const apiClient = {
     request<{ run: AgentRun }>("/api/agent-runs", { method: "POST", body: JSON.stringify(payload) }),
   listAgentRuns: async () => request<{ runs: AgentRun[] }>("/api/agent-runs"),
   listAuditEvents: async (limit = 30) => request<{ events: AuditEvent[] }>(`/api/audit-events?limit=${limit}`),
-  runtimeStatus: async () => request<{ runtime: RuntimeStatus }>("/api/runtime/status"),
+  runtimeStatus: async () => request<{ runtime: RuntimeStatus; snapshot: RuntimeSnapshot }>("/api/runtime/status"),
+  runtimeSessions: async () => request<{ sessions: RuntimeSession[] }>("/api/runtime/sessions"),
+  runtimeTraces: async (limit = 30) => request<{ traces: RuntimeTrace[] | null }>(`/api/runtime/traces?limit=${limit}`),
+  runtimeSend: async (text: string) =>
+    request<Record<string, unknown>>("/api/channels/qq/test-message", {
+      method: "POST",
+      body: JSON.stringify({
+        id: `web_runtime_${Date.now()}`,
+        channel: "qq",
+        account_id: "default",
+        peer: { channel: "qq", account_id: "default", kind: "direct", id: "web-runtime" },
+        sender_id: "web-runtime",
+        text
+      })
+    }),
   desktopStatus: async () => request<{ desktop: Record<string, unknown> }>("/api/desktop/status"),
   listChannels: async () => request<{ channels: ChannelStatus[] }>("/api/channels"),
   qqStatus: async () => request<Record<string, unknown>>("/api/channels/qq/status"),

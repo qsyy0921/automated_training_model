@@ -21,6 +21,8 @@ Web / CLI / Desktop / QQ / Telegram / Feishu
 
 当前 MVP 先支持 QQ/NapCat 的文本通信验证。长期方案采用 **Go Gateway + Python Agent Runtime**：Go 负责远程连接、鉴权、治理和审计；Python 负责 LLM planner、多模态理解、skill 选择和 tool-call plan。
 
+参考项目取舍见 [REFERENCE_AGENT_RUNTIME_ALIGNMENT.md](REFERENCE_AGENT_RUNTIME_ALIGNMENT.md)。本项目吸收 OpenClaw 的 Gateway/channel/plugin 边界、cc 的 CLI-first agent loop/permission/MCP 分层、Hermes 的 Python tools/skills/runtime 生态，但不照搬任何一个项目的整体技术栈。
+
 ## 2. 为什么不能让 QQ Adapter 直接调业务
 
 QQ Adapter 只知道 QQ/OneBot 协议，不应该知道数据集、训练、评估、部署细节。否则后续接 Telegram、飞书、桌面端时，每个入口都会复制一套业务逻辑，最后形成耦合。
@@ -134,10 +136,17 @@ agent:<agentId>:feishu:channel:<open_chat_id>
 
 ```text
 internal/app/agentruntime/
-  service.go       Agent Runtime MVP，处理 Channel message 和 /bot-* 命令
+  service.go       Agent Runtime 门面，暴露 HandleChannelMessage 和运行态快照
+  session.go       SessionRunner，负责 session key、规划调用、工具执行和 trace 记录
+  planner.go       默认规则 Planner，可离线运行并输出 ToolCall 计划
+  python_planner.go 可选 Python Planner 适配器，通过 AGENT_RUNTIME_PLANNER=python 启用
+  tools.go         Go ToolExecutor，执行 runtime、workflow、intake、vision、llm.plan 最小工具
+  store.go         内存 session/trace store，支撑 /api/runtime/sessions 和 /api/runtime/traces
+  intent.go        规则意图识别
+  subagent.go      sub-agent 路由决策
 
 workers/python/agent_runtime/
-  main.py          Python Agent Runtime prototype
+  main.py          Python Agent Runtime prototype，可输出 JSON plan/tool_calls
   intent.py        Python intent classifier
   contracts.py     Runtime request/result JSON contract
 
@@ -150,9 +159,47 @@ internal/api/httpapi/
     GET  /api/channels/qq/status
     POST /api/channels/qq/test-message
     POST /api/channels/qq/onebot
+    GET  /api/runtime/status
+    GET  /api/runtime/sessions
+    GET  /api/runtime/traces
 ```
 
-这只是最小可测通信链路。下一步再加入持久 session、LLM planner、approval queue、NapCat outbound sender。
+当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 ToolExecutor 执行，并把 session 与 trace 写入内存 store。下一步再加入持久 session、真实 LLM planner、approval queue 和长期运行的 OneBot WebSocket reader。
+
+默认模式不依赖外部模型：
+
+```powershell
+$env:AGENT_RUNTIME_PLANNER="rule"
+```
+
+如需切换到 Python runtime prototype：
+
+```powershell
+$env:AGENT_RUNTIME_PLANNER="python"
+$env:AGENT_RUNTIME_PYTHON="python"
+$env:AGENT_RUNTIME_PYTHONPATH="F:\automated_training_model\workers\python"
+```
+
+Mimo / VLM provider key 只允许放在服务端环境变量或 SecretRef 中，不能写入仓库、前端代码或 channel payload。
+HuggingFace 模型安装不由 Codex 直接执行；Codex 只维护 prompt、skill、tool contract 和测试入口。实际安装流程必须由 Agent Runtime 调用 Mimo 输出 `model.download_hf` / `model.verify_hf` tool-call plan，再由 Go ToolExecutor 受控执行。Mimo 安装提示词见 [AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md](AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md)。
+
+Mimo 路由规则：
+- `mimo-v2.5-pro`：文本意图识别、任务规划、tool-call JSON、workflow reasoning。
+- `mimo-v2.5`：视觉理解，处理 QQ 图片、截图、异常帧、样例图和其他需要 VLM 的附件。
+- Python planner 会根据 `delegation.model_route=vision` 或图片附件自动选择 `MIMO_VISION_MODEL` / `VLM_MODEL`，默认值为 `mimo-v2.5`。
+
+### 6.1 当前 Runtime 能力闭环
+
+| 能力 | 当前实现 | 后续替换点 |
+| --- | --- | --- |
+| Session | `DefaultSessionKey(agentId, channel, peer)` + `InMemoryRuntimeStore` | 持久化到 SQLite/Postgres，并增加 context summary |
+| Intent | Go `ClassifyIntent` 规则层 | Python/Mimo planner 做二级语义识别 |
+| Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
+| Tool Executor | `GoToolExecutor` 支持 runtime、workflow、intake、vision、llm.plan 最小工具 | 拆到 `internal/app/toolapp`，增加 schema、permission、approval |
+| Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake | 后续接入模型注册、下载任务状态和断点续传 UI |
+| Trace | 每条消息写入 `TraceEvent` | 持久化、检索、成本统计、skill mining 输入 |
+| Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
+| Channel | QQ/NapCat webhook/test-message | OneBot WebSocket reader、Telegram、飞书 |
 
 ## 7. 本机 QQ + NapCat 验证方案
 
@@ -202,3 +249,22 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 | ART-004 | 普通文本 | 进入 Agent Runtime，返回当前 runtime 能力说明。 |
 | ART-005 | 附件消息 | 返回 Data Intake Plan/quarantine 提示，不直接写 Data Lake。 |
 | ART-006 | 后续 Telegram/飞书 | 只能新增 adapter，不能修改 Agent Runtime 核心行为。 |
+
+## 9. 当前验证记录
+
+日期：2026-06-02
+
+- Mimo API smoke 已通过：`mimo-v2.5-pro` 和 `mimo-v2.5` 都能通过 `C:\Users\10495\Desktop\mimo.txt` 加载到服务端环境变量后访问；测试脚本只输出模型名、HTTP 状态和响应摘要，不打印密钥。
+- Mimo 路由已验证：文本规划默认走 `mimo-v2.5-pro`，视觉附件或 `delegation.model_route=vision` 走 `mimo-v2.5`。
+- Mimo planner 安装请求已验证：用户请求安装 `nvidia/LocateAnything-3B` 时，planner 输出 `model.download_hf` tool-call plan，而不是直接输出 shell 命令。
+- ShanghaiTech original 数据目录已验证存在：`F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original`，顶层包含 `training`、`testing`、`testframemask`。
+- ShanghaiTech 测试计划已验证：当用户要求用 ShanghaiTech original 测试 LocateAnything-3B 时，runtime 会规划 `model.verify_hf` + `workflow.submit_run(dry_run=true)`，并生成 trace；真实推理仍依赖模型权重下载、依赖安装和显存条件。
+- HuggingFace downloader skill dry-run 已通过：`nvidia/LocateAnything-3B` 的下载路径限制在 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，manifest 路径为 `data_lake/catalog/models/nvidia_LocateAnything-3B.download.json`；dry-run 不创建权重目录。
+- 新增 `ops/scripts/smoke-mimo-planner.ps1`：用于验证 Mimo planner 对 LocateAnything 安装请求和 ShanghaiTech dry-run 请求输出受控 tool-call plan。
+- 中断残留的 `LocateAnything-3B` 不完整下载目录已删除；当前仓库不应提交模型权重、checkpoint、HF cache、API Key 或 provider token。
+
+当前仍未完成的验收项：
+
+- 尚未由 Agent Runtime 正式执行真实 `model.download_hf` 下载完整 `nvidia/LocateAnything-3B`。
+- 尚未完成 LocateAnything-3B 的加载 smoke 或真实 ShanghaiTech 推理。
+- QQ/NapCat 真实账号回发需要本机 NapCat 登录态和 outbound 环境变量，本仓库 smoke 先覆盖 HTTP test-message / OneBot webhook 闭环。

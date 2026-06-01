@@ -8,6 +8,9 @@ export function AgentOverviewPage() {
   const [qqText, setQQText] = useState("/bot-ping");
   const runtime = useQuery({ queryKey: ["runtime-status"], queryFn: () => apiClient.runtimeStatus() });
   const channels = useQuery({ queryKey: ["channels"], queryFn: () => apiClient.listChannels() });
+  const sessions = useQuery({ queryKey: ["runtime-sessions"], queryFn: () => apiClient.runtimeSessions(), refetchInterval: 3000 });
+  const traces = useQuery({ queryKey: ["runtime-traces"], queryFn: () => apiClient.runtimeTraces(12), refetchInterval: 3000 });
+  const desktop = useQuery({ queryKey: ["desktop-status"], queryFn: () => apiClient.desktopStatus() });
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => apiClient.listAgents() });
   const runs = useQuery({ queryKey: ["agent-runs"], queryFn: () => apiClient.listAgentRuns() });
   const workflows = useQuery({ queryKey: ["workflows"], queryFn: () => apiClient.listWorkflows() });
@@ -49,7 +52,7 @@ export function AgentOverviewPage() {
         <Metric label="Runtime" value={runtime.isLoading ? "loading" : status?.runtime ?? "offline"} />
         <Metric label="Agents" value={String(agents.data?.agents.length ?? 0)} />
         <Metric label="Workflows" value={String(workflows.data?.workflows.length ?? 0)} />
-        <Metric label="Runs" value={String(runs.data?.runs.length ?? 0)} />
+        <Metric label="Sessions" value={String(runtime.data?.snapshot.session_count ?? sessions.data?.sessions.length ?? 0)} />
       </section>
 
       <section className="overviewGrid">
@@ -96,13 +99,48 @@ export function AgentOverviewPage() {
           </div>
         </Panel>
 
-        <Panel title="QQ 测试">
+        <Panel title="入口联调">
           <div className="stack">
             <input value={qqText} onChange={(event) => setQQText(event.target.value)} />
             <button className="btn btn-primary" onClick={() => qqTest.mutate(qqText)} disabled={qqTest.isPending}>
-              发送测试消息
+              通过 QQ Adapter 发送
             </button>
+            <small>Web 通过 QQ test-message 进入同一个 Agent Runtime；CLI 可用 runtime/status/sessions/traces，桌面端复用 Gateway API。</small>
             <pre className="jsonPreview">{qqTest.data ? JSON.stringify(qqTest.data, null, 2) : "等待测试"}</pre>
+          </div>
+        </Panel>
+
+        <Panel title="Runtime Sessions">
+          <div className="overviewList">
+            {(sessions.data?.sessions ?? []).length === 0 ? <p className="empty">暂无 session</p> : null}
+            {(sessions.data?.sessions ?? []).slice(0, 6).map((session) => (
+              <div className="overviewRow" key={session.key}>
+                <strong>{session.agent_id}</strong>
+                <span>{session.channel} / {session.peer_kind}:{session.peer_id}</span>
+                <small>{session.last_intent ?? "unknown"} · {session.last_status ?? "idle"} · {session.message_count} messages</small>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Runtime Traces">
+          <div className="overviewList">
+            {(traces.data?.traces ?? []).length === 0 ? <p className="empty">暂无 trace</p> : null}
+            {(traces.data?.traces ?? []).slice(0, 6).map((trace) => (
+              <div className="overviewRow" key={trace.id}>
+                <strong>{trace.intent}</strong>
+                <span>{trace.status} · {(trace.tool_ids ?? []).join(", ") || "no tool"}</span>
+                <small>{trace.reply_text || trace.error || trace.session_key}</small>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="桌面端">
+          <div className="overviewRow">
+            <strong>{String(desktop.data?.desktop.status ?? "unknown")}</strong>
+            <span>{String(desktop.data?.desktop.profile ?? "local-desktop")}</span>
+            <small>{String(desktop.data?.desktop.gateway ?? "/api/desktop/status")}</small>
           </div>
         </Panel>
 

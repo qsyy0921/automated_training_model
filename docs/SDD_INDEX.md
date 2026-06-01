@@ -8,6 +8,8 @@
 | [AGENT_ARCHITECTURE_DIAGRAMS.md](AGENT_ARCHITECTURE_DIAGRAMS.md) | 三张 imagegen 架构图与可维护 Mermaid 源图。 |
 | [AGENT_SYSTEM_DESIGN.md](AGENT_SYSTEM_DESIGN.md) | Agent Serving 与 Model/Data Training 的领域边界和治理 contract。 |
 | [AGENT_RUNTIME_SDD.md](AGENT_RUNTIME_SDD.md) | Agent Runtime、Channel Router、Intent Router 和 QQ/NapCat 通信验证设计。 |
+| [AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md](AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md) | Mimo Agent Runtime 用于 HuggingFace 模型安装、校验和数据测试规划的中文 Prompt 与 tool-call JSON 约束。 |
+| [REFERENCE_AGENT_RUNTIME_ALIGNMENT.md](REFERENCE_AGENT_RUNTIME_ALIGNMENT.md) | 对 OpenClaw、cc、Hermes 三个参考项目的架构取舍和本项目落点。 |
 | [SUB_AGENT_STRATEGY_SDD.md](SUB_AGENT_STRATEGY_SDD.md) | 什么时候使用 sub-agent、什么时候不用，以及 Go/Python runtime 的调度规则。 |
 | [INTENT_TOOL_SKILL_MCP_SDD.md](INTENT_TOOL_SKILL_MCP_SDD.md) | Intent 识别后如何映射到 Skill、Tool、MCP、Workflow 和治理执行。 |
 | [IMAGE_PROXY_AND_SKILL_EVOLUTION_SDD.md](IMAGE_PROXY_AND_SKILL_EVOLUTION_SDD.md) | 图片生成反向代理为何作为 MCP/tool，skill 自进化如何默认关闭并人工审批。 |
