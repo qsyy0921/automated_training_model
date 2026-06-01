@@ -9,6 +9,7 @@ import (
 )
 
 func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
+	outbound := qqbot.OutboundStatusFromEnv()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channels": []map[string]any{
 			{
@@ -18,18 +19,21 @@ func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
 				"runtime":          "agent-runtime",
 				"inbound_endpoint": "/api/channels/qq/onebot",
 				"test_endpoint":    "/api/channels/qq/test-message",
+				"outbound_enabled": outbound.Enabled,
 			},
 		},
 	})
 }
 
 func (s *Server) qqStatus(w http.ResponseWriter, r *http.Request) {
+	outbound := qqbot.OutboundStatusFromEnv()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channel":          "qq",
 		"adapter":          "napcat-onebot",
 		"runtime":          "ready",
 		"inbound_endpoint": "/api/channels/qq/onebot",
 		"test_endpoint":    "/api/channels/qq/test-message",
+		"outbound":         outbound,
 		"supported_commands": []string{
 			"/bot-ping",
 			"/bot-me",
@@ -67,9 +71,20 @@ func (s *Server) qqOneBotEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	onebotReply := qqbot.BuildSendMessage(reply)
+	outbound := qqbot.OutboundStatusFromEnv()
+	outboundStatus := map[string]any{"enabled": outbound.Enabled, "sent": false}
+	if outbound.Enabled {
+		if err := qqbot.NewHTTPOutboundSender(qqbot.OutboundConfigFromEnv()).Send(r.Context(), onebotReply); err != nil {
+			outboundStatus["error"] = err.Error()
+		} else {
+			outboundStatus["sent"] = true
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"reply":        reply,
-		"onebot_reply": qqbot.BuildSendMessage(reply),
+		"onebot_reply": onebotReply,
+		"outbound":     outboundStatus,
 	})
 }
 

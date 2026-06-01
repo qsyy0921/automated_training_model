@@ -28,6 +28,19 @@ go run .\cmd\labelctl skill draft -id qq-data-intake-demo -summary "QQ 上传图
 go run .\cmd\agentdesktop
 ```
 
+也可以直接运行一键 smoke test。默认不会主动回发真实 QQ；如果要使用当前 shell 里的 NapCat outbound 配置，增加 `-UseConfiguredQQOutbound`。
+
+```powershell
+.\ops\scripts\smoke-agent-entrypoints.ps1
+.\ops\scripts\smoke-agent-entrypoints.ps1 -UseConfiguredQQOutbound
+```
+
+启用真实 QQ 回发时，先配置 NapCat OneBot HTTP API：
+
+```powershell
+. .\ops\scripts\set-qq-napcat-env.example.ps1
+```
+
 QQ/NapCat webhook 模拟：
 
 ```powershell
@@ -67,6 +80,8 @@ Invoke-RestMethod http://127.0.0.1:7870/api/channels/qq/onebot -Method Post -Con
 | EP-001 | `GET /api/runtime/status` | 返回 entry points、provider routes、sub-agents、skill evolution。 |
 | EP-002 | `labelctl channel qq test /bot-ping` | 返回 `pong`。 |
 | EP-003 | QQ OneBot private `/bot-status` | 返回 runtime ready 和 OneBot send payload。 |
+| EP-003b | 设置 `QQ_ONEBOT_OUTBOUND_ENABLED=true` | webhook 处理后主动调用 NapCat `/send_msg`。 |
 | EP-004 | Web `/` | 首屏是 Agent Overview，不再只显示视频审核页面。 |
 | EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`。 |
 | EP-006 | `labelctl skill draft ...` | 写入 draft-only `SKILL.md`，`enabled=false`。 |
+| EP-007 | `smoke-agent-entrypoints.ps1` | 自动启动服务并验证 CLI、QQ webhook、desktop 和 skill draft。 |

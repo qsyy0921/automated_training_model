@@ -91,6 +91,18 @@ go run .\cmd\labelctl workflows
 go run .\cmd\labelctl runs
 ```
 
+如果要让本机登录的 QQ 通过 NapCat 主动收到回复，先设置：
+
+```powershell
+. .\ops\scripts\set-qq-napcat-env.example.ps1
+```
+
+一键 smoke test：
+
+```powershell
+.\ops\scripts\smoke-agent-entrypoints.ps1
+```
+
 如需 LLM 规划能力，配置 OpenAI-compatible endpoint：
 
 ```powershell

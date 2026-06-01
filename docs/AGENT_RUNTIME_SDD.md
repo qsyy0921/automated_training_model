@@ -58,6 +58,7 @@ Go 中的 `internal/app/agentruntime` 是最小控制面 shim，用来验证 Cha
   -> qqbot.NormalizeEvent(...)
   -> AgentRuntime.HandleChannelMessage(...)
   -> 返回 OneBot send_msg payload
+  -> 如果启用 QQ_ONEBOT_OUTBOUND_ENABLED，再主动 POST 到 NapCat /send_msg
 ```
 
 如果 NapCat 使用反向 WebSocket，后续可以改成：
@@ -181,7 +182,15 @@ go run .\cmd\labelserver -addr 127.0.0.1:7870 ...
 /bot-run dry shanghaitech-original
 ```
 
-当前 HTTP handler 会返回 `onebot_reply`，用于验证 Agent Runtime 产出的回复结构。真正让 NapCat 自动发回 QQ，还需要下一步接 `send_msg` outbound sender。
+当前 HTTP handler 会返回 `onebot_reply`，用于验证 Agent Runtime 产出的回复结构。启用以下环境变量后，会主动调用 NapCat `send_msg`：
+
+```powershell
+$env:QQ_ONEBOT_OUTBOUND_ENABLED="true"
+$env:QQ_ONEBOT_HTTP_URL="http://127.0.0.1:3000"
+$env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
+```
+
+如果没有开启 outbound，接口只返回调试 JSON，不主动发回 QQ。
 
 ## 8. SDD 测试
 

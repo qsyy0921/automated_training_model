@@ -179,7 +179,7 @@ internal/api/httpapi/channel_handlers.go
   POST /api/channels/qq/onebot
 ```
 
-这个链路用于本机挂测试 QQ + NapCat 的通信验证。当前会返回 `onebot_reply`，下一步再实现主动调用 NapCat `send_msg` 的 outbound sender。
+这个链路用于本机挂测试 QQ + NapCat 的通信验证。当前会返回 `onebot_reply`；如果设置 `QQ_ONEBOT_OUTBOUND_ENABLED=true` 和 `QQ_ONEBOT_HTTP_URL`，会主动调用 NapCat `send_msg`。
 
 ## 9. 当前架构风险
 

@@ -33,6 +33,7 @@
 - [x] 修复项目级 PowerShell UTF-8 脚本，降低中文乱码概率。
 - [x] 为项目 PowerShell 脚本统一接入 UTF-8 初始化，并增加 `ops/scripts/encoding-doctor.ps1` 检查中文文档读取。
 - [x] 增加 sub-agent 决策契约、runtime status API、CLI/桌面/QQ 最小入口和测试 SDD。
+- [x] 增加 QQ/NapCat OneBot outbound sender，可通过环境变量开启真实 `send_msg` 回发。
 - [x] 前端从原生 ES Modules 迁移到 Vite + React + TypeScript。
 - [x] 前端按 FSD / 前端 DDD 拆分：
   - `app`
