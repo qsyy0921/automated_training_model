@@ -73,3 +73,4 @@ Runtime trace
 
 - `workers/python/agent_runtime/skill_evolution.py`：默认关闭的配置契约。
 - `internal/app/agentruntime/status.go`：通过 `/api/runtime/status` 暴露当前开关状态。
+- `labelctl skill draft -id <skill-id> -summary <summary>`：手动写入 draft-only `SKILL.md`，不自动启用。

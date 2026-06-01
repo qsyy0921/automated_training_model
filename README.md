@@ -84,6 +84,7 @@ CLI 是主入口：
 go run .\cmd\labelctl agent run -workflow data-to-deployment-lifecycle -dataset workspace-dataset -dry-run=true
 go run .\cmd\labelctl runtime status
 go run .\cmd\labelctl channel qq test /bot-ping
+go run .\cmd\labelctl skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
 go run .\cmd\agentdesktop
 go run .\cmd\labelctl governance all
 go run .\cmd\labelctl workflows

@@ -24,6 +24,7 @@ go run .\cmd\labelctl desktop status
 go run .\cmd\labelctl channels
 go run .\cmd\labelctl channel qq status
 go run .\cmd\labelctl channel qq test /bot-ping
+go run .\cmd\labelctl skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
 go run .\cmd\agentdesktop
 ```
 
@@ -68,3 +69,4 @@ Invoke-RestMethod http://127.0.0.1:7870/api/channels/qq/onebot -Method Post -Con
 | EP-003 | QQ OneBot private `/bot-status` | 返回 runtime ready 和 OneBot send payload。 |
 | EP-004 | Web `/` | 首屏是 Agent Overview，不再只显示视频审核页面。 |
 | EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`。 |
+| EP-006 | `labelctl skill draft ...` | 写入 draft-only `SKILL.md`，`enabled=false`。 |

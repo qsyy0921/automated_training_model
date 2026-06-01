@@ -252,14 +252,84 @@ func runAgentWorkflow(cfg Config, args []string) error {
 
 func runSkill(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: labelctl skill download-model -repo <org/repo> [-pull-lfs] [-dry-run]")
+		return errors.New("usage: labelctl skill download-model ... | draft ...")
 	}
 	switch args[0] {
 	case "download-model":
 		return runDownloadModelSkill(args[1:])
+	case "draft":
+		return runDraftSkill(args[1:])
 	default:
 		return fmt.Errorf("unknown skill command: %s", args[0])
 	}
+}
+
+func runDraftSkill(args []string) error {
+	fs := flag.NewFlagSet("skill draft", flag.ExitOnError)
+	id := fs.String("id", "", "skill id, for example qq-data-intake")
+	title := fs.String("title", "", "human-readable skill title")
+	summary := fs.String("summary", "", "short summary of the successful workflow")
+	draftRoot := fs.String("draft-root", filepath.Join("data_lake", "agents", "skill_drafts"), "draft skill root")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	skillID := strings.TrimSpace(*id)
+	if skillID == "" {
+		return errors.New("-id is required")
+	}
+	if !regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`).MatchString(skillID) {
+		return fmt.Errorf("invalid skill id: %s", skillID)
+	}
+	skillTitle := strings.TrimSpace(*title)
+	if skillTitle == "" {
+		skillTitle = skillID
+	}
+	skillSummary := strings.TrimSpace(*summary)
+	if skillSummary == "" {
+		return errors.New("-summary is required")
+	}
+	if looksSecretLike(skillSummary) {
+		return errors.New("summary looks like it may contain a secret; remove tokens, keys, cookies, and raw private data before drafting a skill")
+	}
+	targetDir := filepath.Join(*draftRoot, skillID)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return err
+	}
+	target := filepath.Join(targetDir, "SKILL.md")
+	body := strings.Join([]string{
+		"---",
+		"name: " + skillID,
+		"description: " + skillSummary,
+		"status: draft",
+		"enabled: false",
+		"---",
+		"",
+		"# " + skillTitle,
+		"",
+		"## Summary",
+		"",
+		skillSummary,
+		"",
+		"## Safety",
+		"",
+		"- This skill is a draft and is not enabled automatically.",
+		"- Review and remove secrets, private data, and environment-specific paths before promotion.",
+		"- Promotion requires human approval and an audit event.",
+		"",
+		"## Workflow",
+		"",
+		"1. Describe the trigger condition.",
+		"2. List required tools or MCP servers.",
+		"3. Define approval gates and rollback behavior.",
+		"4. Add focused tests before enabling.",
+		"",
+	}, "\n")
+	if err := os.WriteFile(target, []byte(body), 0644); err != nil {
+		return err
+	}
+	fmt.Println("draft skill written:", target)
+	fmt.Println("enabled: false")
+	return nil
 }
 
 func runDownloadModelSkill(args []string) error {
@@ -589,6 +659,17 @@ func firstEnvWithDefault(fallback string, names ...string) string {
 	return fallback
 }
 
+func looksSecretLike(value string) bool {
+	value = strings.ToLower(value)
+	patterns := []string{"api_key", "apikey", "auth_token", "bearer ", "sk-", "tp-", "cookie=", "password="}
+	for _, pattern := range patterns {
+		if strings.Contains(value, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
 func usage() {
 	fmt.Println(`labelctl commands:
   health
@@ -611,6 +692,7 @@ func usage() {
 
   agent-run -workflow data-to-deployment-lifecycle -dataset <dataset-id> -scene <scene> [-dry-run=true]
   skill download-model -repo <org/repo> [-pull-lfs] [-dry-run]
+  skill draft -id <skill-id> -summary <workflow-summary> [-title <title>]
   llm ask <prompt>
   llm agent [-auto]
 
