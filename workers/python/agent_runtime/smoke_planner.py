@@ -32,6 +32,7 @@ def main() -> int:
         f"用 {shanghaitech_root} 测试 LocateAnything-3B，先做 dry-run。",
     )
     _assert_contains(dry_run, "model.verify_hf")
+    _assert_contains(dry_run, "model.smoke_locateanything")
     _assert_contains(dry_run, "workflow.submit_run")
 
     summary = {

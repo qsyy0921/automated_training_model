@@ -100,6 +100,8 @@ func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionReques
 		return e.downloadHFModel(ctx, call)
 	case "model.verify_hf":
 		return e.verifyHFModel(ctx, call)
+	case "model.smoke_locateanything":
+		return e.smokeLocateAnythingModel(ctx, call)
 	default:
 		return ToolExecutionResult{
 			ReplyText: fmt.Sprintf("工具 %s 尚未接入。", call.ToolID),
@@ -262,6 +264,12 @@ type hfModelRequest struct {
 	VerifyOnly bool
 }
 
+type locateAnythingSmokeRequest struct {
+	ModelDir string
+	DataRoot string
+	Output   string
+}
+
 func prepareHFModelRequest(call ToolCall, verifyOnly bool) (hfModelRequest, error) {
 	repoID := strings.TrimSpace(call.Params["repo_id"])
 	if repoID == "" {
@@ -391,6 +399,106 @@ func (e *GoToolExecutor) runHFModelScript(ctx context.Context, call ToolCall, ve
 			"manifest":  req.Manifest,
 		},
 	}, nil
+}
+
+func prepareLocateAnythingSmokeRequest(call ToolCall) (locateAnythingSmokeRequest, error) {
+	modelDir := strings.TrimSpace(call.Params["model_dir"])
+	if modelDir == "" {
+		modelDir = filepath.Join("data_lake", "models", "artifacts", "huggingface", "nvidia", "LocateAnything-3B")
+	}
+	dataRoot := strings.TrimSpace(call.Params["data_root"])
+	if dataRoot == "" {
+		dataRoot = filepath.Join("data_lake", "raw", "datasets", "shanghaitech", "original")
+	}
+	output := strings.TrimSpace(call.Params["output"])
+	if output == "" {
+		output = filepath.Join("data_lake", "catalog", "models", "nvidia_LocateAnything-3B.smoke.json")
+	}
+	safeModelDir, err := safeRepoPath(modelDir, filepath.Join("data_lake", "models", "artifacts", "huggingface"))
+	if err != nil {
+		return locateAnythingSmokeRequest{}, err
+	}
+	safeDataRoot, err := safeRepoPath(dataRoot, filepath.Join("data_lake", "raw", "datasets"))
+	if err != nil {
+		return locateAnythingSmokeRequest{}, err
+	}
+	safeOutput, err := safeRepoPath(output, filepath.Join("data_lake", "catalog", "models"))
+	if err != nil {
+		return locateAnythingSmokeRequest{}, err
+	}
+	return locateAnythingSmokeRequest{ModelDir: safeModelDir, DataRoot: safeDataRoot, Output: safeOutput}, nil
+}
+
+func (e *GoToolExecutor) smokeLocateAnythingModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareLocateAnythingSmokeRequest(call)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	timeout := hfDownloadTimeout()
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	python := strings.TrimSpace(os.Getenv("AGENT_RUNTIME_PYTHON"))
+	if python == "" {
+		python = "python"
+	}
+	args := []string{
+		filepath.Join("workers", "python", "agent_worker", "locateanything_smoke.py"),
+		"--model-dir", req.ModelDir,
+		"--data-root", req.DataRoot,
+		"--output", req.Output,
+	}
+	cmd := exec.CommandContext(runCtx, python, args...)
+	cmd.Env = os.Environ()
+	out, err := cmd.CombinedOutput()
+	if runCtx.Err() == context.DeadlineExceeded {
+		return ToolExecutionResult{}, fmt.Errorf("LocateAnything smoke timed out after %s", timeout)
+	}
+	if err != nil {
+		return ToolExecutionResult{}, fmt.Errorf("LocateAnything smoke failed: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	status, modelLoad, realInference := parseLocateAnythingSmokeOutput(out)
+	return ToolExecutionResult{
+		ReplyText: fmt.Sprintf("LocateAnything-3B 可用性 smoke 完成：status=%s model_load=%s real_inference=%s report=%s", status, modelLoad, realInference, req.Output),
+		Status:    status,
+		Metadata: map[string]string{
+			"model_id":       "nvidia/LocateAnything-3B",
+			"model_dir":      req.ModelDir,
+			"data_root":      req.DataRoot,
+			"smoke_report":   req.Output,
+			"model_load":     modelLoad,
+			"real_inference": realInference,
+		},
+	}, nil
+}
+
+func parseLocateAnythingSmokeOutput(out []byte) (string, string, string) {
+	var payload struct {
+		Status    string `json:"status"`
+		Completed struct {
+			ModelLoad     bool `json:"model_load"`
+			RealInference bool `json:"real_inference"`
+		} `json:"completed"`
+	}
+	status := "ok"
+	modelLoad := "unknown"
+	realInference := "unknown"
+	raw := strings.TrimSpace(string(out))
+	if start := strings.Index(raw, "{"); start >= 0 {
+		if end := strings.LastIndex(raw, "}"); end >= start {
+			raw = raw[start : end+1]
+		}
+	}
+	if err := json.Unmarshal([]byte(raw), &payload); err == nil {
+		if strings.TrimSpace(payload.Status) != "" {
+			status = payload.Status
+		}
+		modelLoad = strconv.FormatBool(payload.Completed.ModelLoad)
+		realInference = strconv.FormatBool(payload.Completed.RealInference)
+	}
+	if status == "partial" {
+		status = "ok"
+	}
+	return status, modelLoad, realInference
 }
 
 func safeRepoPath(path string, allowedRoot string) (string, error) {

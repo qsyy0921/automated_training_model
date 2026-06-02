@@ -24,7 +24,7 @@ Channel Message
   -> Mimo v2.5 Pro
   -> JSON tool-call plan
   -> Go ToolExecutor
-  -> model.download_hf / model.verify_hf
+  -> model.download_hf / model.verify_hf / model.smoke_locateanything
   -> runtime trace / reply
 ```
 
@@ -58,16 +58,23 @@ Channel Message
    - manifest
    - verify_only: "true"
 
-3. intake.quarantine
+3. model.smoke_locateanything
+   用途：在已下载模型上执行本地可用性 smoke，验证 `AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained`，并生成 smoke report。
+   参数：
+   - model_dir
+   - data_root
+   - output
+
+4. intake.quarantine
    用途：为来自 QQ/Web/CLI 的数据文件创建隔离计划。
 
-4. intake.plan
+5. intake.plan
    用途：创建数据入湖计划，正式写入前必须人工审批。
 
-5. vlm.inspect
+6. vlm.inspect
    用途：视觉数据检查，使用 mimo-v2.5 路由。
 
-6. workflow.submit_run
+7. workflow.submit_run
    用途：提交低风险 dry-run 工作流。
 
 输出要求：
@@ -178,6 +185,14 @@ Mimo 应输出：
       }
     },
     {
+      "kind": "model.smoke_locateanything",
+      "params": {
+        "model_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+        "data_root": "F:\\automated_training_model\\data_lake\\raw\\datasets\\shanghaitech\\original",
+        "output": "data_lake/catalog/models/nvidia_LocateAnything-3B.smoke.json"
+      }
+    },
+    {
       "kind": "workflow.submit_run",
       "params": {
         "workflow_id": "data-to-deployment-lifecycle",
@@ -198,4 +213,4 @@ Mimo 应输出：
 - 本机开发默认授予 Agent Runtime 执行权限；`model.download_hf` 可以真实下载，但 ToolExecutor 必须限制写入目录。若服务端设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`，真实下载必须由人工审批后追加 `approved=true`。
 - ToolExecutor 可以执行下载脚本，但必须把目录限制在 `data_lake/models/artifacts/huggingface` 下。
 - 下载中断后，残留目录必须删除或通过 `model.download_hf` 重新恢复，不能作为已完成模型使用。
-- 如果 Mimo 输出非 JSON、空文本或偏离工具契约，Python planner 会先尝试 JSON 修复；仍失败时只允许使用保守 guard plan，例如 LocateAnything 安装请求映射为 `model.download_hf`，ShanghaiTech 测试请求映射为 `model.verify_hf` + `workflow.submit_run(dry_run=true)`。
+- 如果 Mimo 输出非 JSON、空文本或偏离工具契约，Python planner 会先尝试 JSON 修复；仍失败时只允许使用保守 guard plan，例如 LocateAnything 安装请求映射为 `model.download_hf`，ShanghaiTech 测试请求映射为 `model.verify_hf` + `model.smoke_locateanything` + `workflow.submit_run(dry_run=true)`。

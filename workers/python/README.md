@@ -43,3 +43,17 @@ $request = @{
 } | ConvertTo-Json -Compress
 python -m agent_runtime.main --request-json $request
 ```
+
+LocateAnything-3B availability smoke:
+
+```powershell
+python -m pip install -r workers\python\requirements-locateanything.txt
+python workers\python\agent_worker\locateanything_smoke.py `
+  --model-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B `
+  --data-root data_lake\raw\datasets\shanghaitech\original `
+  --output data_lake\catalog\models\nvidia_LocateAnything-3B.smoke.json
+```
+
+The smoke verifies local files, dependencies, `AutoConfig`, `AutoProcessor`,
+the first safetensors shard, and `AutoModel.from_pretrained`. It does not mark
+real ShanghaiTech inference complete unless a dedicated inference harness runs.

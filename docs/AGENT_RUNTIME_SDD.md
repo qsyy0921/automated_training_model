@@ -262,17 +262,18 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 - Mimo planner 安装请求已验证：用户请求安装 `nvidia/LocateAnything-3B` 时，planner 输出 `model.download_hf` tool-call plan，而不是直接输出 shell 命令。
 - Go ToolExecutor 权限边界已验证：本机开发默认允许 Agent Runtime 执行 `model.download_hf`；设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 后才会返回 `approval_required`，并要求 `approved=true`。
 - ShanghaiTech original 数据目录已验证存在：`F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original`，顶层包含 `training`、`testing`、`testframemask`。
-- ShanghaiTech 测试计划已验证：当用户要求用 ShanghaiTech original 测试 LocateAnything-3B 时，runtime 会规划 `model.verify_hf` + `workflow.submit_run(dry_run=true)`，并生成 trace；真实推理仍依赖模型权重下载、依赖安装和显存条件。
+- ShanghaiTech 测试计划已验证：当用户要求用 ShanghaiTech original 测试 LocateAnything-3B 时，runtime 会规划 `model.verify_hf` + `model.smoke_locateanything` + `workflow.submit_run(dry_run=true)`，并生成 trace；真实推理仍依赖 GPU/runtime 条件。
 - ShanghaiTech Channel 数据附件 smoke 已验证：`smoke-runtime-mvp.ps1` 会把 `F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original` 作为附件源发送到 QQ test-message，runtime 生成 `intake.plan` trace，并在 metadata 记录 `dataset_name=shanghaitech-original` 与 `source_uri`。
 - HuggingFace downloader skill dry-run 已通过：`nvidia/LocateAnything-3B` 的下载路径限制在 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，manifest 路径为 `data_lake/catalog/models/nvidia_LocateAnything-3B.download.json`；dry-run 不创建权重目录。
 - Agent Runtime 真实下载已通过：`runtime-hf-install.ps1 -StartDownload -WaitForCompletion` 通过 Mimo planner 触发 `model.download_hf`，job `model-job-1780371206860804000` 最终 `succeeded`。
 - HuggingFace verify-only 已通过：`download_hf_snapshot.py --verify-only` 显示 `complete=true`、`missing_files=[]`、远端文件数 38、远端总字节 7,795,875,224；本地模型目录仍位于 ignored 的 `data_lake/` 下。
+- LocateAnything-3B 模型加载 smoke 已通过：`smoke-locateanything-model.ps1` 经 Runtime 触发 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run(dry_run=true)`；报告显示 `AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 通过，参数量 3,517,975,280。
 - 新增 `ops/scripts/smoke-mimo-planner.ps1`：用于验证 Mimo planner 对 LocateAnything 安装请求和 ShanghaiTech dry-run 请求输出受控 tool-call plan。
 - Mimo runtime smoke 已通过：`smoke-runtime-mvp.ps1 -UseMimoPlanner` 覆盖 Web/CLI/Desktop/QQ、planner-agent、vision-agent、data-intake-agent 和 ShanghaiTech source trace。
 
 当前仍未完成的验收项：
 
-- 尚未完成 LocateAnything-3B 的加载 smoke 或真实 ShanghaiTech 推理。
+- 尚未完成 LocateAnything-3B 的真实 ShanghaiTech 推理；当前 PyTorch 为 CPU-only，`real_inference=false`。
 - QQ/NapCat 真实账号回发需要本机 NapCat 登录态和 outbound 环境变量，本仓库 smoke 先覆盖 HTTP test-message / OneBot webhook 闭环。
 
 ## 10. 2026-06-02 Runtime 长任务问题分析与修正

@@ -1,0 +1,11 @@
+# LocateAnything-3B local smoke dependencies.
+# PyTorch should still be installed separately for the target CUDA/CPU runtime.
+transformers==4.57.1
+safetensors>=0.4.3
+accelerate>=1.13.0
+peft>=0.19.1
+decord==0.6.0
+lmdb==1.7.5
+opencv-python-headless==4.11.0.86
+Pillow>=11.1.0
+torchvision

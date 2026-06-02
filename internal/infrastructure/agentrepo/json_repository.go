@@ -43,8 +43,8 @@ func (r *JSONRepository) BootstrapDefaults(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if len(agents) == 0 {
-		for _, row := range agent.DefaultAgents(now) {
+	for _, row := range agent.DefaultAgents(now) {
+		if !agentExists(agents, row.ID) {
 			if _, err := r.SaveAgent(ctx, row); err != nil {
 				return err
 			}
@@ -54,8 +54,8 @@ func (r *JSONRepository) BootstrapDefaults(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if len(tools) == 0 {
-		for _, row := range agent.DefaultTools(now) {
+	for _, row := range agent.DefaultTools(now) {
+		if !toolExists(tools, row.ID) {
 			if _, err := r.SaveTool(ctx, row); err != nil {
 				return err
 			}
@@ -65,14 +65,41 @@ func (r *JSONRepository) BootstrapDefaults(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if len(workflows) == 0 {
-		for _, row := range agent.DefaultWorkflows(now) {
+	for _, row := range agent.DefaultWorkflows(now) {
+		if !workflowExists(workflows, row.ID) {
 			if _, err := r.SaveWorkflow(ctx, row); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func agentExists(rows []agent.AgentSpec, id string) bool {
+	for _, row := range rows {
+		if row.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func toolExists(rows []agent.ToolSpec, id string) bool {
+	for _, row := range rows {
+		if row.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func workflowExists(rows []agent.WorkflowSpec, id string) bool {
+	for _, row := range rows {
+		if row.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *JSONRepository) ListAgents(ctx context.Context) ([]agent.AgentSpec, error) {

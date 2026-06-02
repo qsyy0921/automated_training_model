@@ -77,7 +77,7 @@ Then sub-agent 为 `data-intake-agent`，tool trace 包含 `intake.plan`，metad
 
 Given `C:\Users\10495\Desktop\mimo.txt` 可加载  
 When 执行 Mimo planner smoke  
-Then LocateAnything 安装请求输出 `model.download_hf`，ShanghaiTech 测试请求输出 `model.verify_hf` + `workflow.submit_run(dry_run=true)`。
+Then LocateAnything 安装请求输出 `model.download_hf`，ShanghaiTech 测试请求输出 `model.verify_hf` + `model.smoke_locateanything` + `workflow.submit_run(dry_run=true)`。
 
 证据：
 
@@ -140,7 +140,21 @@ python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py `
 
 当前状态：已完成。通过 Agent Runtime + Mimo 触发 `model.download_hf`，job `model-job-1780371206860804000` 最终 `succeeded`；随后 `verify-only` 显示 `complete=true`、`missing_files=[]`、远端文件数 38、远端总字节 7,795,875,224。
 
-### ATDD-010 Git 安全边界
+### ATDD-010 LocateAnything 模型加载 smoke
+
+Given `nvidia/LocateAnything-3B` 已下载并 verify-only 完成
+When 通过 runtime 发送 “用 ShanghaiTech original 测试 LocateAnything-3B dry-run”
+Then runtime trace 包含 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run`；smoke report 显示 `model_load=true`、`real_inference=false`，并记录 ShanghaiTech `training/testing/testframemask` split 存在。
+
+证据：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
+```
+
+当前状态：已完成模型加载 smoke。当前 Python 环境为 `torch 2.11.0+cpu`、无 CUDA；真实 ShanghaiTech 推理未完成。
+
+### ATDD-011 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -166,4 +180,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-007 | 已覆盖 dry-run | HF dry-run |
 | ATDD-008 | 已覆盖预检 | `runtime-hf-install.ps1`，当前返回 `approval_required`，不下载权重 |
 | ATDD-009 | 已覆盖 | `runtime-hf-install.ps1 -StartDownload -WaitForCompletion` + `download_hf_snapshot.py --verify-only` |
-| ATDD-010 | 每次提交前执行 | rg + git status |
+| ATDD-010 | 已覆盖 | `smoke-locateanything-model.ps1` |
+| ATDD-011 | 每次提交前执行 | rg + git status |

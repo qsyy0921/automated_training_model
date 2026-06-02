@@ -15,6 +15,7 @@ ALLOWED_TOOL_KINDS = {
     "vlm.inspect",
     "model.download_hf",
     "model.verify_hf",
+    "model.smoke_locateanything",
     "workflow.submit_run",
     "workflow.list_runs",
     "runtime.status",
@@ -122,6 +123,7 @@ def _planner_prompt(request: RuntimeRequest, intent: Intent, delegation: dict[st
             "vlm.inspect",
             "model.download_hf",
             "model.verify_hf",
+            "model.smoke_locateanything",
             "workflow.submit_run",
             "workflow.list_runs",
             "runtime.status",
@@ -137,7 +139,7 @@ def _planner_prompt(request: RuntimeRequest, intent: Intent, delegation: dict[st
         "nvidia/LocateAnything-3B 的默认 local_dir 是 data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B，"
         "manifest 是 data_lake/catalog/models/nvidia_LocateAnything-3B.download.json；"
         "当用户要求用 ShanghaiTech original 或指定 data_root 测试 LocateAnything-3B 时，优先计划 model.verify_hf，"
-        "然后计划 workflow.submit_run，且 params 必须包含 workflow_id=data-to-deployment-lifecycle、dataset_id=shanghaitech-original、dry_run=true、"
+        "然后计划 model.smoke_locateanything，最后计划 workflow.submit_run，且 params 必须包含 workflow_id=data-to-deployment-lifecycle、dataset_id=shanghaitech-original、dry_run=true、"
         "model_repo_id=nvidia/LocateAnything-3B、data_root=用户提供的数据路径；"
         "只有用户明确要求测试/运行并且 dry_run=true 时，才允许计划 workflow.submit_run；数据入湖必须先 intake.quarantine 和 intake.plan；"
         "图片或视觉数据先 vlm.inspect。当前上下文如下：\n"
@@ -240,5 +242,5 @@ def _validate_plan_contract(request: RuntimeRequest, parsed: dict[str, Any]) -> 
         if "workflow.submit_run" in kinds:
             raise ValueError("Mimo planner must not submit workflow for pure LocateAnything install request")
     if "locateanything-3b" in text and "shanghaitech" in text and ("dry-run" in text or "dry run" in text or "测试" in text):
-        if "model.verify_hf" not in kinds or "workflow.submit_run" not in kinds:
+        if "model.verify_hf" not in kinds or "model.smoke_locateanything" not in kinds or "workflow.submit_run" not in kinds:
             raise ValueError("Mimo planner omitted required ShanghaiTech dry-run tools")

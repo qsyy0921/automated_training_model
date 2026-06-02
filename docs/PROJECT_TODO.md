@@ -19,7 +19,7 @@
 - [x] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
 - [x] 通过 Agent Runtime + Mimo planner 异步执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [ ] 将 `ModelJobStore` 从进程内内存迁移到统一 task repository，保留下载进度、日志、取消和恢复状态。
-- [ ] 为 LocateAnything-3B 补齐加载 smoke 和 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
+- [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [ ] 拆出独立 `Task Center`、`Model Registry`、`Governance` 页面。
 - [ ] 设计并实现 Go TUI 本地客户端，复用 `internal/cli/labelctl` 能力。

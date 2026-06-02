@@ -27,7 +27,7 @@ MVP 必须覆盖：
 - 完整训练、评估、压缩、发布和线上监控闭环已经真实运行。
 - QQ OneBot WebSocket 长连接 reader 已完成；当前先用 webhook/test-message。
 - `ModelJobStore` 和 session/trace 已持久化；当前仍是进程内内存。
-- LocateAnything-3B 已完成加载 smoke 或真实推理；当前只完成下载和 verify-only。
+- LocateAnything-3B 已完成真实 ShanghaiTech 推理；当前只完成下载、verify-only 和模型加载 smoke。
 - skill 自进化默认启用；当前只允许 draft-only，并需要人工审批。
 
 ## 4. 分层设计
@@ -120,10 +120,10 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | HF dry-run | `python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py --repo-id nvidia/LocateAnything-3B --local-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B --manifest data_lake\catalog\models\nvidia_LocateAnything-3B.download.json --dry-run` |
 | HF real download | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1 -StartDownload -WaitForCompletion` |
 | HF verify-only | `python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py --repo-id nvidia/LocateAnything-3B --local-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B --manifest data_lake\catalog\models\nvidia_LocateAnything-3B.download.json --verify-only` |
+| LocateAnything load smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1` |
 
 ## 10. 未完成项
 
-- LocateAnything-3B 加载 smoke。
 - ShanghaiTech original 真实推理。
 - session/trace/model job 持久化。
 - ToolExecutor 拆成 `internal/app/toolapp`。

@@ -63,12 +63,12 @@
 - [x] Added repo-local data lake ingest skill under `skills/automated-training-data-lake`.
 - [x] 接入 Python Agent Runtime 的 Mimo planner wrapper：文本规划默认 `mimo-v2.5-pro`，视觉路由默认 `mimo-v2.5`，密钥只从本机环境变量 / `C:\Users\10495\Desktop\mimo.txt` 加载。
 - [x] 新增 `ops/scripts/load-mimo-env.ps1` 和 `ops/scripts/smoke-mimo-api.ps1`，完成 `mimo-v2.5-pro` 与 `mimo-v2.5` API smoke；脚本不打印 API Key。
-- [x] 新增 `ops/scripts/smoke-mimo-planner.ps1`，验证 LocateAnything 安装请求输出 `model.download_hf`，ShanghaiTech dry-run 请求输出 `model.verify_hf` + `workflow.submit_run`。
+- [x] 新增 `ops/scripts/smoke-mimo-planner.ps1`，验证 LocateAnything 安装请求输出 `model.download_hf`，ShanghaiTech dry-run 请求输出 `model.verify_hf` + `model.smoke_locateanything` + `workflow.submit_run`。
 - [x] 新增 repo-local HuggingFace 模型下载 skill：`skills/huggingface-model-downloader`，覆盖依赖、token、HF_HOME/cache、断点续传、manifest、校验和 Git 排除要求。
 - [x] 完成 `nvidia/LocateAnything-3B` 下载 skill dry-run：确认默认本地目录、manifest 路径和不提交权重的边界。
 - [x] 验证 Mimo planner 对 LocateAnything-3B 安装请求会输出 `model.download_hf` tool-call plan，而不是直接输出 shell 命令。
 - [x] 调整 `model.download_hf` 权限策略：本机开发默认授予 Agent Runtime 执行权限；如需收紧，设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 后才要求 `approved=true`。
-- [x] 验证 ShanghaiTech original 数据目录存在，并完成 `model.verify_hf` + `workflow.submit_run(dry_run=true)` 的测试计划生成。
+- [x] 验证 ShanghaiTech original 数据目录存在，并完成 `model.verify_hf` + `model.smoke_locateanything` + `workflow.submit_run(dry_run=true)` 的测试计划生成。
 - [x] 前端 Agent Overview 接入 runtime status、sessions、traces 和入口测试面板；CLI 接入 runtime status/sessions/traces/send；桌面端复用 Gateway runtime snapshot。
 - [x] 将前端 `wasm:build` 改为 `powershell -NoProfile`，避免 Conda PowerShell profile 的 GBK 乱码异常污染 `npm run build` 输出。
 - [x] 分析并修正 Agent Runtime 长任务阻塞问题：`model.download_hf` 默认改为创建异步 `ModelJob`，入口立即返回 `queued/job_id`，新增 `/api/runtime/model-jobs`、`labelctl runtime model-jobs` 和 Web Model Jobs 面板。
@@ -84,3 +84,6 @@
 - [x] 加固 Mimo planner contract：禁止未知 tool kind（例如 `tool.id`），Mimo 不稳定时对 chat/data_intake 回退到受控 guard plan，避免 unsupported tool 进入 Go ToolExecutor。
 - [x] `smoke-runtime-mvp.ps1 -UseMimoPlanner` 已通过，覆盖 Mimo 模式下的 planner-agent、vision-agent、data-intake-agent 和 ShanghaiTech original source trace。
 - [x] 修复 runtime smoke / HF install 脚本的进程清理：测试结束后按 `-addr` 清理 `go run` 派生的 `labelserver.exe`，避免端口残留。
+- [x] 新增 `workers/python/agent_worker/locateanything_smoke.py` 和 `ops/scripts/smoke-locateanything-model.ps1`，通过 Runtime 触发 LocateAnything-3B 可用性 smoke。
+- [x] 完成 LocateAnything-3B 模型加载 smoke：`AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 均通过，参数量 3,517,975,280；当前 CPU-only，真实 ShanghaiTech 推理仍未完成。
+- [x] 修复 agent repository bootstrap：旧 `data_lake/agents/workflows.json` 已有部分 workflow 时，也会补齐缺失的默认 workflow/tool/agent，不覆盖已有条目。

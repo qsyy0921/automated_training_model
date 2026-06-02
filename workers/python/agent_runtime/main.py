@@ -109,6 +109,14 @@ def _guarded_plan(request: RuntimeRequest, intent, delegations: list[dict[str, o
                     },
                 },
                 {
+                    "kind": "model.smoke_locateanything",
+                    "params": {
+                        "model_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+                        "data_root": data_root,
+                        "output": "data_lake/catalog/models/nvidia_LocateAnything-3B.smoke.json",
+                    },
+                },
+                {
                     "kind": "workflow.submit_run",
                     "params": {
                         "workflow_id": "data-to-deployment-lifecycle",
