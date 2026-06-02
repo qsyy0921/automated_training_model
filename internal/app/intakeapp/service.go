@@ -20,10 +20,22 @@ func NewService(repo Repository, scanner Scanner, planner Planner) *Service {
 }
 
 func (s *Service) PlanFromMessage(ctx context.Context, msg channel.InboundMessage) (channel.DataIntakePlan, error) {
+	return s.PlanFromMessageWithOptions(ctx, msg, PlanOptions{})
+}
+
+func (s *Service) PlanFromMessageWithOptions(ctx context.Context, msg channel.InboundMessage, opts PlanOptions) (channel.DataIntakePlan, error) {
 	if strings.TrimSpace(msg.ID) == "" {
 		return channel.DataIntakePlan{}, fmt.Errorf("message id is required")
 	}
-	plan, err := s.planner.Plan(ctx, msg)
+	var plan channel.DataIntakePlan
+	var err error
+	if planner, ok := s.planner.(interface {
+		PlanWithOptions(context.Context, channel.InboundMessage, PlanOptions) (channel.DataIntakePlan, error)
+	}); ok {
+		plan, err = planner.PlanWithOptions(ctx, msg, opts)
+	} else {
+		plan, err = s.planner.Plan(ctx, msg)
+	}
 	if err != nil {
 		return channel.DataIntakePlan{}, err
 	}

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
 	"github.com/qsyy0921/automated_training_model/internal/app/toolapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
@@ -22,6 +23,7 @@ type GoToolExecutor struct {
 	now            func() time.Time
 	modelJobs      ModelJobStore
 	toolRunner     *toolapp.Runner[ToolExecutionRequest]
+	intake         *intakeapp.Service
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
 }
 
@@ -33,6 +35,7 @@ func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolEx
 		agents:    agents,
 		now:       now,
 		modelJobs: NewModelJobStore(now),
+		intake:    intakeapp.NewService(intakeapp.NewMemoryRepository(), nil, intakeapp.NewDryRunPlanner(now)),
 	}
 	executor.runHFModelTool = executor.runHFModelScript
 	executor.toolRunner = toolapp.NewRunner[ToolExecutionRequest](toolapp.DefaultCatalog(), toolPreflightPolicyFromEnv)
@@ -87,10 +90,10 @@ func (e *GoToolExecutor) registerToolHandlers() {
 		}, nil
 	})
 	e.toolRunner.Register("intake.plan", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-		return e.planDataIntake(req, call)
+		return e.planDataIntake(ctx, req, call)
 	})
 	e.toolRunner.Register("vlm.inspect", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-		return e.planVisionInspection(req, call)
+		return e.planVisionInspection(ctx, req, call)
 	})
 	e.toolRunner.Register("llm.plan", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return ToolExecutionResult{
@@ -109,85 +112,34 @@ func (e *GoToolExecutor) registerToolHandlers() {
 	})
 }
 
-func (e *GoToolExecutor) planDataIntake(req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-	plan := channel.DataIntakePlan{
-		ID:              fmt.Sprintf("intake-plan-%d", e.now().UnixNano()),
-		SourceMessageID: req.Message.ID,
-		Channel:         req.Message.Channel,
-		AccountID:       req.Message.AccountID,
-		SenderID:        req.Message.SenderID,
-		Intent:          channel.IntakeIntentInspect,
-		DatasetName:     inferDatasetName(req, call),
-		ProposedActions: []channel.PlannedAction{
-			{Kind: "quarantine", Params: map[string]string{"attachment_count": strconv.Itoa(len(req.Message.Attachments))}},
-			{Kind: "scan", Params: map[string]string{"scanner": "mvp-static-preflight"}},
-			{Kind: "create_data_intake_plan", Params: map[string]string{"mode": "dry_run"}},
-		},
-		RequiredApprovals: []string{"human_review_before_data_lake_write"},
-		RiskLevel:         intakeRisk(req.Message.Attachments),
-		DryRun:            true,
-		CreatedAt:         e.now(),
-	}
-	planJSON, err := json.Marshal(plan)
+func (e *GoToolExecutor) planDataIntake(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
+	plan, err := e.intake.PlanFromMessageWithOptions(ctx, req.Message, intakeapp.PlanOptions{
+		Mode:        intakeapp.PlanModeData,
+		DatasetName: intakeDatasetName(req, call),
+	})
 	if err != nil {
 		return ToolExecutionResult{}, err
-	}
-	metadata := map[string]string{
-		"plan_id":          plan.ID,
-		"dataset_name":     plan.DatasetName,
-		"attachment_count": strconv.Itoa(len(req.Message.Attachments)),
-		"risk_level":       plan.RiskLevel,
-		"dry_run":          strconv.FormatBool(plan.DryRun),
-		"approval":         strings.Join(plan.RequiredApprovals, ","),
-		"plan_json":        string(planJSON),
-	}
-	if source := firstAttachmentSource(req.Message.Attachments); source != "" {
-		metadata["source_uri"] = source
 	}
 	return ToolExecutionResult{
 		ReplyText: fmt.Sprintf("已生成 Data Intake Plan：plan=%s agent=%s dataset=%s attachments=%d risk=%s dry_run=true；正式入湖前需要人工审批。", plan.ID, req.Delegation.AgentID, plan.DatasetName, len(req.Message.Attachments), plan.RiskLevel),
 		Status:    "planned",
-		Metadata:  metadata,
+		Metadata:  intakePlanMetadata(plan, req.Message),
 	}, nil
 }
 
-func (e *GoToolExecutor) planVisionInspection(req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-	plan := channel.DataIntakePlan{
-		ID:              fmt.Sprintf("vision-plan-%d", e.now().UnixNano()),
-		SourceMessageID: req.Message.ID,
-		Channel:         req.Message.Channel,
-		AccountID:       req.Message.AccountID,
-		SenderID:        req.Message.SenderID,
-		Intent:          channel.IntakeIntentInspect,
-		DatasetName:     inferDatasetName(req, call),
-		ProposedActions: []channel.PlannedAction{
-			{Kind: "quarantine", Params: map[string]string{"attachment_count": strconv.Itoa(len(req.Message.Attachments))}},
-			{Kind: "vlm_inspect", Params: map[string]string{"model_route": "vision", "model": "mimo-v2.5"}},
-			{Kind: "create_data_intake_plan", Params: map[string]string{"mode": "dry_run"}},
-		},
-		RequiredApprovals: []string{"human_review_before_data_lake_write"},
-		RiskLevel:         intakeRisk(req.Message.Attachments),
-		DryRun:            true,
-		CreatedAt:         e.now(),
-	}
-	planJSON, err := json.Marshal(plan)
+func (e *GoToolExecutor) planVisionInspection(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
+	plan, err := e.intake.PlanFromMessageWithOptions(ctx, req.Message, intakeapp.PlanOptions{
+		Mode:        intakeapp.PlanModeVision,
+		DatasetName: intakeDatasetName(req, call),
+		ModelRoute:  "vision",
+		Model:       "mimo-v2.5",
+	})
 	if err != nil {
 		return ToolExecutionResult{}, err
 	}
-	metadata := map[string]string{
-		"plan_id":          plan.ID,
-		"dataset_name":     plan.DatasetName,
-		"attachment_count": strconv.Itoa(len(req.Message.Attachments)),
-		"risk_level":       plan.RiskLevel,
-		"dry_run":          strconv.FormatBool(plan.DryRun),
-		"model_route":      "vision",
-		"model":            "mimo-v2.5",
-		"approval":         strings.Join(plan.RequiredApprovals, ","),
-		"plan_json":        string(planJSON),
-	}
-	if source := firstAttachmentSource(req.Message.Attachments); source != "" {
-		metadata["source_uri"] = source
-	}
+	metadata := intakePlanMetadata(plan, req.Message)
+	metadata["model_route"] = "vision"
+	metadata["model"] = "mimo-v2.5"
 	return ToolExecutionResult{
 		ReplyText: fmt.Sprintf("已生成视觉数据检查计划：plan=%s agent=vision-agent route=mimo-v2.5 attachments=%d；当前 MVP 只做计划和审批边界，不自动写入 Data Lake。", plan.ID, len(req.Message.Attachments)),
 		Status:    "planned",
@@ -195,32 +147,31 @@ func (e *GoToolExecutor) planVisionInspection(req ToolExecutionRequest, call Too
 	}, nil
 }
 
-func inferDatasetName(req ToolExecutionRequest, call ToolCall) string {
+func intakeDatasetName(req ToolExecutionRequest, call ToolCall) string {
 	if value := strings.TrimSpace(call.Params["dataset_id"]); value != "" {
 		return value
 	}
 	if value := strings.TrimSpace(req.Intent.DatasetID); value != "" {
 		return value
 	}
-	text := strings.ToLower(req.Message.Text)
-	for _, attachment := range req.Message.Attachments {
-		text += " " + strings.ToLower(attachment.Name) + " " + strings.ToLower(attachment.SourceURI) + " " + strings.ToLower(attachment.LocalURI)
-	}
-	if strings.Contains(text, "shanghaitech") || strings.Contains(text, "上海") {
-		return "shanghaitech-original"
-	}
-	return "channel-upload-draft"
+	return ""
 }
 
-func intakeRisk(attachments []channel.Attachment) string {
-	for _, attachment := range attachments {
-		mediaType := strings.ToLower(strings.TrimSpace(attachment.MediaType))
-		name := strings.ToLower(strings.TrimSpace(attachment.Name))
-		if strings.Contains(mediaType, "zip") || strings.HasSuffix(name, ".zip") || strings.HasSuffix(name, ".7z") || strings.HasSuffix(name, ".rar") {
-			return "medium"
-		}
+func intakePlanMetadata(plan channel.DataIntakePlan, msg channel.InboundMessage) map[string]string {
+	planJSON, _ := json.Marshal(plan)
+	metadata := map[string]string{
+		"plan_id":          plan.ID,
+		"dataset_name":     plan.DatasetName,
+		"attachment_count": strconv.Itoa(len(msg.Attachments)),
+		"risk_level":       plan.RiskLevel,
+		"dry_run":          strconv.FormatBool(plan.DryRun),
+		"approval":         strings.Join(plan.RequiredApprovals, ","),
+		"plan_json":        string(planJSON),
 	}
-	return "low"
+	if source := firstAttachmentSource(msg.Attachments); source != "" {
+		metadata["source_uri"] = source
+	}
+	return metadata
 }
 
 func firstAttachmentSource(attachments []channel.Attachment) string {

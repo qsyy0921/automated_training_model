@@ -94,6 +94,7 @@
 - [x] 新增 `internal/app/toolapp`，将 tool schema、参数白名单、risk level 和 approval/preflight gate 从 `agentruntime` 中拆出。
 - [x] `GoToolExecutor.Execute` 执行前接入 `toolapp.Preflight`，覆盖未注册 tool、未知参数、高风险审批缺失等拦截路径；默认本机开发模式仍允许受控高风险工具执行，可用 `AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL=true` 统一收紧。
 - [x] 新增 `internal/app/toolapp.Runner`，把 tool preflight、handler dispatch、结果合并和未注册 handler 拦截从 `agentruntime.GoToolExecutor` 中移出；`GoToolExecutor` 当前只注册 MVP 业务 handler。
+- [x] 新增 `internal/app/intakeapp.DryRunPlanner` 和 `MemoryRepository`，将 `intake.plan` / `vlm.inspect` 的 Data Intake Plan 构造、ShanghaiTech 数据集推断和附件风险判断从 `agentruntime` 外迁；runtime 只保留 tool handler 调用和 trace metadata。
 - [x] 将 `labelctl agent` 改为 Claude Code 风格的交互式 Agent Runtime CLI，支持连续输入自然语言、`/status`、`/sessions`、`/traces`、`/jobs`、`/ping` 和 `/exit`；旧 LLM action planner 保留在 `labelctl llm agent`。
 - [x] 新增 `ops/scripts/resolve-go.ps1`，优先使用完整 MSI 安装版 Go 或 `ATM_GO`，避免 smoke/build 脚本依赖已失效的旧 Go 绝对路径。
 - [x] 新增 `ops/scripts/ensure-smoke-media-fixture.ps1`，当外部 tracking CSV 路径不存在时在 ignored 的 `tmp/smoke-media` 生成最小 fixture，使入口 smoke 不再依赖旧研究目录。

@@ -171,7 +171,7 @@ internal/api/httpapi/
     GET  /api/runtime/traces
 ```
 
-当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和长期运行的 OneBot WebSocket reader。
+当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。Data Intake Plan 的 dry-run 构造已经外迁到 `internal/app/intakeapp`，runtime 只调用 intake app 并把结果写入 trace metadata。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和长期运行的 OneBot WebSocket reader。
 
 默认模式不依赖外部模型：
 
@@ -211,9 +211,9 @@ Mimo 路由规则：
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Schema / Preflight | `internal/app/toolapp` 支持 tool registry、allowed params、risk、approval gate | 接入持久 tool registry 和人工审批队列 |
 | Tool Runner | `internal/app/toolapp.Runner` 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截 | 增加 handler registry 持久化和审批队列联动 |
-| Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow、intake、vision、llm.plan、model MVP handler | 将具体 handler 外迁到 `intakeapp`、task/model worker 和 workflow/task repository |
+| Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow、intake 调用、vision 调用、llm.plan、model MVP handler | 将 `model.*` 外迁到 task/model worker，将 `workflow.*` 外迁到 workflow/task repository |
 | Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
-| Data Intake Plan | 附件消息会产生 `intake.plan` 或 `vlm.inspect` tool trace；ShanghaiTech 数据附件会在 trace metadata 中记录 `plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 迁移到 `intakeapp` 持久化计划、quarantine、scan、approve/register workflow |
+| Data Intake Plan | `internal/app/intakeapp.DryRunPlanner` 生成 `intake.plan` 或 `vlm.inspect` dry-run 计划；ShanghaiTech 数据附件会在 trace metadata 中记录 `plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 将 `intakeapp` 从内存 MVP 推进到持久化计划、quarantine、scan、approve/register workflow |
 | Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
 | Channel | QQ/NapCat webhook/test-message | OneBot WebSocket reader、Telegram、飞书 |

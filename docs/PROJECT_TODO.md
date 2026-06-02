@@ -10,7 +10,7 @@
 - [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
-- [ ] 将当前 runtime dry-run `intake.plan` 迁移到 `internal/app/intakeapp` 持久化实现，支持 Channel 附件 quarantine、scan、Data Intake Plan、approve/register workflow。
+- [ ] 将 `internal/app/intakeapp` 从 dry-run plan 生成推进到持久化 intake workflow：Channel 附件 quarantine、scan、Data Intake Plan、approve/register。
 - [x] 将 Agent Runtime 的 LLM planner、fast chat、tool-call plan 迁移到 `workers/python/agent_runtime`，Go 只保留 Gateway/runtime shim 和受控 ToolExecutor。
 - [x] 按 `REFERENCE_AGENT_RUNTIME_ALIGNMENT.md` 拆出 `SessionRunner`、`PlannerPort`、`ToolExecutorPort`，避免 `agentruntime.Service` 继续膨胀。
 - [ ] 将 `skill-miner-agent` 从 draft-only 契约扩展为可人工审批的 skill 草稿生成器。
@@ -25,7 +25,8 @@
 - [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。
 - [x] 新增 `internal/app/toolapp`，固化 tool schema、参数白名单、risk level 和 approval/preflight gate。
 - [x] 将 `GoToolExecutor` 的执行循环迁移到 `internal/app/toolapp.Runner`，由 runner 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截。
-- [ ] 将 `GoToolExecutor` 的具体工具 handler 继续迁移到独立 app/worker：`intake.plan` 到 `intakeapp`，`model.*` 到模型任务/worker，`workflow.*` 到 workflow/task repository。
+- [ ] 将 `GoToolExecutor` 的具体工具 handler 继续迁移到独立 app/worker：`model.*` 到模型任务/worker，`workflow.*` 到 workflow/task repository，`vlm.inspect` 后续接入真实 VLM worker。
+- [x] 将 `intake.plan` / `vlm.inspect` 的 dry-run Data Intake Plan 构造外迁到 `internal/app/intakeapp`，runtime 只负责 tool handler 调用和 trace metadata。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐下载进度、日志、取消和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
