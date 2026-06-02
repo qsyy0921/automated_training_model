@@ -141,9 +141,12 @@ internal/app/agentruntime/
   planner.go       默认规则 Planner，可离线运行并输出 ToolCall 计划
   python_planner.go 可选 Python Planner 适配器，通过 AGENT_RUNTIME_PLANNER=python 启用
   tools.go         Go ToolExecutor，执行 runtime、workflow、intake、vision、llm.plan 最小工具
-  store.go         内存 session/trace store，支撑 /api/runtime/sessions 和 /api/runtime/traces
+  store.go         RuntimeStore 端口和内存开发实现，支撑 /api/runtime/sessions 和 /api/runtime/traces
   intent.go        规则意图识别
   subagent.go      sub-agent 路由决策
+
+internal/infrastructure/runtimerepo/
+  json_store.go    JSON RuntimeStore 适配器，默认持久化 session/trace 到 data_lake/runtime
 
 workers/python/agent_runtime/
   main.py          Python Agent Runtime prototype，可输出 JSON plan/tool_calls
@@ -164,7 +167,7 @@ internal/api/httpapi/
     GET  /api/runtime/traces
 ```
 
-当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 ToolExecutor 执行，并把 session 与 trace 写入内存 store。下一步再加入持久 session、真实 LLM planner、approval queue 和长期运行的 OneBot WebSocket reader。
+当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 ToolExecutor 执行，并把 session 与 trace 写入 `RuntimeStore`。服务启动时默认使用 `runtimerepo.JSONRuntimeStore`，将 session、trace 和 meta 持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。下一步再加入 model job 持久化、真实 LLM planner schema、approval queue 和长期运行的 OneBot WebSocket reader。
 
 默认模式不依赖外部模型：
 
@@ -194,13 +197,13 @@ Mimo 路由规则：
 
 | 能力 | 当前实现 | 后续替换点 |
 | --- | --- | --- |
-| Session | `DefaultSessionKey(agentId, channel, peer)` + `InMemoryRuntimeStore` | 持久化到 SQLite/Postgres，并增加 context summary |
+| Session | `DefaultSessionKey(agentId, channel, peer)` + `RuntimeStore`，默认 JSON 持久化到 `data_lake/runtime` | 迁移到 SQLite/Postgres，并增加 context summary |
 | Intent | Go `ClassifyIntent` 规则层 | Python/Mimo planner 做二级语义识别 |
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Executor | `GoToolExecutor` 支持 runtime、workflow、intake、vision、llm.plan 最小工具 | 拆到 `internal/app/toolapp`，增加 schema、permission、approval |
 | Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
 | Data Intake Plan | 附件消息会产生 `intake.plan` 或 `vlm.inspect` tool trace；ShanghaiTech 数据附件会在 trace metadata 中记录 `plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 迁移到 `intakeapp` 持久化计划、quarantine、scan、approve/register workflow |
-| Trace | 每条消息写入 `TraceEvent` | 持久化、检索、成本统计、skill mining 输入 |
+| Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
 | Channel | QQ/NapCat webhook/test-message | OneBot WebSocket reader、Telegram、飞书 |
 

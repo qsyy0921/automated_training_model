@@ -26,6 +26,7 @@ import (
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/modelrepo"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/providerrepo"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/queue"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/runtimerepo"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/secrets"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/taxonomyrepo"
 )
@@ -50,7 +51,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if err := agentSvc.BootstrapDefaults(ctx); err != nil {
 		return err
 	}
-	agentRuntimeSvc := agentruntime.NewService(agentSvc)
+	runtimeStore, err := runtimerepo.NewJSONRuntimeStore(cfg.RuntimeRoot, time.Now())
+	if err != nil {
+		return err
+	}
+	agentRuntimeSvc := agentruntime.NewServiceWithStore(agentSvc, runtimeStore)
 	providerSvc := providerapp.NewProviderService(providerrepo.NewMemoryRepository(), secrets.NewEnvStore())
 	workspaceSvc := workspaceapp.NewRuntimeService(
 		datasetSvc,
@@ -67,7 +72,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Info("labelserver listening", "addr", cfg.Addr, "merge_root", cfg.MergeRoot, "frame_root", cfg.FrameRoot, "mask_root", cfg.MaskRoot, "annotation_root", cfg.AnnotationRoot, "model_root", cfg.ModelRoot, "agent_root", cfg.AgentRoot, "web_root", cfg.WebRoot)
+		logger.Info("labelserver listening", "addr", cfg.Addr, "merge_root", cfg.MergeRoot, "frame_root", cfg.FrameRoot, "mask_root", cfg.MaskRoot, "annotation_root", cfg.AnnotationRoot, "model_root", cfg.ModelRoot, "agent_root", cfg.AgentRoot, "runtime_root", cfg.RuntimeRoot, "web_root", cfg.WebRoot)
 		errCh <- server.ListenAndServe()
 	}()
 

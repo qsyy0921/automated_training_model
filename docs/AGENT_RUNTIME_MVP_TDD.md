@@ -31,6 +31,7 @@ Integration / Smoke Tests
 | Intent | `internal/app/agentruntime/intent_test.go` | `/bot-*`、附件识别、普通文本 |
 | Sub-agent | `internal/app/agentruntime/subagent_test.go` | 确定性命令不委托、文本/视觉/数据附件委托 |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
+| Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go` | session/trace JSON 持久化与重启恢复 |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope |
 
@@ -108,7 +109,7 @@ npm run build
 | 脚本 | 目的 |
 | --- | --- |
 | `smoke-agent-entrypoints.ps1` | 原有四入口、OneBot envelope、desktop、skill draft |
-| `smoke-runtime-mvp.ps1` | Runtime MVP：sub-agent、model-jobs、ShanghaiTech data intake trace |
+| `smoke-runtime-mvp.ps1` | Runtime MVP：sub-agent、model-jobs、ShanghaiTech data intake trace、session/trace 重启恢复 |
 | `smoke-mimo-api.ps1` | Mimo API 可用性 |
 | `smoke-mimo-planner.ps1` | Mimo planner 输出受控 tool-call |
 | `runtime-hf-install.ps1` | Runtime + Mimo 触发 HF 安装预检；显式 `-StartDownload -WaitForCompletion` 才真实下载并等待 job 完成 |
@@ -140,7 +141,7 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 
 ## 10. 当前测试缺口
 
-- Runtime session/trace 持久化测试。
+- ModelJob 持久化测试。
 - `toolapp` schema/preflight/approval gate 单元测试。
 - QQ OneBot WebSocket reader 长连接测试。
 - ShanghaiTech original 真实推理 smoke。

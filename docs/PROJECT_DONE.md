@@ -35,7 +35,7 @@
 - [x] 增加 sub-agent 决策契约、runtime status API、CLI/桌面/QQ 最小入口和测试 SDD。
 - [x] 固化 sub-agent 使用时机：确定性低风险命令不委派；视觉附件走 `vision-agent`；zip/manifest/文件入湖走 `data-intake-agent`；自由文本走 `planner-agent`；高风险写操作不能绕过 approval gate。
 - [x] 增加 QQ/NapCat OneBot outbound sender，可通过环境变量开启真实 `send_msg` 回发。
-- [x] 拆分 Agent Runtime 为 `Service`、`SessionRunner`、`PlannerPort`、`ToolExecutorPort`、内存 session/trace store，并新增 `/api/runtime/sessions`、`/api/runtime/traces` 可观测入口。
+- [x] 拆分 Agent Runtime 为 `Service`、`SessionRunner`、`PlannerPort`、`ToolExecutorPort`、`RuntimeStore` 端口和内存开发实现，并新增 `/api/runtime/sessions`、`/api/runtime/traces` 可观测入口。
 - [x] 删除中断留下的不完整 `LocateAnything-3B` 下载目录，确认模型权重残留不进入 Git。
 - [x] 新增 Mimo Agent 安装提示词，明确 Codex 只维护 prompt/tool contract，模型下载必须由 Agent Runtime 调用 Mimo 规划后通过受控工具执行。
 - [x] 前端从原生 ES Modules 迁移到 Vite + React + TypeScript。
@@ -87,3 +87,5 @@
 - [x] 新增 `workers/python/agent_worker/locateanything_smoke.py` 和 `ops/scripts/smoke-locateanything-model.ps1`，通过 Runtime 触发 LocateAnything-3B 可用性 smoke。
 - [x] 完成 LocateAnything-3B 模型加载 smoke：`AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 均通过，参数量 3,517,975,280；当前 CPU-only，真实 ShanghaiTech 推理仍未完成。
 - [x] 修复 agent repository bootstrap：旧 `data_lake/agents/workflows.json` 已有部分 workflow 时，也会补齐缺失的默认 workflow/tool/agent，不覆盖已有条目。
+- [x] 新增 `internal/infrastructure/runtimerepo.JSONRuntimeStore`，将 Agent Runtime session/trace/meta 默认持久化到 `data_lake/runtime`。
+- [x] 增强 `smoke-runtime-mvp.ps1`：使用独立 `tmp/runtime-smoke-*` store，发送四入口消息后重启 labelserver，并验证 `/api/runtime/sessions` 与 `/api/runtime/traces` 可恢复。

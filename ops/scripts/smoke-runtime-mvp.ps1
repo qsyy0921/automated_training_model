@@ -6,6 +6,7 @@ param(
   [string]$MaskRoot = "F:\keyan\token_compression\data\shanghai\data\testframemask",
   [string]$AnnotationRoot = "F:\keyan\token_compression\data\shanghai\new_tracking\merge\annotations_review",
   [string]$ShanghaiTechRoot = "F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original",
+  [string]$RuntimeRoot = "",
   [switch]$UseMimoPlanner
 )
 
@@ -70,6 +71,14 @@ $tmpDir = Join-Path $repoRoot "tmp"
 New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 $out = Join-Path $tmpDir "smoke-runtime-mvp.out.log"
 $err = Join-Path $tmpDir "smoke-runtime-mvp.err.log"
+if ([string]::IsNullOrWhiteSpace($RuntimeRoot)) {
+  $safeAddr = $Addr.Replace(":", "_").Replace(".", "_")
+  $RuntimeRoot = Join-Path $tmpDir "runtime-smoke-$safeAddr"
+}
+if (Test-Path -LiteralPath $RuntimeRoot) {
+  Remove-Item -LiteralPath $RuntimeRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $RuntimeRoot | Out-Null
 
 $serverArgs = @(
   "run", ".\cmd\labelserver",
@@ -81,7 +90,8 @@ $serverArgs = @(
   "-web-root", (Join-Path $repoRoot "web"),
   "-data-root", (Join-Path $repoRoot "data_lake"),
   "-model-root", (Join-Path $repoRoot "data_lake\models"),
-  "-agent-root", (Join-Path $repoRoot "data_lake\agents")
+  "-agent-root", (Join-Path $repoRoot "data_lake\agents"),
+  "-runtime-root", $RuntimeRoot
 )
 
 Push-Location $repoRoot
@@ -183,6 +193,24 @@ try {
   Assert-True ($dataTrace.Count -eq 1) "trace missing intake.plan tool"
   Assert-True ($dataTrace[0].metadata.dataset_name -eq "shanghaitech-original") "intake.plan trace missing ShanghaiTech dataset metadata"
   Assert-True ($dataTrace[0].metadata.source_uri -eq $ShanghaiTechRoot) "intake.plan trace missing ShanghaiTech source uri"
+
+  Stop-LabelServer -Process $server -ListenAddr $Addr
+  $server = Start-Process -FilePath $Go -ArgumentList $serverArgs -WorkingDirectory $repoRoot -RedirectStandardOutput $out -RedirectStandardError $err -WindowStyle Hidden -PassThru
+  $ready = $false
+  for ($i = 0; $i -lt 40; $i++) {
+    try {
+      Invoke-JSON -Url "$baseURL/healthz" | Out-Null
+      $ready = $true
+      break
+    } catch {
+      Start-Sleep -Milliseconds 500
+    }
+  }
+  Assert-True $ready "labelserver did not restart for runtime persistence check"
+  $restoredSessions = Invoke-JSON -Url "$baseURL/api/runtime/sessions"
+  $restoredTraces = Invoke-JSON -Url "$baseURL/api/runtime/traces?limit=30"
+  Assert-True (@($restoredSessions.sessions).Count -ge 4) "runtime sessions did not persist across restart"
+  Assert-True (@($restoredTraces.traces | Where-Object { $_.tool_ids -contains "intake.plan" }).Count -ge 1) "runtime traces did not persist across restart"
 
   Write-Host "smoke-runtime-mvp passed"
 } finally {

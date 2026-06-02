@@ -15,6 +15,7 @@ type Config struct {
 	DataRoot       string
 	ModelRoot      string
 	AgentRoot      string
+	RuntimeRoot    string
 	TaxonomyPath   string
 }
 
@@ -28,6 +29,7 @@ func FromFlags() Config {
 	dataRoot := flag.String("data-root", filepath.Join(".", "data_lake"), "dataset registry and upload storage directory")
 	modelRoot := flag.String("model-root", filepath.Join(".", "data_lake", "models"), "model registry and artifact metadata directory")
 	agentRoot := flag.String("agent-root", filepath.Join(".", "data_lake", "agents"), "agent registry and workflow metadata directory")
+	runtimeRoot := flag.String("runtime-root", filepath.Join(".", "data_lake", "runtime"), "agent runtime session and trace storage directory")
 	taxonomyPath := flag.String("taxonomy-path", filepath.Join(".", "configs", "taxonomy.review.json"), "review taxonomy JSON path")
 	flag.Parse()
 	return Config{
@@ -40,6 +42,7 @@ func FromFlags() Config {
 		DataRoot:       filepath.Clean(*dataRoot),
 		ModelRoot:      filepath.Clean(*modelRoot),
 		AgentRoot:      filepath.Clean(*agentRoot),
+		RuntimeRoot:    filepath.Clean(*runtimeRoot),
 		TaxonomyPath:   filepath.Clean(*taxonomyPath),
 	}
 }

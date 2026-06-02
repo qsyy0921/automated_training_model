@@ -5,6 +5,7 @@ param(
   [string]$FrameRoot = "F:\keyan\token_compression\data\shanghai\data\testing\frames",
   [string]$MaskRoot = "F:\keyan\token_compression\data\shanghai\data\testframemask",
   [string]$AnnotationRoot = "F:\keyan\token_compression\data\shanghai\new_tracking\merge\annotations_review",
+  [string]$RuntimeRoot = "",
   [switch]$UseConfiguredQQOutbound
 )
 
@@ -35,6 +36,14 @@ $tmpDir = Join-Path $repoRoot "tmp"
 New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
 $out = Join-Path $tmpDir "smoke-agent-entrypoints.out.log"
 $err = Join-Path $tmpDir "smoke-agent-entrypoints.err.log"
+if ([string]::IsNullOrWhiteSpace($RuntimeRoot)) {
+  $safeAddr = $Addr.Replace(":", "_").Replace(".", "_")
+  $RuntimeRoot = Join-Path $tmpDir "runtime-entrypoints-$safeAddr"
+}
+if (Test-Path -LiteralPath $RuntimeRoot) {
+  Remove-Item -LiteralPath $RuntimeRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $RuntimeRoot | Out-Null
 
 $serverArgs = @(
   "run", ".\cmd\labelserver",
@@ -46,7 +55,8 @@ $serverArgs = @(
   "-web-root", (Join-Path $repoRoot "web"),
   "-data-root", (Join-Path $repoRoot "data_lake"),
   "-model-root", (Join-Path $repoRoot "data_lake\models"),
-  "-agent-root", (Join-Path $repoRoot "data_lake\agents")
+  "-agent-root", (Join-Path $repoRoot "data_lake\agents"),
+  "-runtime-root", $RuntimeRoot
 )
 
 Push-Location $repoRoot

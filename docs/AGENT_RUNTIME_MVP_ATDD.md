@@ -154,7 +154,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locatean
 
 当前状态：已完成模型加载 smoke。当前 Python 环境为 `torch 2.11.0+cpu`、无 CUDA；真实 ShanghaiTech 推理未完成。
 
-### ATDD-011 Git 安全边界
+### ATDD-011 Runtime session/trace 重启恢复
+
+Given `smoke-runtime-mvp.ps1` 使用独立 `tmp/runtime-smoke-*` runtime store
+When Web/CLI/桌面端/QQ test-message 都写入 session/trace 后重启 labelserver
+Then `/api/runtime/sessions` 仍至少包含四类入口产生的 session，`/api/runtime/traces` 仍能看到 `intake.plan` trace。
+
+证据：`smoke-runtime-mvp.ps1` 中重启恢复断言。
+
+### ATDD-012 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -181,4 +189,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-008 | 已覆盖预检 | `runtime-hf-install.ps1`，当前返回 `approval_required`，不下载权重 |
 | ATDD-009 | 已覆盖 | `runtime-hf-install.ps1 -StartDownload -WaitForCompletion` + `download_hf_snapshot.py --verify-only` |
 | ATDD-010 | 已覆盖 | `smoke-locateanything-model.ps1` |
-| ATDD-011 | 每次提交前执行 | rg + git status |
+| ATDD-011 | 已覆盖 | `smoke-runtime-mvp.ps1` |
+| ATDD-012 | 每次提交前执行 | rg + git status |

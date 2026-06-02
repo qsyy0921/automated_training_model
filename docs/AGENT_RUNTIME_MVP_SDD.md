@@ -26,7 +26,7 @@ MVP 必须覆盖：
 
 - 完整训练、评估、压缩、发布和线上监控闭环已经真实运行。
 - QQ OneBot WebSocket 长连接 reader 已完成；当前先用 webhook/test-message。
-- `ModelJobStore` 和 session/trace 已持久化；当前仍是进程内内存。
+- `ModelJobStore` 已持久化；当前 session/trace 已有 JSON MVP 持久化，model job 仍是进程内内存。
 - LocateAnything-3B 已完成真实 ShanghaiTech 推理；当前只完成下载、verify-only 和模型加载 smoke。
 - skill 自进化默认启用；当前只允许 draft-only，并需要人工审批。
 
@@ -59,7 +59,7 @@ Workers and Providers
 | PlannerPort | `planner.go`、`python_planner.go` | 规则计划和 Python/Mimo 计划 | 不执行副作用 |
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | ToolExecutor | `tools.go` | 工具执行、preflight、model job、workflow dry-run | 后续要拆到 `toolapp`，避免继续膨胀 |
-| Runtime Store | `store.go`、`model_jobs.go` | sessions、traces、model jobs | 当前不持久化 |
+| Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo` | sessions、traces、model jobs | session/trace 默认 JSON 持久化；model jobs 后续迁移到 task repository |
 | Python Runtime | `workers/python/agent_runtime` | Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
@@ -125,7 +125,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
-- session/trace/model job 持久化。
+- model job 持久化。
 - ToolExecutor 拆成 `internal/app/toolapp`。
 - QQ OneBot WebSocket 长连接 reader。
 - Python worker heartbeat、logs、retries、artifacts。

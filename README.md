@@ -59,6 +59,7 @@ Model & Data Training Platform
 - 默认全流程工作流：`data-to-deployment-lifecycle`。
 - Governance control surface：强制检查点、数据治理、发布治理、运行策略、Schema、预算、租户隔离和恢复策略。
 - 模型注册元数据持久化到 `data_lake/models/models.json`，模型权重和 checkpoint 不进入 Git。
+- Agent Runtime session/trace 默认持久化到 `data_lake/runtime`，Web/CLI/桌面端/QQ 共用同一份运行态审计记录。
 
 ## Agent 生命周期
 
@@ -114,7 +115,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-ins
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
 ```
 
-该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent` 并产生 `vlm.inspect` trace、ShanghaiTech 数据附件进入 `data-intake-agent` 并产生 `intake.plan` trace metadata。
+该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent` 并产生 `vlm.inspect` trace、ShanghaiTech 数据附件进入 `data-intake-agent` 并产生 `intake.plan` trace metadata；随后重启 labelserver，确认 session/trace 能从 JSON RuntimeStore 恢复。
 
 `runtime-hf-install.ps1` 默认只做 Mimo -> Agent Runtime -> `model.download_hf` 预检，并通过审批边界停在 `approval_required`，不会下载权重；只有显式传入 `-StartDownload -WaitForCompletion` 才会开始真实 7GB 级模型下载。当前本机已通过 Agent Runtime 下载并 verify-only 校验 `nvidia/LocateAnything-3B`，本地路径为 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，该目录在 `data_lake/` 下，不进入 Git。
 
@@ -226,7 +227,8 @@ F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe run .\cmd\labelser
   -web-root F:\automated_training_model\web `
   -data-root F:\automated_training_model\data_lake `
   -model-root F:\automated_training_model\data_lake\models `
-  -agent-root F:\automated_training_model\data_lake\agents
+  -agent-root F:\automated_training_model\data_lake\agents `
+  -runtime-root F:\automated_training_model\data_lake\runtime
 ```
 
 打开：
@@ -270,4 +272,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台和视频审核基础能力；下一阶段重点是 durable queue、真实 Python worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力和 Agent Runtime session/trace JSON 持久化；下一阶段重点是 durable queue、model job 持久化、真实 Python worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
