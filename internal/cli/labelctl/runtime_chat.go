@@ -187,11 +187,12 @@ func (c *runtimeChat) Run() error {
 }
 
 func (c *runtimeChat) printBanner() {
-	fmt.Fprintln(c.out, c.color("Automated Training Agent", "cyan"))
-	fmt.Fprintf(c.out, "gateway: %s\n", c.cfg.addr)
-	fmt.Fprintf(c.out, "session: %s  cwd: %s\n", c.sessionID, compactPath(mustGetwd()))
-	fmt.Fprintln(c.out, "model routes: text=mimo-v2.5-pro  vision=mimo-v2.5")
-	fmt.Fprintln(c.out, "type /help for commands, /exit to quit")
+	c.printPanel("Automated Training Agent", []string{
+		"Gateway   " + c.cfg.addr,
+		"Session   " + c.sessionID + "  cwd=" + compactPath(mustGetwd()),
+		"Models    text=mimo-v2.5-pro  vision=mimo-v2.5",
+		"Commands  /help  /status  /traces  /jobs  /doctor  /exit",
+	}, "cyan")
 }
 
 func (c *runtimeChat) printStartupSnapshot() error {
@@ -199,16 +200,25 @@ func (c *runtimeChat) printStartupSnapshot() error {
 	if err := getJSONValue(c.cfg.addr+"/api/runtime/status", &status); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.out, "runtime: %s  planner=%s mimo=%t token=%t sessions=%d traces=%d\n", valueOr(status.Runtime.Name, "unknown"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, status.Runtime.Planner.TokenPresent, status.Snapshot.SessionCount, status.Snapshot.TraceCount)
-	fmt.Fprintln(c.out, c.color("entry points", "bold"))
-	for _, ep := range status.Runtime.EntryPoints {
-		fmt.Fprintf(c.out, "  %-8s %-14s %-14s %s\n", ep.ID, ep.Status, ep.Transport, ep.Endpoint)
+	lines := []string{
+		fmt.Sprintf("Runtime   %s", valueOr(status.Runtime.Name, "unknown")),
+		fmt.Sprintf("Planner   %s  mimo=%t  token=%t  fallback=%s", valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, status.Runtime.Planner.TokenPresent, valueOr(status.Runtime.Planner.MimoFallback, "-")),
+		fmt.Sprintf("State     sessions=%d  traces=%d  updated=%s", status.Snapshot.SessionCount, status.Snapshot.TraceCount, compactTime(status.Snapshot.UpdatedAt)),
+		"",
+		"Entry Points",
 	}
+	for _, ep := range status.Runtime.EntryPoints {
+		lines = append(lines, fmt.Sprintf("  %-8s %-14s %-14s %s", ep.ID, ep.Status, ep.Transport, ep.Endpoint))
+	}
+	c.printPanel("Runtime Snapshot", lines, "green")
 	return nil
 }
 
 func (c *runtimeChat) prompt() string {
-	return c.color(fmt.Sprintf("atm:%02d planner-agent>", c.turn+1), "green")
+	return fmt.Sprintf("%s\n%s",
+		c.color(fmt.Sprintf("╭─ atm:%02d", c.turn+1), "green")+" "+c.color("planner-agent", "cyan")+" "+c.color("mimo-v2.5-pro", "dim"),
+		c.color("╰─›", "green"),
+	)
 }
 
 func (c *runtimeChat) handleCommand(input string) (bool, error) {
@@ -257,17 +267,19 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 }
 
 func (c *runtimeChat) printHelp() {
-	fmt.Fprintln(c.out, c.color("commands", "bold"))
-	fmt.Fprintln(c.out, "  /status      runtime, routes and current counters")
-	fmt.Fprintln(c.out, "  /sessions    active channel/session table")
-	fmt.Fprintln(c.out, "  /traces      recent agent/tool trace tree")
-	fmt.Fprintln(c.out, "  /jobs        model/background job table")
-	fmt.Fprintln(c.out, "  /doctor      server, runtime and local CLI diagnostics")
-	fmt.Fprintln(c.out, "  /json <x>    raw JSON for status/sessions/traces/jobs")
-	fmt.Fprintln(c.out, "  /clear       clear screen")
-	fmt.Fprintln(c.out, "  /ping        send /bot-ping through the same runtime path")
-	fmt.Fprintln(c.out, "  /exit        quit")
-	fmt.Fprintln(c.out, "\nAny other text is sent to the Agent Runtime.")
+	c.printPanel("Command Palette", []string{
+		"/status      runtime, routes and current counters",
+		"/sessions    active channel/session table",
+		"/traces      recent agent/tool trace tree",
+		"/jobs        model/background job table",
+		"/doctor      server, runtime and local CLI diagnostics",
+		"/json <x>    raw JSON for status/sessions/traces/jobs",
+		"/clear       clear screen",
+		"/ping        send /bot-ping through the same runtime path",
+		"/exit        quit",
+		"",
+		"Any other text is sent to the Agent Runtime.",
+	}, "cyan")
 }
 
 func (c *runtimeChat) printStatus() error {
@@ -275,25 +287,30 @@ func (c *runtimeChat) printStatus() error {
 	if err := getJSONValue(c.cfg.addr+"/api/runtime/status", &status); err != nil {
 		return err
 	}
-	fmt.Fprintln(c.out, c.color("runtime", "bold"))
-	fmt.Fprintf(c.out, "  name: %s\n", valueOr(status.Runtime.Name, "unknown"))
-	fmt.Fprintf(c.out, "  control: %s\n", valueOr(status.Runtime.ControlPlane, "unknown"))
-	fmt.Fprintf(c.out, "  loop: %s\n", valueOr(status.Runtime.AgentLoop, "unknown"))
-	fmt.Fprintf(c.out, "  planner: mode=%s effective=%s mimo=%t fallback=%s token=%t\n", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent)
-	fmt.Fprintf(c.out, "  planner python: %s\n", valueOr(status.Runtime.Planner.Python, "-"))
-	fmt.Fprintf(c.out, "  planner pythonpath: %s\n", valueOr(status.Runtime.Planner.PythonPath, "-"))
-	fmt.Fprintf(c.out, "  policy: %s\n", valueOr(status.Runtime.Policy, "unknown"))
-	fmt.Fprintf(c.out, "  sessions=%d traces=%d updated=%s\n", status.Snapshot.SessionCount, status.Snapshot.TraceCount, compactTime(status.Snapshot.UpdatedAt))
-
-	fmt.Fprintln(c.out, c.color("\nmodels", "bold"))
+	lines := []string{
+		"Runtime",
+		fmt.Sprintf("  name      %s", valueOr(status.Runtime.Name, "unknown")),
+		fmt.Sprintf("  control   %s", valueOr(status.Runtime.ControlPlane, "unknown")),
+		fmt.Sprintf("  loop      %s", valueOr(status.Runtime.AgentLoop, "unknown")),
+		fmt.Sprintf("  policy    %s", valueOr(status.Runtime.Policy, "unknown")),
+		fmt.Sprintf("  state     sessions=%d traces=%d updated=%s", status.Snapshot.SessionCount, status.Snapshot.TraceCount, compactTime(status.Snapshot.UpdatedAt)),
+		"",
+		"Planner",
+		fmt.Sprintf("  mode      %s -> %s", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-")),
+		fmt.Sprintf("  mimo      enabled=%t token=%t fallback=%s", status.Runtime.Planner.MimoEnabled, status.Runtime.Planner.TokenPresent, valueOr(status.Runtime.Planner.MimoFallback, "-")),
+		fmt.Sprintf("  python    %s", valueOr(status.Runtime.Planner.Python, "-")),
+		fmt.Sprintf("  path      %s", valueOr(status.Runtime.Planner.PythonPath, "-")),
+		"",
+		"Models",
+	}
 	for _, route := range status.Runtime.ProviderRoutes {
-		fmt.Fprintf(c.out, "  %-18s %-7s %-16s %s\n", route.ID, route.Provider, route.Model, route.UseCase)
+		lines = append(lines, fmt.Sprintf("  %-18s %-7s %-16s %s", route.ID, route.Provider, route.Model, route.UseCase))
 	}
-
-	fmt.Fprintln(c.out, c.color("\nsub-agents", "bold"))
+	lines = append(lines, "", "Sub-agents")
 	for _, agent := range status.Runtime.SubAgents {
-		fmt.Fprintf(c.out, "  %-22s %-10s %-16s %s\n", agent.ID, agent.Status, agent.ModelRoute, strings.Join(agent.Capability, ", "))
+		lines = append(lines, fmt.Sprintf("  %-22s %-10s %-16s %s", agent.ID, agent.Status, agent.ModelRoute, strings.Join(agent.Capability, ", ")))
 	}
+	c.printPanel("Runtime Status", lines, "green")
 	return nil
 }
 
@@ -306,11 +323,12 @@ func (c *runtimeChat) printSessions() error {
 		fmt.Fprintln(c.out, "no sessions")
 		return nil
 	}
-	fmt.Fprintln(c.out, c.color("sessions", "bold"))
+	lines := []string{}
 	for _, session := range payload.Sessions {
-		fmt.Fprintf(c.out, "  %-18s %-10s %-10s messages=%d updated=%s\n", session.AgentID, session.LastStatus, session.LastIntent, session.MessageCnt, compactTime(session.UpdatedAt))
-		fmt.Fprintf(c.out, "    %s:%s/%s  tools=%s\n", session.Channel, session.PeerKind, session.PeerID, joinOr(session.LastToolIDs, "-"))
+		lines = append(lines, fmt.Sprintf("%-18s %-10s %-10s messages=%d updated=%s", session.AgentID, session.LastStatus, session.LastIntent, session.MessageCnt, compactTime(session.UpdatedAt)))
+		lines = append(lines, fmt.Sprintf("  %s:%s/%s  tools=%s", session.Channel, session.PeerKind, session.PeerID, joinOr(session.LastToolIDs, "-")))
 	}
+	c.printPanel("Sessions", lines, "cyan")
 	return nil
 }
 
@@ -323,12 +341,13 @@ func (c *runtimeChat) printTraces() error {
 		fmt.Fprintln(c.out, "no traces")
 		return nil
 	}
-	fmt.Fprintln(c.out, c.color("recent traces", "bold"))
+	lines := []string{}
 	limit := minInt(len(payload.Traces), 8)
 	for i := 0; i < limit; i++ {
 		trace := payload.Traces[i]
-		c.printTraceLine(trace, i == limit-1)
+		lines = append(lines, traceLines(trace, i == limit-1)...)
 	}
+	c.printPanel("Recent Traces", lines, "magenta")
 	return nil
 }
 
@@ -341,38 +360,44 @@ func (c *runtimeChat) printJobs() error {
 		fmt.Fprintln(c.out, "no model/background jobs")
 		return nil
 	}
-	fmt.Fprintln(c.out, c.color("model jobs", "bold"))
+	lines := []string{}
 	for _, job := range payload.Jobs {
-		fmt.Fprintf(c.out, "  %-24s %-12s %-10s %s\n", valueOr(job.ID, "-"), valueOr(job.Status, "-"), valueOr(job.Kind, "-"), valueOr(job.RepoID, "-"))
+		lines = append(lines, fmt.Sprintf("%-24s %-12s %-10s %s", valueOr(job.ID, "-"), valueOr(job.Status, "-"), valueOr(job.Kind, "-"), valueOr(job.RepoID, "-")))
 	}
+	c.printPanel("Model Jobs", lines, "yellow")
 	return nil
 }
 
 func (c *runtimeChat) printDoctor() error {
-	fmt.Fprintln(c.out, c.color("doctor", "bold"))
-	fmt.Fprintf(c.out, "  os: %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	fmt.Fprintf(c.out, "  cwd: %s\n", mustGetwd())
-	fmt.Fprintf(c.out, "  gateway: %s\n", c.cfg.addr)
+	lines := []string{
+		fmt.Sprintf("os        %s/%s", runtime.GOOS, runtime.GOARCH),
+		"cwd       " + mustGetwd(),
+		"gateway   " + c.cfg.addr,
+	}
 	if err := checkHTTP(c.cfg.addr + "/healthz"); err != nil {
-		fmt.Fprintf(c.out, "  healthz: failed (%v)\n", err)
+		lines = append(lines, fmt.Sprintf("healthz   failed (%v)", err))
 	} else {
-		fmt.Fprintln(c.out, "  healthz: ok")
+		lines = append(lines, "healthz   ok")
 	}
 	if err := checkHTTP(c.cfg.addr + "/api/runtime/status"); err != nil {
-		fmt.Fprintf(c.out, "  runtime: failed (%v)\n", err)
+		lines = append(lines, fmt.Sprintf("runtime   failed (%v)", err))
 	} else {
-		fmt.Fprintln(c.out, "  runtime: ok")
+		lines = append(lines, "runtime   ok")
 	}
 	var status runtimeStatusPayload
 	if err := getJSONValue(c.cfg.addr+"/api/runtime/status", &status); err == nil {
-		fmt.Fprintf(c.out, "  planner: mode=%s effective=%s mimo=%t fallback=%s token=%t\n", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent)
-		fmt.Fprintf(c.out, "  planner pythonpath: %s\n", valueOr(status.Runtime.Planner.PythonPath, "-"))
+		lines = append(lines, fmt.Sprintf("planner   mode=%s effective=%s mimo=%t fallback=%s token=%t", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent))
+		lines = append(lines, fmt.Sprintf("python    %s", valueOr(status.Runtime.Planner.PythonPath, "-")))
 	}
-	fmt.Fprintf(c.out, "  LLM_BASE_URL: %s\n", presentOrMissing("LLM_BASE_URL"))
-	fmt.Fprintf(c.out, "  LLM_MODEL: %s\n", presentOrMissing("LLM_MODEL"))
-	fmt.Fprintf(c.out, "  LLM_API_KEY: %s\n", presentOrMissing("LLM_API_KEY"))
-	fmt.Fprintf(c.out, "  ANTHROPIC_BASE_URL: %s\n", presentOrMissing("ANTHROPIC_BASE_URL"))
-	fmt.Fprintf(c.out, "  ANTHROPIC_AUTH_TOKEN: %s\n", presentOrMissing("ANTHROPIC_AUTH_TOKEN"))
+	lines = append(lines,
+		"CLI env",
+		"  LLM_BASE_URL          "+presentOrMissing("LLM_BASE_URL"),
+		"  LLM_MODEL             "+presentOrMissing("LLM_MODEL"),
+		"  LLM_API_KEY           "+presentOrMissing("LLM_API_KEY"),
+		"  ANTHROPIC_BASE_URL    "+presentOrMissing("ANTHROPIC_BASE_URL"),
+		"  ANTHROPIC_AUTH_TOKEN  "+presentOrMissing("ANTHROPIC_AUTH_TOKEN"),
+	)
+	c.printPanel("Doctor", lines, "yellow")
 	return nil
 }
 
@@ -392,7 +417,7 @@ func (c *runtimeChat) printRawJSON(name string) error {
 }
 
 func (c *runtimeChat) printUser(text string) {
-	fmt.Fprintf(c.out, "\n%s %s\n", c.color("You", "blue"), text)
+	c.printPanel("You", wrapText(text, c.contentWidth()), "blue")
 }
 
 func (c *runtimeChat) printAssistant(text string, trace runtimeTrace, elapsed time.Duration) {
@@ -408,28 +433,27 @@ func (c *runtimeChat) printAssistant(text string, trace runtimeTrace, elapsed ti
 	if intent == "" {
 		intent = "chat"
 	}
-	fmt.Fprintf(c.out, "\n%s %s · %s · %s\n", c.color("Agent", "cyan"), title, status, compactDuration(elapsed))
-	fmt.Fprintf(c.out, "  intent: %s  tools: %s\n", intent, joinOr(trace.ToolIDs, "-"))
+	header := fmt.Sprintf("%s · %s · %s", title, status, compactDuration(elapsed))
+	lines := []string{
+		fmt.Sprintf("intent=%s  tools=%s", intent, joinOr(trace.ToolIDs, "-")),
+		"",
+	}
 	for _, line := range strings.Split(strings.TrimSpace(text), "\n") {
-		fmt.Fprintf(c.out, "  %s\n", line)
+		lines = append(lines, wrapText(line, c.contentWidth())...)
 	}
 	if len(trace.Metadata) > 0 {
-		fmt.Fprintf(c.out, "  metadata: %s\n", compactMetadata(trace.Metadata))
+		lines = append(lines, "", "metadata  "+compactMetadata(trace.Metadata))
 	}
 	if trace.SessionKey != "" {
-		fmt.Fprintf(c.out, "  session: %s\n", trace.SessionKey)
+		lines = append(lines, "session   "+trace.SessionKey)
 	}
+	c.printPanel("Agent "+header, lines, statusColor(status))
 }
 
 func (c *runtimeChat) printTraceLine(trace runtimeTrace, isLast bool) {
-	tree := "├─"
-	leaf := "│  ⎿"
-	if isLast {
-		tree = "└─"
-		leaf = "   ⎿"
+	for _, line := range traceLines(trace, isLast) {
+		fmt.Fprintln(c.out, line)
 	}
-	fmt.Fprintf(c.out, "  %s %s · %s · %s · tools=%s\n", tree, valueOr(trace.AgentID, "agent"), valueOr(trace.Status, "-"), valueOr(trace.Intent, "-"), joinOr(trace.ToolIDs, "-"))
-	fmt.Fprintf(c.out, "  %s %s\n", leaf, firstLine(trace.ReplyText, 96))
 }
 
 func (c *runtimeChat) latestTrace() (runtimeTrace, error) {
@@ -448,16 +472,54 @@ func (c *runtimeChat) color(text string, name string) string {
 		return text
 	}
 	codes := map[string]string{
-		"bold":  "1",
-		"blue":  "34",
-		"cyan":  "36",
-		"green": "32",
+		"bold":    "1",
+		"blue":    "34",
+		"cyan":    "36",
+		"dim":     "2",
+		"green":   "32",
+		"magenta": "35",
+		"red":     "31",
+		"yellow":  "33",
 	}
 	code := codes[name]
 	if code == "" {
 		return text
 	}
 	return "\x1b[" + code + "m" + text + "\x1b[0m"
+}
+
+func (c *runtimeChat) printPanel(title string, lines []string, color string) {
+	width := c.panelWidth()
+	titleText := " " + title + " "
+	topLen := width - runeLen(titleText) - 3
+	if topLen < 4 {
+		topLen = 4
+	}
+	fmt.Fprintf(c.out, "\n%s\n", c.color("╭─"+titleText+strings.Repeat("─", topLen)+"╮", color))
+	for _, line := range lines {
+		if line == "" {
+			fmt.Fprintf(c.out, "%s\n", c.color("│", "dim"))
+			continue
+		}
+		for _, wrapped := range wrapText(line, c.contentWidth()) {
+			fmt.Fprintf(c.out, "%s %s\n", c.color("│", "dim"), wrapped)
+		}
+	}
+	fmt.Fprintf(c.out, "%s\n", c.color("╰"+strings.Repeat("─", width-2)+"╯", color))
+}
+
+func (c *runtimeChat) panelWidth() int {
+	if raw := strings.TrimSpace(os.Getenv("COLUMNS")); raw != "" {
+		var parsed int
+		if _, err := fmt.Sscanf(raw, "%d", &parsed); err == nil && parsed >= 72 {
+			return minInt(parsed, 110)
+		}
+	}
+	return 96
+}
+
+func (c *runtimeChat) contentWidth() int {
+	return c.panelWidth() - 4
 }
 
 func getJSONValue(url string, target any) error {
@@ -531,6 +593,81 @@ func compactMetadata(metadata map[string]any) string {
 	return strings.Join(parts, ", ")
 }
 
+func statusColor(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "ok", "planned", "tool_planned", "tool_planned_with_guard":
+		return "green"
+	case "approval_required":
+		return "yellow"
+	case "failed", "tool_failed", "planning_failed", "preflight_failed":
+		return "red"
+	default:
+		return "cyan"
+	}
+}
+
+func traceLines(trace runtimeTrace, isLast bool) []string {
+	tree := "├─"
+	leaf := "│  ⎿"
+	if isLast {
+		tree = "└─"
+		leaf = "   ⎿"
+	}
+	return []string{
+		fmt.Sprintf("%s %s · %s · %s · tools=%s", tree, valueOr(trace.AgentID, "agent"), valueOr(trace.Status, "-"), valueOr(trace.Intent, "-"), joinOr(trace.ToolIDs, "-")),
+		fmt.Sprintf("%s %s", leaf, firstLine(trace.ReplyText, 96)),
+	}
+}
+
+func wrapText(value string, maxLen int) []string {
+	value = strings.TrimRight(strings.ReplaceAll(value, "\r", ""), " \t")
+	if strings.TrimSpace(value) == "" {
+		return []string{""}
+	}
+	if maxLen < 20 {
+		maxLen = 20
+	}
+	prefix := leadingWhitespace(value)
+	content := strings.TrimSpace(value)
+	available := maxLen - runeLen(prefix)
+	if available < 20 {
+		available = maxLen
+		prefix = ""
+	}
+	runes := []rune(content)
+	if runeLen(prefix)+len(runes) <= maxLen {
+		return []string{value}
+	}
+	lines := []string{}
+	continuationPrefix := prefix
+	if prefix != "" {
+		continuationPrefix = prefix + "  "
+	}
+	for len(runes) > available {
+		cut := available
+		for i := available; i > available/2; i-- {
+			if runes[i] == ' ' || runes[i] == '\t' {
+				cut = i
+				break
+			}
+		}
+		linePrefix := prefix
+		if len(lines) > 0 {
+			linePrefix = continuationPrefix
+		}
+		lines = append(lines, linePrefix+strings.TrimSpace(string(runes[:cut])))
+		runes = []rune(strings.TrimSpace(string(runes[cut:])))
+	}
+	if len(runes) > 0 {
+		linePrefix := prefix
+		if len(lines) > 0 {
+			linePrefix = continuationPrefix
+		}
+		lines = append(lines, linePrefix+string(runes))
+	}
+	return lines
+}
+
 func compactPath(value string) string {
 	clean := filepath.Clean(value)
 	parts := strings.Split(clean, string(os.PathSeparator))
@@ -538,6 +675,24 @@ func compactPath(value string) string {
 		return clean
 	}
 	return strings.Join(parts[len(parts)-3:], string(os.PathSeparator))
+}
+
+func runeLen(value string) int {
+	return len([]rune(value))
+}
+
+func leadingWhitespace(value string) string {
+	var b strings.Builder
+	for _, r := range value {
+		if r != ' ' && r != '\t' {
+			break
+		}
+		b.WriteRune(r)
+		if b.Len() >= 8 {
+			break
+		}
+	}
+	return b.String()
 }
 
 func compactTime(value string) string {

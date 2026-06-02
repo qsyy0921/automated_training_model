@@ -101,3 +101,4 @@
 - [x] 为 `labelctl agent` 补充输入归一化和单元测试，处理 Windows PowerShell 管道首行 BOM，避免 `/help` 等命令被误发到 runtime。
 - [x] 将 Mimo runtime 接入方式改为 CLI 可验证：`load-mimo-env.ps1` 自动启用 `AGENT_RUNTIME_PLANNER=python`，`PlannerFromEnv` 在 `AGENT_RUNTIME_USE_MIMO=true` 时进入 Python planner，runtime status 和 CLI `/status` / `/doctor` 显示 `planner=python mimo=true token=true`。
 - [x] 放宽 Python/Mimo 普通 chat guard：Mimo 返回自然语言 `reply_text` 且无需工具时直接返回给 CLI，不再被固定 `llm.plan` 兜底句覆盖。
+- [x] 将 `labelctl agent` 视觉输出继续向 `ccb` / Hermes 对齐：顶部 runtime 面板、entry point 面板、双行 prompt、用户/Agent 消息面板、trace tree 面板、doctor 面板和状态颜色已落地。

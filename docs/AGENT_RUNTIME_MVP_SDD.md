@@ -62,7 +62,7 @@ Workers and Providers
 | Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截 | 不绑定 channel/session/runtime store |
 | ToolExecutor | `tools.go` | 注册 MVP 工具 handler、model job、workflow dry-run | 后续把具体 handler 外迁到 `intakeapp`、task/model worker、workflow repository |
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo` | sessions、traces、model jobs | session/trace 和 model jobs 默认 JSON 持久化；后续迁移到 task repository |
-| CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code 的结构化 REPL：banner、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
+| CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Python Runtime | `workers/python/agent_runtime` | Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
