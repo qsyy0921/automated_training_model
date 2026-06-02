@@ -1,0 +1,295 @@
+package labelctl
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+)
+
+func runDataset(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "list" {
+		return getJSON(cfg.addr + "/api/datasets")
+	}
+	switch args[0] {
+	case "register-folder":
+		fs := flag.NewFlagSet("dataset register-folder", flag.ExitOnError)
+		name := fs.String("name", "", "dataset name")
+		mergeRoot := fs.String("merge-root", "", "tracking merge root")
+		frameRoot := fs.String("frame-root", "", "frame root")
+		maskRoot := fs.String("mask-root", "", "mask root")
+		annotationRoot := fs.String("annotation-root", "", "annotation root")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*mergeRoot) == "" {
+			return errors.New("usage: labelctl dataset register-folder -merge-root <dir> [-name name] [-frame-root dir] [-mask-root dir] [-annotation-root dir]")
+		}
+		return postJSON(cfg.addr+"/api/datasets/register-folder", compactBody(map[string]any{
+			"name":            *name,
+			"merge_root":      *mergeRoot,
+			"frame_root":      *frameRoot,
+			"mask_root":       *maskRoot,
+			"annotation_root": *annotationRoot,
+		}))
+	case "register-manifest":
+		fs := flag.NewFlagSet("dataset register-manifest", flag.ExitOnError)
+		name := fs.String("name", "", "dataset name")
+		manifest := fs.String("manifest", "", "manifest path")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*manifest) == "" {
+			return errors.New("usage: labelctl dataset register-manifest -manifest <file> [-name name]")
+		}
+		return postJSON(cfg.addr+"/api/datasets/register-manifest", compactBody(map[string]any{
+			"name":          *name,
+			"manifest_path": *manifest,
+		}))
+	case "activate":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl dataset activate <dataset_id>")
+		}
+		return postJSON(cfg.addr+"/api/datasets/"+url.PathEscape(args[1])+"/activate", map[string]string{})
+	default:
+		return fmt.Errorf("unknown dataset command: %s", args[0])
+	}
+}
+
+func runModels(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "list" {
+		return getJSON(cfg.addr + "/api/models")
+	}
+	switch args[0] {
+	case "get":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl models get <model_id>")
+		}
+		return getJSON(cfg.addr + "/api/models/" + url.PathEscape(args[1]))
+	case "register":
+		fs := flag.NewFlagSet("models register", flag.ExitOnError)
+		name := fs.String("name", "", "model name")
+		family := fs.String("family", "", "model family")
+		task := fs.String("task", "", "task type")
+		artifactURI := fs.String("artifact-uri", "", "artifact URI or local data_lake path")
+		metricsURI := fs.String("metrics-uri", "", "metrics URI")
+		datasetID := fs.String("dataset-id", "", "dataset id")
+		tags := fs.String("tags", "", "comma-separated tags")
+		description := fs.String("description", "", "description")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*name) == "" || strings.TrimSpace(*artifactURI) == "" {
+			return errors.New("usage: labelctl models register -name <name> -artifact-uri <uri> [-family family] [-task task] [-dataset-id id] [-tags a,b]")
+		}
+		return postJSON(cfg.addr+"/api/models/register", compactBody(map[string]any{
+			"name":         *name,
+			"model_family": *family,
+			"task":         *task,
+			"artifact_uri": *artifactURI,
+			"metrics_uri":  *metricsURI,
+			"dataset_id":   *datasetID,
+			"tags":         splitCSV(*tags),
+			"description":  *description,
+		}))
+	case "jobs", "model-jobs":
+		return getJSON(cfg.addr + "/api/runtime/model-jobs")
+	case "job":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl models job <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]))
+	case "cancel-job":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl models cancel-job <job_id>")
+		}
+		return postJSON(cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(args[1])+"/cancel", map[string]string{})
+	case "resume-job":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl models resume-job <job_id>")
+		}
+		return postJSON(cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(args[1])+"/resume", map[string]string{})
+	default:
+		return fmt.Errorf("unknown models command: %s", args[0])
+	}
+}
+
+func runDeploy(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "help" {
+		return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] | task <task_id> | cancel-task <task_id>")
+	}
+	switch args[0] {
+	case "submit":
+		fs := flag.NewFlagSet("deploy submit", flag.ExitOnError)
+		modelID := fs.String("model", "", "model id")
+		version := fs.String("version", "", "model version")
+		target := fs.String("target", "", "deployment target")
+		runtime := fs.String("runtime", "python-worker", "runtime")
+		replicas := fs.Int("replicas", 1, "replicas")
+		resourceClass := fs.String("resource-class", "", "resource class")
+		strategy := fs.String("strategy", "dry-run", "deployment strategy")
+		canary := fs.Int("canary-percent", 0, "canary percent")
+		rollback := fs.String("rollback-policy", "", "rollback policy")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*modelID) == "" || strings.TrimSpace(*target) == "" {
+			return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime]")
+		}
+		return postJSON(cfg.addr+"/api/deployments", compactBody(map[string]any{
+			"model_id":        *modelID,
+			"model_version":   *version,
+			"target":          *target,
+			"runtime":         *runtime,
+			"replicas":        *replicas,
+			"resource_class":  *resourceClass,
+			"strategy":        *strategy,
+			"canary_percent":  *canary,
+			"rollback_policy": *rollback,
+		}))
+	case "task", "status":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl deploy task <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	case "cancel-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl deploy cancel-task <task_id>")
+		}
+		return deleteJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	default:
+		return fmt.Errorf("unknown deploy command: %s", args[0])
+	}
+}
+
+func runLogs(cfg Config, args []string) error {
+	if len(args) == 0 {
+		args = []string{"traces"}
+	}
+	switch args[0] {
+	case "traces", "runtime":
+		return getJSON(cfg.addr + "/api/runtime/traces")
+	case "audit":
+		return getJSON(cfg.addr + "/api/audit-events")
+	case "runs":
+		return getJSON(cfg.addr + "/api/agent-runs")
+	case "jobs":
+		return getJSON(cfg.addr + "/api/runtime/model-jobs")
+	case "intake":
+		return getJSON(cfg.addr + "/api/runtime/intake/workflows")
+	default:
+		return fmt.Errorf("unknown logs command: %s", args[0])
+	}
+}
+
+func runDoctor(cfg Config, args []string) error {
+	checks := []struct {
+		name string
+		path string
+	}{
+		{name: "health", path: "/healthz"},
+		{name: "runtime", path: "/api/runtime/status"},
+		{name: "channels", path: "/api/channels"},
+		{name: "qq", path: "/api/channels/qq/status"},
+		{name: "desktop", path: "/api/desktop/status"},
+		{name: "models", path: "/api/models"},
+		{name: "datasets", path: "/api/datasets"},
+	}
+	fmt.Printf("labelctl doctor gateway=%s token=%s\n", strings.TrimRight(cfg.addr, "/"), tokenState(cfg.token))
+	failures := 0
+	for _, check := range checks {
+		status, elapsed, err := probeEndpoint(cfg, check.path)
+		if err != nil {
+			failures++
+			fmt.Printf("  %-10s fail  %s\n", check.name, err)
+			continue
+		}
+		if status >= 400 {
+			failures++
+			fmt.Printf("  %-10s fail  status=%d elapsed=%s\n", check.name, status, elapsed)
+			continue
+		}
+		fmt.Printf("  %-10s ok    status=%d elapsed=%s\n", check.name, status, elapsed)
+	}
+	if failures > 0 {
+		return fmt.Errorf("doctor found %d failed checks", failures)
+	}
+	return nil
+}
+
+func deleteJSON(rawURL string) error {
+	req, err := http.NewRequest(http.MethodDelete, rawURL, nil)
+	if err != nil {
+		return err
+	}
+	applyGatewayAuth(req, cliGatewayToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return writeResponse(resp)
+}
+
+func probeEndpoint(cfg Config, path string) (int, time.Duration, error) {
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(cfg.addr, "/")+path, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	applyGatewayAuth(req, cfg.token)
+	start := time.Now()
+	resp, err := http.DefaultClient.Do(req)
+	elapsed := time.Since(start).Round(time.Millisecond)
+	if err != nil {
+		return 0, elapsed, err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode, elapsed, nil
+}
+
+func compactBody(body map[string]any) map[string]any {
+	out := map[string]any{}
+	for key, value := range body {
+		switch typed := value.(type) {
+		case string:
+			if strings.TrimSpace(typed) != "" {
+				out[key] = typed
+			}
+		case []string:
+			if len(typed) > 0 {
+				out[key] = typed
+			}
+		case int:
+			if typed != 0 {
+				out[key] = typed
+			}
+		default:
+			out[key] = typed
+		}
+	}
+	return out
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func tokenState(token string) string {
+	if strings.TrimSpace(token) == "" {
+		return "not-configured"
+	}
+	return "configured"
+}

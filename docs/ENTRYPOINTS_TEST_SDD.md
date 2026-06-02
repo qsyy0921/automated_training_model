@@ -35,6 +35,11 @@ $go = Resolve-Go
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime approve-intake <workflow_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime register-intake <workflow_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 desktop status
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 dataset list
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 models list
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 deploy task <task_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 logs traces
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 doctor
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 ```
 
@@ -133,6 +138,7 @@ Invoke-RestMethod http://127.0.0.1:7870/api/channels/qq/onebot -Method Post -Con
 | EP-003c | `qqbot.RunWebSocketClient` 本地 fake OneBot WS | 读取 private `/bot-ping` event，经 normalizer 后在同一 WebSocket 写回 `send_msg`。 |
 | EP-004 | Web `/` | 首屏是 Agent Overview，不再只显示视频审核页面。 |
 | EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`，并通过 sessions/traces/jobs/send 命令复用同一 Gateway runtime。 |
+| EP-005b | `labelctl dataset/models/deploy/logs/doctor` | 领域命令组复用现有 Gateway API，不绕过 Agent Runtime / lifecycle / task 边界。 |
 | EP-006 | `labelctl skill draft ...` | 写入 draft-only `SKILL.md`，`enabled=false`。 |
 | EP-007 | `smoke-agent-entrypoints.ps1` | 自动启动服务并验证 CLI、QQ webhook、desktop 和 skill draft。 |
 | EP-008 | `smoke-runtime-mvp.ps1` | 验证四入口同 runtime、sub-agent routing、model-jobs API、`vlm.inspect` trace 和带 metadata 的 ShanghaiTech `intake.plan`。 |

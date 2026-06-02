@@ -130,6 +130,13 @@ atm:03 planner-agent> /exit
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime cancel-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime resume-job <job_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 dataset list
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 dataset register-folder -name shanghaitech -merge-root F:\path\to\merge
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 models list
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 models jobs
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 deploy submit -model <model_id> -target local-dry-run
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 logs traces
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 doctor
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
 ```
@@ -141,7 +148,7 @@ atm:03 planner-agent> /exit
 | 入口 | 当前能力 | 验证方式 |
 | --- | --- | --- |
 | Web | Agent Overview 查看 runtime status、sessions、traces、model jobs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
-| CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务、查看/审批/注册 intake workflow | `labelctl runtime status/sessions/traces/model-jobs/job/cancel-job/resume-job/intake/approve-intake/register-intake/send` |
+| CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务、查看/审批/注册 intake workflow，并提供 dataset/models/deploy/logs/doctor 领域命令组 | `labelctl runtime ...`、`labelctl dataset ...`、`labelctl models ...`、`labelctl deploy ...`、`labelctl logs ...`、`labelctl doctor` |
 | 桌面端 | 复用 Gateway runtime snapshot，可查看 sessions/traces/jobs，并通过同一 runtime path 发送测试消息 | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 status` |
 | QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发；也可启用 OneBot WebSocket reader 长连接 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message`、`QQ_ONEBOT_WS_ENABLED=true` |
 

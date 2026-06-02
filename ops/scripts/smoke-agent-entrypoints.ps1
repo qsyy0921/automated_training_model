@@ -85,6 +85,10 @@ try {
 
   Write-Host "health ok"
   & $Go run .\cmd\labelctl -addr $baseURL runtime status
+  & $Go run .\cmd\labelctl -addr $baseURL doctor
+  & $Go run .\cmd\labelctl -addr $baseURL dataset list
+  & $Go run .\cmd\labelctl -addr $baseURL models list
+  & $Go run .\cmd\labelctl -addr $baseURL logs traces
   & $Go run .\cmd\labelctl -addr $baseURL channel qq test /bot-ping
 
   $body = @{

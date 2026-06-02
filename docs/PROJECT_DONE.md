@@ -119,3 +119,4 @@
 - [x] 新增 `internal/app/runtimeworkflow`，将 `workflow.list_runs` / `workflow.submit_run` 的 dry-run guard、RunRequest 构造和回复格式从 `GoToolExecutor` 外迁；runtime 只保留 tool handler 注册和 app service 调用。
 - [x] 新增 `internal/app/modelruntime`，将 `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、目录边界、脚本执行和 smoke JSON 解析从 `GoToolExecutor` 外迁；runtime 仍负责审批、异步 `ModelJob` 生命周期、cancel/resume 和 trace。
 - [x] 将 `cmd/agentdesktop` 从只打印 `/api/desktop/status` JSON 的 scaffold 升级为最小桌面 runtime 面板：支持 `status`、`sessions`、`traces`、`jobs`、`send <message>` 和 `json`，仍通过 Gateway API 和 QQ test-message path 进入同一个 Agent Runtime。
+- [x] 补齐 `labelctl dataset/models/deploy/logs/doctor` 领域命令组：dataset 注册/激活、model 注册/查询/job 管理、deployment 提交/task 查询取消、日志查看和 Gateway doctor 均复用现有 API，并新增 CLI routing tests。
