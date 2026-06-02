@@ -142,7 +142,7 @@ atm:03 planner-agent> /exit
 | --- | --- | --- |
 | Web | Agent Overview 查看 runtime status、sessions、traces、model jobs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
 | CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务、查看/审批/注册 intake workflow | `labelctl runtime status/sessions/traces/model-jobs/job/cancel-job/resume-job/intake/approve-intake/register-intake/send` |
-| 桌面端 | 复用 Gateway runtime snapshot | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870` |
+| 桌面端 | 复用 Gateway runtime snapshot，可查看 sessions/traces/jobs，并通过同一 runtime path 发送测试消息 | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 status` |
 | QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发；也可启用 OneBot WebSocket reader 长连接 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message`、`QQ_ONEBOT_WS_ENABLED=true` |
 
 ### Gateway 远程访问保护
@@ -159,6 +159,17 @@ $env:ATM_ALLOWED_ORIGINS="http://127.0.0.1:7870,http://localhost:7870,https://at
 ```powershell
 .\bin\labelctl.exe -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN runtime status
 go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN
+```
+
+桌面端当前是本地 runtime 面板命令，后续可以替换为 Wails/Tauri 外壳；现在已经支持：
+
+```powershell
+go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 status
+go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 sessions
+go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 traces
+go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 jobs
+go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 send /bot-ping
+go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 json
 ```
 
 `/api/runtime/status` 会暴露 `gateway.auth` 诊断信息，只显示是否配置 token、是否允许 loopback bypass、是否配置 allowed origins，不会返回 token 明文。真实 token 只能放环境变量或本机 secret store，不能写入 Git、README、前端代码或 channel 消息。

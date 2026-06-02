@@ -138,7 +138,7 @@ func (s *Server) desktopStatus(w http.ResponseWriter, r *http.Request) {
 	status := agentruntime.Status()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"desktop": map[string]any{
-			"status":       "scaffolded",
+			"status":       "ready",
 			"profile":      "local-desktop",
 			"gateway":      r.Host,
 			"runtime":      status.Runtime,

@@ -65,7 +65,7 @@ func Status() RuntimeStatus {
 		EntryPoints: []EntryPointStatus{
 			{ID: "cli", Name: "CLI", Transport: "local-command", Status: "ready", Description: "labelctl runtime, agent, workflow, governance and channel commands"},
 			{ID: "web", Name: "Web Console", Transport: "http", Status: "ready", Endpoint: "/", Description: "Agent overview, review workbench, tasks and governance"},
-			{ID: "desktop", Name: "Desktop Client", Transport: "local-http", Status: "scaffolded", Endpoint: "/api/runtime/status", Description: "local desktop shell entry reuses the same Gateway APIs"},
+			{ID: "desktop", Name: "Desktop Client", Transport: "local-http", Status: "ready", Endpoint: "/api/desktop/status", Description: "local desktop shell reuses Gateway runtime status, sessions, traces, jobs and send APIs"},
 			{ID: "qq", Name: "QQ / NapCat OneBot", Transport: "webhook", Status: "adapter-ready", Endpoint: "/api/channels/qq/onebot", Description: "QQ messages are normalized into channel.InboundMessage"},
 		},
 		ProviderRoutes: []ProviderRoute{

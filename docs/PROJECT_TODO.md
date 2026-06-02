@@ -10,6 +10,7 @@
 - [x] 增加 Gateway token auth、allowed origins 和 non-loopback 访问保护：loopback 默认开发放行，非 loopback `/api/` 必须配置并携带 token；CLI/桌面端支持 `-token`。
 - [ ] 增加持久 remote profile、短期 token/RBAC、pairing code、CSRF/origin 管理操作细化。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
+- [x] 将 `cmd/agentdesktop` 从只读 status scaffold 推进到最小桌面 runtime 面板，支持 status、sessions、traces、jobs、send 和 json。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
 - [x] 将 `internal/app/intakeapp` 从 JSON dry-run plan repository 推进到 intake workflow MVP：Channel 附件 quarantine、静态 scan、pending approval、approve/register metadata。
 - [ ] 将 intake workflow MVP 推进到生产入湖：真实文件隔离区、压缩包展开/路径穿越扫描、manifest schema scan、审批队列、正式 dataset registry 写入和审计。

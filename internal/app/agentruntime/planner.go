@@ -22,7 +22,7 @@ func (p *RulePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 	case IntentRuntimeAbout:
 		result.ReplyText = strings.Join([]string{
 			"我是 automated_training_model 的本地 Agent Runtime，不是单纯的模型聊天窗口。",
-			"当前入口包括 CLI、Web、桌面端脚手架和 QQ/NapCat；Go Gateway 负责连接、权限、状态和审计，Python/Mimo 负责语义规划、多模态理解和工具计划。",
+			"当前入口包括 CLI、Web、桌面端 runtime 面板和 QQ/NapCat；Go Gateway 负责连接、权限、状态和审计，Python/Mimo 负责语义规划、多模态理解和工具计划。",
 			"确定性的控制意图会在本地快速处理；下载模型、数据接入、训练、评估和部署会进入 planner-agent 或对应 sub-agent 的受控工具流程。",
 		}, "\n")
 		return result, nil

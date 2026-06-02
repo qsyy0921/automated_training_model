@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | CLI | ready | `labelctl agent` 交互式 Agent Runtime CLI；兼容 `runtime/channel/agent-run/governance` 一次性命令。 |
 | Web | ready | 默认进入 Agent Overview，视频审核是二级工作台。 |
-| Desktop | scaffolded | `cmd/agentdesktop` 和 `/api/desktop/status`，后续可替换为 Wails/Tauri。 |
+| Desktop | ready | `cmd/agentdesktop` 复用 Gateway API，支持 status、sessions、traces、jobs、send 和原始 JSON；后续可替换为 Wails/Tauri。 |
 | QQ | adapter-ready | NapCat/OneBot webhook、test-message API 和可选 WebSocket reader。 |
 
 ## 本地测试命令
@@ -46,6 +46,10 @@ $go = Resolve-Go
 $env:ATM_GATEWAY_TOKEN="replace_with_local_secret"
 .\bin\labelctl.exe -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN runtime status
 go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN
+go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN sessions
+go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN traces
+go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN jobs
+go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN send /bot-ping
 ```
 
 本机 loopback smoke 默认不需要 token；如果设置 `ATM_GATEWAY_REQUIRE_TOKEN_FOR_LOOPBACK=true`，CLI 和桌面端也必须带 `-token`。
@@ -74,7 +78,7 @@ Mimo 模式验收：
 
 - CLI `agent` 交互式入口和 `runtime send /bot-ping`。
 - Web/Gateway 可查询 runtime status、sessions、traces、model-jobs 和 intake workflows，并支持查询单个 model job、请求取消、手动 resume、审批/注册 intake workflow。
-- 桌面端复用 `/api/desktop/status`。
+- 桌面端复用 `/api/desktop/status`、`/api/runtime/sessions`、`/api/runtime/traces`、`/api/runtime/model-jobs` 和 QQ test-message runtime path。
 - QQ test-message 和 OneBot webhook 都进入同一个 Agent Runtime。
 - 普通文本进入 `planner-agent`。
 - 图片附件进入 `vision-agent`。
@@ -128,7 +132,7 @@ Invoke-RestMethod http://127.0.0.1:7870/api/channels/qq/onebot -Method Post -Con
 | EP-003b | 设置 `QQ_ONEBOT_OUTBOUND_ENABLED=true` | webhook 处理后主动调用 NapCat `/send_msg`。 |
 | EP-003c | `qqbot.RunWebSocketClient` 本地 fake OneBot WS | 读取 private `/bot-ping` event，经 normalizer 后在同一 WebSocket 写回 `send_msg`。 |
 | EP-004 | Web `/` | 首屏是 Agent Overview，不再只显示视频审核页面。 |
-| EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`。 |
+| EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`，并通过 sessions/traces/jobs/send 命令复用同一 Gateway runtime。 |
 | EP-006 | `labelctl skill draft ...` | 写入 draft-only `SKILL.md`，`enabled=false`。 |
 | EP-007 | `smoke-agent-entrypoints.ps1` | 自动启动服务并验证 CLI、QQ webhook、desktop 和 skill draft。 |
 | EP-008 | `smoke-runtime-mvp.ps1` | 验证四入口同 runtime、sub-agent routing、model-jobs API、`vlm.inspect` trace 和带 metadata 的 ShanghaiTech `intake.plan`。 |

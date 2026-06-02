@@ -118,3 +118,4 @@
 - [x] 将 `intakeapp` 推进到 intake workflow MVP：QQ/Web 附件进入 quarantine、静态 metadata scan、Data Intake Plan、pending approval；新增 workflow JSON 持久化、Gateway 查询/approve/register API、CLI `runtime intake/approve-intake/register-intake` 和 Web Agent Overview 只读面板。
 - [x] 新增 `internal/app/runtimeworkflow`，将 `workflow.list_runs` / `workflow.submit_run` 的 dry-run guard、RunRequest 构造和回复格式从 `GoToolExecutor` 外迁；runtime 只保留 tool handler 注册和 app service 调用。
 - [x] 新增 `internal/app/modelruntime`，将 `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、目录边界、脚本执行和 smoke JSON 解析从 `GoToolExecutor` 外迁；runtime 仍负责审批、异步 `ModelJob` 生命周期、cancel/resume 和 trace。
+- [x] 将 `cmd/agentdesktop` 从只打印 `/api/desktop/status` JSON 的 scaffold 升级为最小桌面 runtime 面板：支持 `status`、`sessions`、`traces`、`jobs`、`send <message>` 和 `json`，仍通过 Gateway API 和 QQ test-message path 进入同一个 Agent Runtime。
