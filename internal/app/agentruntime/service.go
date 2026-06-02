@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
@@ -10,6 +11,8 @@ import (
 )
 
 const defaultWorkflowID = "data-to-deployment-lifecycle"
+
+var ErrUnsupportedModelJobAction = errors.New("model job action is not supported by this runtime")
 
 type AgentControlPlane interface {
 	SubmitWorkflowRun(ctx context.Context, req agent.RunRequest) (agent.WorkflowRun, error)
@@ -95,4 +98,29 @@ func (s *Service) ListModelJobs(limit int) []ModelJob {
 		return runner.ListModelJobs(limit)
 	}
 	return nil
+}
+
+func (s *Service) GetModelJob(id string) (ModelJob, bool) {
+	if runner, ok := s.runner.(interface{ GetModelJob(string) (ModelJob, bool) }); ok {
+		return runner.GetModelJob(id)
+	}
+	return ModelJob{}, false
+}
+
+func (s *Service) CancelModelJob(id string) (ModelJob, error) {
+	if runner, ok := s.runner.(interface {
+		CancelModelJob(string) (ModelJob, error)
+	}); ok {
+		return runner.CancelModelJob(id)
+	}
+	return ModelJob{}, ErrUnsupportedModelJobAction
+}
+
+func (s *Service) ResumeModelJob(id string) (ModelJob, error) {
+	if runner, ok := s.runner.(interface {
+		ResumeModelJob(string) (ModelJob, error)
+	}); ok {
+		return runner.ResumeModelJob(id)
+	}
+	return ModelJob{}, ErrUnsupportedModelJobAction
 }

@@ -136,12 +136,17 @@ type runtimeTrace struct {
 }
 
 type runtimeModelJob struct {
-	ID        string `json:"id"`
-	RepoID    string `json:"repo_id"`
-	Status    string `json:"status"`
-	Kind      string `json:"kind"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID              string `json:"id"`
+	ParentID        string `json:"parent_id"`
+	RepoID          string `json:"repo_id"`
+	Status          string `json:"status"`
+	Kind            string `json:"kind"`
+	Message         string `json:"message"`
+	ProgressPercent int    `json:"progress_percent"`
+	CancelRequested bool   `json:"cancel_requested"`
+	Resumable       bool   `json:"resumable"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 type runtimeStreamEvent struct {
@@ -604,7 +609,21 @@ func (c *runtimeChat) printJobs() error {
 	}
 	lines := []string{}
 	for _, job := range payload.Jobs {
-		lines = append(lines, fmt.Sprintf("%-24s %-12s %-10s %s", valueOr(job.ID, "-"), valueOr(job.Status, "-"), valueOr(job.Kind, "-"), valueOr(job.RepoID, "-")))
+		flags := []string{}
+		if job.CancelRequested {
+			flags = append(flags, "cancel")
+		}
+		if job.Resumable {
+			flags = append(flags, "resumable")
+		}
+		line := fmt.Sprintf("%-24s %-12s %3d%% %-10s %s", valueOr(job.ID, "-"), valueOr(job.Status, "-"), job.ProgressPercent, valueOr(job.Kind, "-"), valueOr(job.RepoID, "-"))
+		if job.Message != "" {
+			line += "  " + job.Message
+		}
+		if len(flags) > 0 {
+			line += "  [" + strings.Join(flags, ",") + "]"
+		}
+		lines = append(lines, line)
 	}
 	c.printPanel("Model Jobs", lines, "yellow")
 	return nil

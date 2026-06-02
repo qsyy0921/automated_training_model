@@ -76,6 +76,8 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("GET /api/runtime/sessions", s.runtimeSessions)
 	mux.HandleFunc("GET /api/runtime/traces", s.runtimeTraces)
 	mux.HandleFunc("GET /api/runtime/model-jobs", s.runtimeModelJobs)
+	mux.HandleFunc("GET /api/runtime/model-jobs/", s.runtimeModelJobDetail)
+	mux.HandleFunc("POST /api/runtime/model-jobs/", s.runtimeModelJobAction)
 	mux.HandleFunc("POST /api/runtime/stream-message", s.runtimeStreamMessage)
 	mux.HandleFunc("GET /api/desktop/status", s.desktopStatus)
 	mux.HandleFunc("GET /api/channels", s.listChannels)

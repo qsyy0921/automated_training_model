@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -9,25 +10,37 @@ import (
 const defaultModelJobLimit = 100
 
 type ModelJob struct {
-	ID         string            `json:"id"`
-	Kind       string            `json:"kind"`
-	RepoID     string            `json:"repo_id"`
-	LocalDir   string            `json:"local_dir"`
-	Manifest   string            `json:"manifest"`
-	VerifyOnly bool              `json:"verify_only"`
-	Status     string            `json:"status"`
-	Message    string            `json:"message,omitempty"`
-	Error      string            `json:"error,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
-	CreatedAt  time.Time         `json:"created_at"`
-	StartedAt  *time.Time        `json:"started_at,omitempty"`
-	FinishedAt *time.Time        `json:"finished_at,omitempty"`
-	UpdatedAt  time.Time         `json:"updated_at"`
+	ID              string            `json:"id"`
+	ParentID        string            `json:"parent_id,omitempty"`
+	Kind            string            `json:"kind"`
+	RepoID          string            `json:"repo_id"`
+	LocalDir        string            `json:"local_dir"`
+	Manifest        string            `json:"manifest"`
+	VerifyOnly      bool              `json:"verify_only"`
+	Status          string            `json:"status"`
+	Message         string            `json:"message,omitempty"`
+	Error           string            `json:"error,omitempty"`
+	ProgressPercent int               `json:"progress_percent,omitempty"`
+	CancelRequested bool              `json:"cancel_requested,omitempty"`
+	Resumable       bool              `json:"resumable,omitempty"`
+	Logs            []ModelJobLog     `json:"logs,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	CreatedAt       time.Time         `json:"created_at"`
+	StartedAt       *time.Time        `json:"started_at,omitempty"`
+	FinishedAt      *time.Time        `json:"finished_at,omitempty"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+type ModelJobLog struct {
+	At      time.Time `json:"at"`
+	Level   string    `json:"level"`
+	Message string    `json:"message"`
 }
 
 type ModelJobStore interface {
 	Create(job ModelJob) ModelJob
 	Update(id string, mutate func(*ModelJob))
+	Get(id string) (ModelJob, bool)
 	List(limit int) []ModelJob
 }
 
@@ -61,6 +74,12 @@ func (s *InMemoryModelJobStore) Create(job ModelJob) ModelJob {
 	if job.Status == "" {
 		job.Status = "queued"
 	}
+	if job.ProgressPercent < 0 {
+		job.ProgressPercent = 0
+	}
+	if job.ProgressPercent > 100 {
+		job.ProgressPercent = 100
+	}
 	if job.CreatedAt.IsZero() {
 		job.CreatedAt = now
 	}
@@ -77,8 +96,16 @@ func (s *InMemoryModelJobStore) Update(id string, mutate func(*ModelJob)) {
 		return
 	}
 	mutate(&job)
+	job.ProgressPercent = normalizeProgress(job.ProgressPercent)
 	job.UpdatedAt = s.now()
 	s.jobs[id] = job
+}
+
+func (s *InMemoryModelJobStore) Get(id string) (ModelJob, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	job, ok := s.jobs[id]
+	return job, ok
 }
 
 func (s *InMemoryModelJobStore) List(limit int) []ModelJob {
@@ -96,6 +123,32 @@ func (s *InMemoryModelJobStore) List(limit int) []ModelJob {
 		out = out[:limit]
 	}
 	return out
+}
+
+func normalizeProgress(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
+}
+
+func appendModelJobLog(logs []ModelJobLog, at time.Time, level string, message string) []ModelJobLog {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return logs
+	}
+	level = strings.TrimSpace(level)
+	if level == "" {
+		level = "info"
+	}
+	logs = append(logs, ModelJobLog{At: at, Level: level, Message: message})
+	if len(logs) > 200 {
+		return logs[len(logs)-200:]
+	}
+	return logs
 }
 
 func normalizeModelJobLimit(limit int) int {

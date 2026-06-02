@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -321,4 +322,77 @@ func TestModelDownloadDefaultPolicyQueuesAsyncJob(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+}
+
+func TestModelJobCancelAndResume(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	var startOnce sync.Once
+	executor.runHFModelTool = func(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {
+		startOnce.Do(func() { close(started) })
+		<-ctx.Done()
+		return ToolExecutionResult{}, ctx.Err()
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "planner-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobID := result.Metadata["job_id"]
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected background model job to start")
+	}
+	canceled, err := executor.CancelModelJob(jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !canceled.CancelRequested {
+		t.Fatalf("expected cancel requested, got %+v", canceled)
+	}
+	deadline := time.After(time.Second)
+	for {
+		job, ok := executor.GetModelJob(jobID)
+		if !ok {
+			t.Fatalf("job not found: %s", jobID)
+		}
+		if job.Status == "canceled" {
+			if !job.Resumable {
+				t.Fatalf("expected canceled job to be resumable: %+v", job)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected canceled status, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	resumed, err := executor.ResumeModelJob(jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.ParentID != jobID || (resumed.Status != "queued" && resumed.Status != "running") {
+		t.Fatalf("unexpected resumed job: %+v", resumed)
+	}
+	_, _ = executor.CancelModelJob(resumed.ID)
 }

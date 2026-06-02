@@ -127,6 +127,9 @@ atm:03 planner-agent> /exit
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime sessions
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime traces
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime model-jobs
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job <job_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime cancel-job <job_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime resume-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
 ```
@@ -138,7 +141,7 @@ atm:03 planner-agent> /exit
 | 入口 | 当前能力 | 验证方式 |
 | --- | --- | --- |
 | Web | Agent Overview 查看 runtime status、sessions、traces、model jobs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
-| CLI | 查询 runtime、发送测试消息、查看异步模型任务 | `labelctl runtime status/sessions/traces/model-jobs/send` |
+| CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务 | `labelctl runtime status/sessions/traces/model-jobs/job/cancel-job/resume-job/send` |
 | 桌面端 | 复用 Gateway runtime snapshot | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870` |
 | QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发；也可启用 OneBot WebSocket reader 长连接 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message`、`QQ_ONEBOT_WS_ENABLED=true` |
 
@@ -229,7 +232,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-pla
 
 文本规划默认使用 `mimo-v2.5-pro`，视觉理解默认使用 `mimo-v2.5`。普通聊天默认走 fast chat，`AGENT_RUNTIME_FAST_CHAT=false` 可关闭；`AGENT_RUNTIME_PYTHON_WORKER=false` 可把 Python planner 从常驻 worker 回退到单次 spawn 模式。
 
-模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态持久化到 `data_lake/runtime/model_jobs.json` 并可从 `runtime model-jobs` 查询。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
+模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态、进度、日志、取消标记和恢复关系持久化到 `data_lake/runtime/model_jobs.json`。可通过 `runtime model-jobs` 查看列表，`runtime job <job_id>` 查看详情，`runtime cancel-job <job_id>` 请求取消，`runtime resume-job <job_id>` 基于 HuggingFace cache 新建恢复任务。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
 
 默认本机开发模式允许高风险工具进入受控执行；需要统一收紧时设置：
 

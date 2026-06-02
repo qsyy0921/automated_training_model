@@ -67,7 +67,14 @@ func TestJSONModelJobStoreMarksRunningJobsInterruptedOnRestart(t *testing.T) {
 	if jobs[0].Status != "interrupted" {
 		t.Fatalf("expected interrupted job after restart, got %+v", jobs[0])
 	}
+	if !jobs[0].Resumable {
+		t.Fatalf("expected interrupted job to be resumable, got %+v", jobs[0])
+	}
 	if jobs[0].FinishedAt == nil || !jobs[0].FinishedAt.Equal(restartedAt) {
 		t.Fatalf("expected interrupted job finished_at to be restart time, got %+v", jobs[0])
+	}
+	got, ok := restored.Get("model-job-running")
+	if !ok || got.Status != "interrupted" {
+		t.Fatalf("expected get interrupted job, got ok=%v job=%+v", ok, got)
 	}
 }

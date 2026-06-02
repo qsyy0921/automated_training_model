@@ -81,6 +81,11 @@ export const apiClient = {
   runtimeSessions: async () => request<{ sessions: RuntimeSession[] }>("/api/runtime/sessions"),
   runtimeTraces: async (limit = 30) => request<{ traces: RuntimeTrace[] | null }>(`/api/runtime/traces?limit=${limit}`),
   runtimeModelJobs: async (limit = 30) => request<{ jobs: RuntimeModelJob[] | null }>(`/api/runtime/model-jobs?limit=${limit}`),
+  runtimeModelJob: async (id: string) => request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}`),
+  cancelRuntimeModelJob: async (id: string) =>
+    request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+  resumeRuntimeModelJob: async (id: string) =>
+    request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/resume`, { method: "POST" }),
   runtimeSend: async (text: string) =>
     request<Record<string, unknown>>("/api/channels/qq/test-message", {
       method: "POST",

@@ -154,8 +154,12 @@ export function AgentOverviewPage() {
             {(modelJobs.data?.jobs ?? []).slice(0, 6).map((job) => (
               <div className="overviewRow" key={job.id}>
                 <strong>{job.repo_id}</strong>
-                <span>{job.status}</span>
-                <small>{job.message || job.error || job.id}</small>
+                <span>{job.status} · {job.progress_percent ?? 0}%</span>
+                <small>
+                  {job.message || job.error || job.id}
+                  {job.resumable ? " · resumable" : ""}
+                  {job.cancel_requested ? " · cancel requested" : ""}
+                </small>
               </div>
             ))}
           </div>

@@ -212,6 +212,7 @@ export interface RuntimeTrace {
 
 export interface RuntimeModelJob {
   id: string;
+  parent_id?: string;
   kind: string;
   repo_id: string;
   local_dir: string;
@@ -220,6 +221,14 @@ export interface RuntimeModelJob {
   status: string;
   message?: string;
   error?: string;
+  progress_percent?: number;
+  cancel_requested?: boolean;
+  resumable?: boolean;
+  logs?: Array<{
+    at: string;
+    level: string;
+    message: string;
+  }>;
   metadata?: Record<string, string>;
   created_at: string;
   started_at?: string;

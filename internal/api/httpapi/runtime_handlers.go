@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/agentruntime"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/middleware"
@@ -30,6 +32,46 @@ func (s *Server) runtimeModelJobs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"jobs": s.runtime.ListModelJobs(runtimeTraceLimit(r))})
 }
 
+func (s *Server) runtimeModelJobDetail(w http.ResponseWriter, r *http.Request) {
+	id, action := runtimeModelJobPath(r)
+	if id == "" || action != "" {
+		writeError(w, http.StatusNotFound, errors.New("model job not found"))
+		return
+	}
+	job, ok := s.runtime.GetModelJob(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, errors.New("model job not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"job": job})
+}
+
+func (s *Server) runtimeModelJobAction(w http.ResponseWriter, r *http.Request) {
+	id, action := runtimeModelJobPath(r)
+	if id == "" || action == "" {
+		writeError(w, http.StatusNotFound, errors.New("model job action not found"))
+		return
+	}
+	var (
+		job agentruntime.ModelJob
+		err error
+	)
+	switch action {
+	case "cancel":
+		job, err = s.runtime.CancelModelJob(id)
+	case "resume":
+		job, err = s.runtime.ResumeModelJob(id)
+	default:
+		writeError(w, http.StatusNotFound, errors.New("model job action not found"))
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"job": job})
+}
+
 func (s *Server) desktopStatus(w http.ResponseWriter, r *http.Request) {
 	status := agentruntime.Status()
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -43,6 +85,18 @@ func (s *Server) desktopStatus(w http.ResponseWriter, r *http.Request) {
 			"auth":         middleware.GatewayAuthStatusFromEnv(),
 		},
 	})
+}
+
+func runtimeModelJobPath(r *http.Request) (string, string) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/runtime/model-jobs/")
+	parts := strings.Split(strings.Trim(rest, "/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		return "", ""
+	}
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], parts[1]
 }
 
 func runtimeTraceLimit(r *http.Request) int {

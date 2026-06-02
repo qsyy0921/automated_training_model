@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
@@ -25,6 +26,8 @@ type GoToolExecutor struct {
 	toolRunner     *toolapp.Runner[ToolExecutionRequest]
 	intake         *intakeapp.Service
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
+	jobMu          sync.Mutex
+	jobCancels     map[string]context.CancelFunc
 }
 
 func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolExecutor {
@@ -32,10 +35,11 @@ func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolEx
 		now = time.Now
 	}
 	executor := &GoToolExecutor{
-		agents:    agents,
-		now:       now,
-		modelJobs: NewModelJobStore(now),
-		intake:    intakeapp.NewService(intakeapp.NewMemoryRepository(), nil, intakeapp.NewDryRunPlanner(now)),
+		agents:     agents,
+		now:        now,
+		modelJobs:  NewModelJobStore(now),
+		intake:     intakeapp.NewService(intakeapp.NewMemoryRepository(), nil, intakeapp.NewDryRunPlanner(now)),
+		jobCancels: map[string]context.CancelFunc{},
 	}
 	executor.runHFModelTool = executor.runHFModelScript
 	executor.toolRunner = toolapp.NewRunner[ToolExecutionRequest](toolapp.DefaultCatalog(), toolPreflightPolicyFromEnv)
@@ -263,14 +267,23 @@ func (e *GoToolExecutor) enqueueHFModelDownload(call ToolCall) (ToolExecutionRes
 	if err != nil {
 		return ToolExecutionResult{}, err
 	}
+	return e.enqueueHFModelDownloadRequest(req, "", call)
+}
+
+func (e *GoToolExecutor) enqueueHFModelDownloadRequest(req hfModelRequest, parentID string, call ToolCall) (ToolExecutionResult, error) {
+	created := e.now()
 	job := e.modelJobs.Create(ModelJob{
-		ID:       fmt.Sprintf("model-job-%d", e.now().UnixNano()),
-		Kind:     "model.download_hf",
-		RepoID:   req.RepoID,
-		LocalDir: req.LocalDir,
-		Manifest: req.Manifest,
-		Status:   "queued",
-		Message:  "queued by Agent Runtime",
+		ID:              fmt.Sprintf("model-job-%d", created.UnixNano()),
+		ParentID:        parentID,
+		Kind:            "model.download_hf",
+		RepoID:          req.RepoID,
+		LocalDir:        req.LocalDir,
+		Manifest:        req.Manifest,
+		Status:          "queued",
+		Message:         "queued by Agent Runtime",
+		ProgressPercent: 0,
+		Resumable:       true,
+		Logs:            []ModelJobLog{{At: created, Level: "info", Message: "queued by Agent Runtime"}},
 	})
 	go e.runHFModelJob(job.ID, call)
 	return ToolExecutionResult{
@@ -291,27 +304,122 @@ func (e *GoToolExecutor) runHFModelJob(jobID string, call ToolCall) {
 		job.Status = "running"
 		job.StartedAt = &started
 		job.Message = "running HuggingFace snapshot download"
+		job.ProgressPercent = 10
+		job.Logs = appendModelJobLog(job.Logs, started, "info", job.Message)
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), hfDownloadTimeout())
+	e.setModelJobCancel(jobID, cancel)
 	defer cancel()
+	defer e.clearModelJobCancel(jobID)
 	result, err := e.runHFModelTool(ctx, call, false)
 	finished := e.now()
 	e.modelJobs.Update(jobID, func(job *ModelJob) {
 		job.FinishedAt = &finished
+		if ctx.Err() == context.Canceled || job.CancelRequested {
+			job.Status = "canceled"
+			job.Message = "download canceled"
+			job.Resumable = true
+			job.Logs = appendModelJobLog(job.Logs, finished, "warn", job.Message)
+			return
+		}
 		if err != nil {
 			job.Status = "failed"
 			job.Error = err.Error()
 			job.Message = "download failed"
+			job.Resumable = true
+			job.Logs = appendModelJobLog(job.Logs, finished, "error", err.Error())
 			return
 		}
 		job.Status = "succeeded"
 		job.Message = result.ReplyText
 		job.Metadata = result.Metadata
+		job.ProgressPercent = 100
+		job.Resumable = false
+		job.Logs = appendModelJobLog(job.Logs, finished, "info", result.ReplyText)
 	})
 }
 
 func (e *GoToolExecutor) ListModelJobs(limit int) []ModelJob {
 	return e.modelJobs.List(limit)
+}
+
+func (e *GoToolExecutor) GetModelJob(id string) (ModelJob, bool) {
+	return e.modelJobs.Get(id)
+}
+
+func (e *GoToolExecutor) CancelModelJob(id string) (ModelJob, error) {
+	job, ok := e.modelJobs.Get(id)
+	if !ok {
+		return ModelJob{}, fmt.Errorf("model job not found: %s", id)
+	}
+	if job.Status != "queued" && job.Status != "running" {
+		return job, fmt.Errorf("model job %s cannot be canceled from status %s", id, job.Status)
+	}
+	now := e.now()
+	e.modelJobs.Update(id, func(job *ModelJob) {
+		job.CancelRequested = true
+		job.Message = "cancel requested"
+		job.Resumable = true
+		job.Logs = appendModelJobLog(job.Logs, now, "warn", "cancel requested")
+	})
+	e.cancelRunningModelJob(id)
+	updated, _ := e.modelJobs.Get(id)
+	return updated, nil
+}
+
+func (e *GoToolExecutor) ResumeModelJob(id string) (ModelJob, error) {
+	job, ok := e.modelJobs.Get(id)
+	if !ok {
+		return ModelJob{}, fmt.Errorf("model job not found: %s", id)
+	}
+	switch job.Status {
+	case "failed", "interrupted", "canceled":
+	default:
+		return job, fmt.Errorf("model job %s cannot be resumed from status %s", id, job.Status)
+	}
+	if job.Kind != "model.download_hf" {
+		return job, fmt.Errorf("model job %s kind %s does not support resume", id, job.Kind)
+	}
+	call := ToolCall{ID: "resume-" + id, ToolID: "model.download_hf", Params: map[string]string{
+		"repo_id":   job.RepoID,
+		"local_dir": job.LocalDir,
+		"manifest":  job.Manifest,
+	}}
+	req, err := prepareHFModelRequest(call, false)
+	if err != nil {
+		return ModelJob{}, err
+	}
+	result, err := e.enqueueHFModelDownloadRequest(req, id, call)
+	if err != nil {
+		return ModelJob{}, err
+	}
+	newID := result.Metadata["job_id"]
+	resumed, ok := e.modelJobs.Get(newID)
+	if !ok {
+		return ModelJob{}, fmt.Errorf("resumed model job not found: %s", newID)
+	}
+	return resumed, nil
+}
+
+func (e *GoToolExecutor) setModelJobCancel(id string, cancel context.CancelFunc) {
+	e.jobMu.Lock()
+	defer e.jobMu.Unlock()
+	e.jobCancels[id] = cancel
+}
+
+func (e *GoToolExecutor) clearModelJobCancel(id string) {
+	e.jobMu.Lock()
+	defer e.jobMu.Unlock()
+	delete(e.jobCancels, id)
+}
+
+func (e *GoToolExecutor) cancelRunningModelJob(id string) {
+	e.jobMu.Lock()
+	cancel := e.jobCancels[id]
+	e.jobMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 func (e *GoToolExecutor) runHFModelScript(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {

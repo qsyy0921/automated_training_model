@@ -234,6 +234,31 @@ func (r *DefaultSessionRunner) ListModelJobs(limit int) []ModelJob {
 	return nil
 }
 
+func (r *DefaultSessionRunner) GetModelJob(id string) (ModelJob, bool) {
+	if tools, ok := r.tools.(interface{ GetModelJob(string) (ModelJob, bool) }); ok {
+		return tools.GetModelJob(id)
+	}
+	return ModelJob{}, false
+}
+
+func (r *DefaultSessionRunner) CancelModelJob(id string) (ModelJob, error) {
+	if tools, ok := r.tools.(interface {
+		CancelModelJob(string) (ModelJob, error)
+	}); ok {
+		return tools.CancelModelJob(id)
+	}
+	return ModelJob{}, fmt.Errorf("model job cancellation is not supported by this runtime")
+}
+
+func (r *DefaultSessionRunner) ResumeModelJob(id string) (ModelJob, error) {
+	if tools, ok := r.tools.(interface {
+		ResumeModelJob(string) (ModelJob, error)
+	}); ok {
+		return tools.ResumeModelJob(id)
+	}
+	return ModelJob{}, fmt.Errorf("model job resume is not supported by this runtime")
+}
+
 func (r *DefaultSessionRunner) record(session SessionContext, msg channel.InboundMessage, intent Intent, calls []ToolCall, status string, reply string, errorText string, metadata map[string]string) {
 	now := r.now()
 	callToolIDs := collectToolIDs(calls)

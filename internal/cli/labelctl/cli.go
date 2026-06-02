@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -199,6 +200,24 @@ func runRuntime(cfg Config, args []string) error {
 	}
 	if args[0] == "model-jobs" || args[0] == "jobs" {
 		return getJSON(cfg.addr + "/api/runtime/model-jobs")
+	}
+	if args[0] == "job" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime job <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]))
+	}
+	if args[0] == "cancel-job" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime cancel-job <job_id>")
+		}
+		return postJSON(cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(args[1])+"/cancel", map[string]string{})
+	}
+	if args[0] == "resume-job" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime resume-job <job_id>")
+		}
+		return postJSON(cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(args[1])+"/resume", map[string]string{})
 	}
 	if args[0] == "send" {
 		text := strings.TrimSpace(strings.Join(args[1:], " "))
@@ -826,7 +845,7 @@ func usage() {
   workflows
   runs
   audit
-  runtime [status|sessions|traces|send <message>|chat]
+  runtime [status|sessions|traces|model-jobs|job <id>|cancel-job <id>|resume-job <id>|send <message>|chat]
   desktop [status]
   channels
   channel qq status

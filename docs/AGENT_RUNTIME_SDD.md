@@ -326,16 +326,22 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 2. Go ToolExecutor 校验 `repo_id`、`local_dir`、`manifest` 和 `data_lake` 写入边界。
 3. ToolExecutor 创建 `ModelJob`，立即返回 `queued` 和 `job_id`。
 4. 后台 goroutine 调用 `skills/huggingface-model-downloader/scripts/download_hf_snapshot.py`。
-5. `JSONModelJobStore` 将任务状态写入 `data_lake/runtime/model_jobs.json`。
-6. Web、CLI、桌面端和 QQ 后续都通过 runtime job 状态查询进度。
+5. `JSONModelJobStore` 将任务状态、进度、日志、取消标记和 parent/resume 关系写入 `data_lake/runtime/model_jobs.json`。
+6. Web、CLI、桌面端和 QQ 后续都通过 runtime job 状态查询进度；CLI/Gateway 可请求取消或基于 HuggingFace cache 新建恢复任务。
 
-如果服务重启时存在 `queued` 或 `running` 的模型任务，JSON store 会把它们恢复为 `interrupted`，避免 UI 误判后台 goroutine 仍在执行。HuggingFace snapshot cache 本身支持断点续传；用户重新提交下载任务后可继续利用本地 cache。
+如果服务重启时存在 `queued` 或 `running` 的模型任务，JSON store 会把它们恢复为 `interrupted` 并标记 `resumable=true`，避免 UI 误判后台 goroutine 仍在执行。HuggingFace snapshot cache 本身支持断点续传；用户通过 `resume-job` 新建恢复任务后可继续利用本地 cache。
 
 新增可观测入口：
 
 ```text
 GET /api/runtime/model-jobs
+GET /api/runtime/model-jobs/{job_id}
+POST /api/runtime/model-jobs/{job_id}/cancel
+POST /api/runtime/model-jobs/{job_id}/resume
 labelctl runtime model-jobs
+labelctl runtime job <job_id>
+labelctl runtime cancel-job <job_id>
+labelctl runtime resume-job <job_id>
 ```
 
 如确实需要调试同步模式，可显式设置：
@@ -360,9 +366,11 @@ $env:AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL="true"
 | ART-010 | 用户中断 CLI/Web 请求 | 已经排队的后台任务由 Runtime job store 管理，入口中断不再等同于 runtime 会话失败。 |
 | ART-011 | 设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` | `model.download_hf` 返回 `approval_required`，不会创建后台下载任务。 |
 | ART-012 | 服务重启后查询 `/api/runtime/model-jobs` | 已完成任务仍可恢复；重启前未完成任务标记为 `interrupted`。 |
+| ART-013 | POST `/api/runtime/model-jobs/{job_id}/cancel` | running/queued 任务写入 `cancel_requested=true`，后台进程收到取消信号后进入 `canceled`，并保留 `resumable=true`。 |
+| ART-014 | POST `/api/runtime/model-jobs/{job_id}/resume` | 对 `failed`、`interrupted`、`canceled` 的 `model.download_hf` 任务新建 child job，`parent_id` 指向原任务。 |
 
 ### 10.5 当前边界
 
-- 当前 `ModelJobStore` 已有 JSON MVP 持久化，服务重启后不会丢失 job 记录；但未完成任务只会标记为 `interrupted`，不会自动重新拉起 goroutine。
-- 下载脚本本身使用 HuggingFace snapshot cache 支持恢复，但 UI 进度目前只有任务状态和最终结果，尚未接入逐文件进度、取消、日志流和自动 resume。
+- 当前 `ModelJobStore` 已有 JSON MVP 持久化，服务重启后不会丢失 job 记录；未完成任务会标记为 `interrupted/resumable`，但不会自动重新拉起 goroutine，需要显式 `resume-job`。
+- 下载脚本本身使用 HuggingFace snapshot cache 支持恢复；当前进度是 runtime 阶段进度，不是逐文件字节级进度，日志也只记录任务生命周期和最终错误/结果，尚未接入实时 stdout/stderr 日志流。
 - 后续应把 `model.download_hf`、训练、评估、部署统一迁移到 `internal/app/taskapp` 或持久化 workflow queue。

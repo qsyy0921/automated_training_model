@@ -27,7 +27,7 @@ MVP 必须覆盖：
 
 - 完整训练、评估、压缩、发布和线上监控闭环已经真实运行。
 - QQ 真实账号群聊 @Bot 尚未完成端到端实测；当前仓库测试先覆盖 webhook/test-message/fake WebSocket，OneBot WebSocket reader 已有组件测试。
-- `ModelJobStore` 已具备生产级进度日志、取消和自动恢复；当前只有 JSON MVP 持久化，重启前未完成任务会恢复为 `interrupted`。
+- `ModelJobStore` 已具备 JSON MVP 持久化、阶段进度、生命周期日志、取消请求和手动 resume；尚未具备逐文件字节级进度、实时日志流和自动后台恢复。
 - LocateAnything-3B 已完成真实 ShanghaiTech 推理；当前只完成下载、verify-only 和模型加载 smoke。
 - skill 自进化默认启用；当前只允许 draft-only，并需要人工审批。
 
@@ -150,7 +150,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
-- model job 进度日志、取消和自动 resume。
+- model job 逐文件字节级进度、实时日志流和自动 resume。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 dry-run plan 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json`。具体 `model.*`、`workflow.*` handler 仍需继续外迁到 task/model worker 和 workflow repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、实时 tool progress streaming、审批确认和会话恢复。

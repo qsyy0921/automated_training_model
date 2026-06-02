@@ -43,6 +43,12 @@ func (s *JSONModelJobStore) Create(job agentruntime.ModelJob) agentruntime.Model
 	if job.Status == "" {
 		job.Status = "queued"
 	}
+	if job.ProgressPercent < 0 {
+		job.ProgressPercent = 0
+	}
+	if job.ProgressPercent > 100 {
+		job.ProgressPercent = 100
+	}
 	if job.CreatedAt.IsZero() {
 		job.CreatedAt = now
 	}
@@ -60,9 +66,22 @@ func (s *JSONModelJobStore) Update(id string, mutate func(*agentruntime.ModelJob
 		return
 	}
 	mutate(&job)
+	if job.ProgressPercent < 0 {
+		job.ProgressPercent = 0
+	}
+	if job.ProgressPercent > 100 {
+		job.ProgressPercent = 100
+	}
 	job.UpdatedAt = s.now()
 	s.jobs[id] = job
 	_ = s.persistLocked()
+}
+
+func (s *JSONModelJobStore) Get(id string) (agentruntime.ModelJob, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	job, ok := s.jobs[id]
+	return job, ok
 }
 
 func (s *JSONModelJobStore) List(limit int) []agentruntime.ModelJob {
@@ -90,6 +109,10 @@ func (s *JSONModelJobStore) load() error {
 			finished := now
 			row.Status = "interrupted"
 			row.Message = "server restarted before model job completed; submit a new download job to resume via HuggingFace cache"
+			row.Resumable = true
+			if row.ProgressPercent < 100 {
+				row.ProgressPercent = 0
+			}
 			row.FinishedAt = &finished
 			row.UpdatedAt = now
 		}
