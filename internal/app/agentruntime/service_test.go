@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/runtimeworkflow"
 	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
@@ -41,7 +42,7 @@ func TestBotRunDrySubmitsWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plane.submitted.WorkflowID != defaultWorkflowID {
+	if plane.submitted.WorkflowID != runtimeworkflow.DefaultWorkflowID {
 		t.Fatalf("unexpected workflow: %s", plane.submitted.WorkflowID)
 	}
 	if plane.submitted.DatasetID != "shanghaitech-original" {
@@ -152,7 +153,7 @@ func TestWorkflowSubmitToolRequiresDryRunPreflight(t *testing.T) {
 		ToolCalls: []ToolCall{{
 			ID:     "call-1",
 			ToolID: "workflow.submit_run",
-			Params: map[string]string{"workflow_id": defaultWorkflowID},
+			Params: map[string]string{"workflow_id": runtimeworkflow.DefaultWorkflowID},
 		}},
 	})
 	if err == nil {

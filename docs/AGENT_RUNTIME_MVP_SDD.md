@@ -62,7 +62,7 @@ Workers and Providers
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
 | Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截 | 不绑定 channel/session/runtime store |
-| ToolExecutor | `tools.go` | 注册 MVP 工具 handler、model job、workflow dry-run；`intake.plan` / `vlm.inspect` 只调用 `intakeapp` 生成 quarantine/scan/plan/workflow | 后续把 `model.*` 外迁到 task/model worker，把 `workflow.*` 外迁到 workflow repository |
+| ToolExecutor | `tools.go` | 注册 MVP 工具 handler；`intake.plan` / `vlm.inspect` 只调用 `intakeapp`，`workflow.list_runs` / `workflow.submit_run` 只调用 `runtimeworkflow` | 后续把 `model.*` 外迁到 task/model worker，把 `runtimeworkflow` 接到正式 workflow/task repository |
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans/workflows | session/trace、model jobs、intake plans 和 intake workflows 默认 JSON 持久化；后续迁移到 task repository / intake repository |
 | Gateway Middleware | `internal/infrastructure/middleware` | request id、CORS、recover、Gateway token auth、non-loopback access guard | 不读取模型密钥；不把 token 写入 status 或日志 |
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
@@ -156,7 +156,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 
 - ShanghaiTech original 真实推理。
 - model job 逐文件字节级进度、实时日志流和自动 resume。
-- Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`。具体 `model.*`、`workflow.*` handler 仍需继续外迁到 task/model worker 和 workflow repository。
+- Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`。具体 `model.*` handler 仍需继续外迁到 task/model worker，`runtimeworkflow` 后续接正式 workflow/task repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、实时 tool progress streaming、审批确认和会话恢复。
 - Python worker heartbeat、logs、retries、artifacts。

@@ -147,7 +147,7 @@ internal/app/agentruntime/
   session.go       SessionRunner，负责 session key、规划调用、工具执行和 trace 记录
   planner.go       默认规则 Planner，可离线运行并输出 ToolCall 计划
   python_planner.go 可选 Python Planner 适配器，通过 AGENT_RUNTIME_PLANNER=python 启用
-  tools.go         Go ToolExecutor，注册 runtime、workflow、intake、vision、llm.plan、model MVP handler
+  tools.go         Go ToolExecutor，注册 runtime、workflow app、intake app、vision、llm.plan、model MVP handler
   store.go         RuntimeStore 端口和内存开发实现，支撑 /api/runtime/sessions 和 /api/runtime/traces
   intent.go        规则意图识别
   subagent.go      sub-agent 路由决策
@@ -155,6 +155,9 @@ internal/app/agentruntime/
 internal/app/toolapp/
   schema.go        Tool schema、risk level、allowed params、approval/preflight gate
   runner.go        Tool runner，负责 preflight、handler dispatch、结果合并和未注册 handler 拦截
+
+internal/app/runtimeworkflow/
+  service.go       workflow.list_runs / workflow.submit_run dry-run app service
 
 internal/infrastructure/runtimerepo/
   json_store.go    JSON RuntimeStore 适配器，默认持久化 session/trace 到 data_lake/runtime
@@ -220,7 +223,8 @@ Mimo 路由规则：
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner`；控制命令启用本地 `RulePlanner` 快速计划 | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Schema / Preflight | `internal/app/toolapp` 支持 tool registry、allowed params、risk、approval gate | 接入持久 tool registry 和人工审批队列 |
 | Tool Runner | `internal/app/toolapp.Runner` 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截 | 增加 handler registry 持久化和审批队列联动 |
-| Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow、intake 调用、vision 调用、llm.plan、model MVP handler | 将 `model.*` 外迁到 task/model worker，将 `workflow.*` 外迁到 workflow/task repository |
+| Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow app 调用、intake app 调用、vision 调用、llm.plan、model MVP handler | 将 `model.*` 外迁到 task/model worker，将 workflow app 接到 workflow/task repository |
+| Runtime Workflow | `internal/app/runtimeworkflow` 管理 `workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则、RunRequest 构造和回复格式 | 后续替换 agent app 内存队列，接入持久 task repository、日志和 artifacts |
 | Model Install | `model.download_hf` / `model.verify_hf` 限制在 data_lake；已知 LocateAnything 固定流程可由 Go 本地语义 fast-path 生成计划，未知模型仍交给 Mimo planner；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
 | Data Intake Workflow | `internal/app/intakeapp` 生成 quarantine、静态 scan、`intake.plan` / `vlm.inspect` dry-run 计划和 pending approval workflow；`internal/infrastructure/intakerepo.JSONRepository` 默认持久化到 `data_lake/runtime/intake`；ShanghaiTech 数据附件会在 trace metadata 中记录 `workflow_id`、`plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 将 JSON MVP 推进到真实文件隔离区、深度 scan、审批队列和正式 dataset registry 写入 |
 | Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |

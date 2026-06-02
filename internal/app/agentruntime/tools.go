@@ -14,17 +14,17 @@ import (
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
+	"github.com/qsyy0921/automated_training_model/internal/app/runtimeworkflow"
 	"github.com/qsyy0921/automated_training_model/internal/app/toolapp"
-	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
 
 type GoToolExecutor struct {
-	agents         AgentControlPlane
 	now            func() time.Time
 	modelJobs      ModelJobStore
 	toolRunner     *toolapp.Runner[ToolExecutionRequest]
 	intake         *intakeapp.Service
+	workflows      *runtimeworkflow.Service
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
 	jobMu          sync.Mutex
 	jobCancels     map[string]context.CancelFunc
@@ -35,10 +35,10 @@ func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolEx
 		now = time.Now
 	}
 	executor := &GoToolExecutor{
-		agents:     agents,
 		now:        now,
 		modelJobs:  NewModelJobStore(now),
 		intake:     intakeapp.NewService(intakeapp.NewMemoryRepository(), nil, intakeapp.NewDryRunPlanner(now)),
+		workflows:  runtimeworkflow.NewService(agents),
 		jobCancels: map[string]context.CancelFunc{},
 	}
 	executor.runHFModelTool = executor.runHFModelScript
@@ -645,33 +645,14 @@ func modelDownloadRequiresApproval(call ToolCall) bool {
 }
 
 func (e *GoToolExecutor) listRuns(ctx context.Context) (ToolExecutionResult, error) {
-	runs, err := e.agents.ListRuns(ctx)
+	result, err := e.workflows.ListRuns(ctx, 5)
 	if err != nil {
 		return ToolExecutionResult{}, err
 	}
-	if len(runs) == 0 {
-		return ToolExecutionResult{ReplyText: "暂无 Agent run。", Status: "ok"}, nil
-	}
-	limit := 5
-	if len(runs) < limit {
-		limit = len(runs)
-	}
-	lines := []string{"最近 Agent runs:"}
-	for i := 0; i < limit; i++ {
-		run := runs[i]
-		lines = append(lines, fmt.Sprintf("- %s workflow=%s status=%s task=%s", run.ID, run.WorkflowID, run.Status, run.TaskID))
-	}
-	return ToolExecutionResult{ReplyText: strings.Join(lines, "\n"), Status: "ok"}, nil
+	return ToolExecutionResult{ReplyText: result.ReplyText, Status: result.Status}, nil
 }
 
 func (e *GoToolExecutor) submitWorkflowRun(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-	if req.Intent.Kind != IntentSubmitDryRun && !strings.EqualFold(call.Params["dry_run"], "true") {
-		return ToolExecutionResult{}, fmt.Errorf("workflow.submit_run requires dry_run=true or explicit /bot-run dry intent")
-	}
-	workflowID := strings.TrimSpace(call.Params["workflow_id"])
-	if workflowID == "" {
-		workflowID = defaultWorkflowID
-	}
 	datasetID := "workspace-dataset"
 	if req.Intent.DatasetID != "" {
 		datasetID = req.Intent.DatasetID
@@ -679,25 +660,16 @@ func (e *GoToolExecutor) submitWorkflowRun(ctx context.Context, req ToolExecutio
 	if value := strings.TrimSpace(call.Params["dataset_id"]); value != "" {
 		datasetID = value
 	}
-	run, err := e.agents.SubmitWorkflowRun(ctx, agent.RunRequest{
-		WorkflowID: workflowID,
+	result, err := e.workflows.SubmitDryRun(ctx, runtimeworkflow.SubmitDryRunRequest{
+		Message:    req.Message,
+		Session:    runtimeworkflow.SessionRef{Key: req.Session.Key, AgentID: req.Session.AgentID},
+		WorkflowID: call.Params["workflow_id"],
 		DatasetID:  datasetID,
-		DryRun:     true,
-		Params: map[string]string{
-			"source":      string(req.Message.Channel),
-			"account_id":  req.Message.AccountID,
-			"peer_kind":   string(req.Message.Peer.Kind),
-			"peer_id":     req.Message.Peer.ID,
-			"sender_id":   req.Message.SenderID,
-			"session_key": req.Session.Key,
-			"agent_id":    req.Session.AgentID,
-		},
+		DryRun:     req.Intent.Kind == IntentSubmitDryRun || strings.EqualFold(call.Params["dry_run"], "true"),
+		Params:     call.Params,
 	})
 	if err != nil {
 		return ToolExecutionResult{}, err
 	}
-	return ToolExecutionResult{
-		ReplyText: fmt.Sprintf("已提交 dry-run：run=%s task=%s workflow=%s dataset=%s", run.ID, run.TaskID, run.WorkflowID, run.DatasetID),
-		Status:    "ok",
-	}, nil
+	return ToolExecutionResult{ReplyText: result.ReplyText, Status: result.Status}, nil
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/qsyy0921/automated_training_model/internal/app/runtimeworkflow"
 )
 
 type RulePlanner struct{}
@@ -109,7 +111,7 @@ func (p *RulePlanner) locateAnythingTestPlan(req PlanRequest) PlanResult {
 				ToolID:  "workflow.submit_run",
 				SkillID: "data-to-deployment-lifecycle",
 				Params: map[string]string{
-					"workflow_id":   "data-to-deployment-lifecycle",
+					"workflow_id":   runtimeworkflow.DefaultWorkflowID,
 					"dataset_id":    valueOrString(req.Intent.DatasetID, "shanghaitech-original"),
 					"dry_run":       "true",
 					"model_repo_id": "nvidia/LocateAnything-3B",

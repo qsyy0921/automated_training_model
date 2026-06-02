@@ -6,19 +6,14 @@ import (
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
-	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
+	"github.com/qsyy0921/automated_training_model/internal/app/runtimeworkflow"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
-
-const defaultWorkflowID = "data-to-deployment-lifecycle"
 
 var ErrUnsupportedModelJobAction = errors.New("model job action is not supported by this runtime")
 var ErrUnsupportedIntakeWorkflowAction = errors.New("intake workflow action is not supported by this runtime")
 
-type AgentControlPlane interface {
-	SubmitWorkflowRun(ctx context.Context, req agent.RunRequest) (agent.WorkflowRun, error)
-	ListRuns(ctx context.Context) ([]agent.WorkflowRun, error)
-}
+type AgentControlPlane = runtimeworkflow.ControlPlane
 
 type Service struct {
 	runner SessionRunner

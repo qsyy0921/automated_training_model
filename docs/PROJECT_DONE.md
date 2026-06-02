@@ -116,3 +116,4 @@
 - [x] 加固 data-intake / vision 附件治理：Mimo/Python planner 必须输出精确单工具计划 `intake.plan` 或 `vlm.inspect`，否则 Go `SessionRunner` 会保留 Go 侧 sub-agent delegation 并回退到本地 `RulePlanner`。
 - [x] 为 Agent Runtime `ModelJob` 增加阶段进度、生命周期日志、取消请求和手动 resume child job：新增 `GET /api/runtime/model-jobs/{id}`、`POST /cancel`、`POST /resume`，以及 `labelctl runtime job/cancel-job/resume-job`。
 - [x] 将 `intakeapp` 推进到 intake workflow MVP：QQ/Web 附件进入 quarantine、静态 metadata scan、Data Intake Plan、pending approval；新增 workflow JSON 持久化、Gateway 查询/approve/register API、CLI `runtime intake/approve-intake/register-intake` 和 Web Agent Overview 只读面板。
+- [x] 新增 `internal/app/runtimeworkflow`，将 `workflow.list_runs` / `workflow.submit_run` 的 dry-run guard、RunRequest 构造和回复格式从 `GoToolExecutor` 外迁；runtime 只保留 tool handler 注册和 app service 调用。

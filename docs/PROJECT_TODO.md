@@ -30,7 +30,7 @@
 - [x] 将 Data Intake Plan 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/intake/intake_plans.json`，smoke 覆盖 ShanghaiTech plan 写入和重启后保留。
 - [x] 新增 `internal/app/toolapp`，固化 tool schema、参数白名单、risk level 和 approval/preflight gate。
 - [x] 将 `GoToolExecutor` 的执行循环迁移到 `internal/app/toolapp.Runner`，由 runner 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截。
-- [ ] 将 `GoToolExecutor` 的具体工具 handler 继续迁移到独立 app/worker：`model.*` 到模型任务/worker，`workflow.*` 到 workflow/task repository，`vlm.inspect` 后续接入真实 VLM worker。
+- [ ] 将 `GoToolExecutor` 的具体工具 handler 继续迁移到独立 app/worker：`model.*` 到模型任务/worker，`runtimeworkflow` 后续接正式 workflow/task repository，`vlm.inspect` 后续接入真实 VLM worker。
 - [x] 将 `intake.plan` / `vlm.inspect` 的 dry-run Data Intake Plan 构造外迁到 `internal/app/intakeapp`，runtime 只负责 tool handler 调用和 trace metadata。
 - [x] 为 JSON MVP model jobs 补齐阶段进度、生命周期日志、取消请求和手动 resume child job；CLI/Gateway 可查询详情、取消和恢复。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、实时日志流、取消幂等性和自动 resume 状态。
