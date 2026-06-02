@@ -1,12 +1,12 @@
 # Project TODO
 
 版本：v0.2  
-日期：2026-06-01
+日期：2026-06-02
 
 ## 近期必须做
 
 - [ ] 补齐 CLI 命令组：`dataset`、`models`、`deploy`、`logs`、`doctor`。
-- [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：SSE/NDJSON token streaming、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录。
+- [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：复杂 planner 分步流式、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录。
 - [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
@@ -19,6 +19,7 @@
 - [x] 接入 NapCat outbound sender，让 `/api/channels/qq/onebot` 在环境变量开启后主动调用 OneBot `send_msg` 回发 QQ。
 - [x] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
 - [x] 默认启用常驻 `python -m agent_runtime.worker`，避免每轮 Mimo planner 都冷启动 Python；CLI 等待期间显示 `planner-agent working...` 耗时。
+- [x] 为普通 fast chat 接入 `/api/runtime/stream-message` NDJSON token streaming：CLI 收到 Mimo `delta` 后立即刷屏，反向代理不支持 SSE 时退回单 delta。
 - [x] 通过 Agent Runtime + Mimo planner 异步执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [x] 将 Agent Runtime session/trace 从纯内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime`，smoke 覆盖重启恢复。
 - [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。

@@ -15,8 +15,25 @@ type PlannerPort interface {
 	Plan(ctx context.Context, req PlanRequest) (PlanResult, error)
 }
 
+type StreamingPlannerPort interface {
+	PlanStream(ctx context.Context, req PlanRequest, emit func(RuntimeStreamEvent)) (PlanResult, error)
+}
+
 type ToolExecutorPort interface {
 	Execute(ctx context.Context, req ToolExecutionRequest) (ToolExecutionResult, error)
+}
+
+type RuntimeStreamEvent struct {
+	Type      string   `json:"type"`
+	Delta     string   `json:"delta,omitempty"`
+	Text      string   `json:"text,omitempty"`
+	Status    string   `json:"status,omitempty"`
+	Message   string   `json:"message,omitempty"`
+	Intent    string   `json:"intent,omitempty"`
+	AgentID   string   `json:"agent_id,omitempty"`
+	ToolIDs   []string `json:"tool_ids,omitempty"`
+	Session   string   `json:"session,omitempty"`
+	ElapsedMS int64    `json:"elapsed_ms,omitempty"`
 }
 
 type PlanRequest struct {

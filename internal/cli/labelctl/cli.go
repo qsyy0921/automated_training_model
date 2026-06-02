@@ -247,20 +247,7 @@ func sendRuntimeText(cfg Config, text string, plain bool) error {
 }
 
 func postRuntimeMessage(cfg Config, text string) (runtimeSendResponse, error) {
-	body := map[string]any{
-		"id":         fmt.Sprintf("cli_runtime_%d", time.Now().UnixNano()),
-		"channel":    "qq",
-		"account_id": "default",
-		"peer": map[string]any{
-			"channel":    "qq",
-			"account_id": "default",
-			"kind":       "direct",
-			"id":         "cli-runtime",
-		},
-		"sender_id": "cli-runtime",
-		"text":      text,
-	}
-	raw, err := json.Marshal(body)
+	raw, err := runtimeInboundMessageBody(text, "cli-runtime")
 	if err != nil {
 		return runtimeSendResponse{}, err
 	}
@@ -281,6 +268,26 @@ func postRuntimeMessage(cfg Config, text string) (runtimeSendResponse, error) {
 		return runtimeSendResponse{}, fmt.Errorf("parse runtime reply: %w\n%s", err, string(bodyBytes))
 	}
 	return parsed, nil
+}
+
+func runtimeInboundMessageBody(text string, peerID string) ([]byte, error) {
+	if strings.TrimSpace(peerID) == "" {
+		peerID = "cli-runtime"
+	}
+	body := map[string]any{
+		"id":         fmt.Sprintf("cli_runtime_%d", time.Now().UnixNano()),
+		"channel":    "qq",
+		"account_id": "default",
+		"peer": map[string]any{
+			"channel":    "qq",
+			"account_id": "default",
+			"kind":       "direct",
+			"id":         peerID,
+		},
+		"sender_id": "cli-runtime",
+		"text":      text,
+	}
+	return json.Marshal(body)
 }
 
 func runRuntimeChat(cfg Config) error {

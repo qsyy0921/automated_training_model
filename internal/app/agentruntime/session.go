@@ -93,6 +93,73 @@ func (r *DefaultSessionRunner) Run(ctx context.Context, msg channel.InboundMessa
 	return reply, nil
 }
 
+func (r *DefaultSessionRunner) RunStream(ctx context.Context, msg channel.InboundMessage, emit func(RuntimeStreamEvent)) (channel.OutboundMessage, error) {
+	started := r.now()
+	intent := ClassifyIntent(msg)
+	delegation := DecideSubAgent(intent, msg)
+	session := BuildSessionContext(msg, delegation)
+	reply := channel.OutboundMessage{
+		Channel:   msg.Channel,
+		AccountID: msg.AccountID,
+		Peer:      msg.Peer,
+		ReplyToID: msg.ID,
+	}
+	safeEmit := func(event RuntimeStreamEvent) {
+		if emit != nil {
+			if event.Session == "" {
+				event.Session = session.Key
+			}
+			emit(event)
+		}
+	}
+	safeEmit(RuntimeStreamEvent{Type: "status", Intent: string(intent.Kind), AgentID: session.AgentID, Message: "runtime accepted message"})
+
+	if strings.TrimSpace(msg.Text) == "" && len(msg.Attachments) == 0 {
+		reply.Text = "已收到空消息。"
+		r.record(session, msg, intent, nil, "ok", reply.Text, "", nil)
+		safeEmit(RuntimeStreamEvent{Type: "final", Text: reply.Text, Status: "ok", Intent: string(intent.Kind), AgentID: session.AgentID, ElapsedMS: r.now().Sub(started).Milliseconds()})
+		return reply, nil
+	}
+
+	planReq := PlanRequest{Message: msg, Session: session, Intent: intent, Delegation: delegation}
+	var plan PlanResult
+	var err error
+	if streamingPlanner, ok := r.planner.(StreamingPlannerPort); ok {
+		plan, err = streamingPlanner.PlanStream(ctx, planReq, safeEmit)
+	} else {
+		plan, err = r.planner.Plan(ctx, planReq)
+	}
+	if err != nil {
+		r.record(session, msg, intent, nil, "planning_failed", "", err.Error(), nil)
+		safeEmit(RuntimeStreamEvent{Type: "error", Status: "planning_failed", Message: err.Error(), Intent: string(intent.Kind), AgentID: session.AgentID, ElapsedMS: r.now().Sub(started).Milliseconds()})
+		return channel.OutboundMessage{}, err
+	}
+	if len(plan.ToolCalls) == 0 {
+		reply.Text = plan.ReplyText
+		r.record(session, msg, plan.Intent, nil, plan.Status, reply.Text, "", nil)
+		safeEmit(RuntimeStreamEvent{Type: "final", Text: reply.Text, Status: plan.Status, Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ElapsedMS: r.now().Sub(started).Milliseconds()})
+		return reply, nil
+	}
+
+	safeEmit(RuntimeStreamEvent{Type: "tool_start", Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), Message: "executing planned tools"})
+	result, err := r.tools.Execute(ctx, ToolExecutionRequest{
+		Message:    msg,
+		Session:    session,
+		Intent:     plan.Intent,
+		Delegation: plan.Delegation,
+		ToolCalls:  plan.ToolCalls,
+	})
+	if err != nil {
+		r.record(session, msg, plan.Intent, plan.ToolCalls, "tool_failed", "", err.Error(), nil)
+		safeEmit(RuntimeStreamEvent{Type: "error", Status: "tool_failed", Message: err.Error(), Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), ElapsedMS: r.now().Sub(started).Milliseconds()})
+		return channel.OutboundMessage{}, err
+	}
+	reply.Text = result.ReplyText
+	r.record(session, msg, plan.Intent, plan.ToolCalls, result.Status, reply.Text, "", result.Metadata)
+	safeEmit(RuntimeStreamEvent{Type: "final", Text: reply.Text, Status: result.Status, Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), ElapsedMS: r.now().Sub(started).Milliseconds()})
+	return reply, nil
+}
+
 func (r *DefaultSessionRunner) Snapshot(limit int) RuntimeSnapshot {
 	return r.store.Snapshot(limit)
 }

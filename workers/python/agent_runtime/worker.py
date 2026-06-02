@@ -7,7 +7,9 @@ import traceback
 
 from agent_runtime.contracts import RuntimeRequest, RuntimeResult
 from agent_runtime.intent import classify_intent
-from agent_runtime.main import run_runtime
+from agent_runtime.main import _should_use_fast_chat, run_runtime
+from agent_runtime.mimo import mimo_enabled, stream_chat_with_mimo
+from agent_runtime.subagents import decide_sub_agent
 
 
 def main() -> int:
@@ -29,7 +31,10 @@ def main() -> int:
             payload = json.loads(raw)
             request_id = str(payload.get("request_id") or "")
             request = RuntimeRequest.from_dict(payload.get("request") or {})
-            result = run_runtime(request)
+            if bool(payload.get("stream")):
+                result = _run_stream(request_id, request)
+            else:
+                result = run_runtime(request)
             _write(
                 {
                     "type": "result",
@@ -49,6 +54,28 @@ def main() -> int:
                 }
             )
     return 0
+
+
+def _run_stream(request_id: str, request: RuntimeRequest) -> RuntimeResult:
+    intent = classify_intent(request)
+    delegation = decide_sub_agent(intent, request).to_dict()
+    if not (mimo_enabled() and intent.kind == "chat" and _should_use_fast_chat(request)):
+        _write({"type": "status", "request_id": request_id, "message": "stream fallback to planner"})
+        return run_runtime(request)
+
+    _write(
+        {
+            "type": "start",
+            "request_id": request_id,
+            "intent": intent.to_dict(),
+            "delegation": delegation,
+        }
+    )
+
+    def on_delta(delta: str) -> None:
+        _write({"type": "delta", "request_id": request_id, "delta": delta})
+
+    return stream_chat_with_mimo(request, intent, delegation, on_delta)
 
 
 def _safe_request_id(raw: str) -> str:

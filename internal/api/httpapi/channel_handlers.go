@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/agentruntime"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/qqbot"
 )
@@ -57,6 +58,27 @@ func (s *Server) qqTestMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"reply": reply})
+}
+
+func (s *Server) runtimeStreamMessage(w http.ResponseWriter, r *http.Request) {
+	var msg channel.InboundMessage
+	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	fillQQDefaults(&msg)
+	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	flusher, _ := w.(http.Flusher)
+	_, _ = s.runtime.HandleChannelMessageStream(r.Context(), msg, func(event agentruntime.RuntimeStreamEvent) {
+		_ = enc.Encode(event)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	})
 }
 
 func (s *Server) qqOneBotEvent(w http.ResponseWriter, r *http.Request) {

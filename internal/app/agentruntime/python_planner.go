@@ -95,6 +95,20 @@ func (p *PythonPlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, 
 	return p.planWithSpawn(ctx, req, payload)
 }
 
+func (p *PythonPlanner) PlanStream(ctx context.Context, req PlanRequest, emit func(RuntimeStreamEvent)) (PlanResult, error) {
+	payload, err := json.Marshal(pythonRuntimeRequestFromPlan(req))
+	if err != nil {
+		return PlanResult{}, err
+	}
+	if !p.cfg.Worker {
+		if emit != nil {
+			emit(RuntimeStreamEvent{Type: "status", Message: "python worker disabled; fallback to synchronous planner"})
+		}
+		return p.planWithSpawn(ctx, req, payload)
+	}
+	return p.planWithWorkerStream(ctx, req, payload, emit)
+}
+
 func (p *PythonPlanner) planWithSpawn(ctx context.Context, req PlanRequest, payload []byte) (PlanResult, error) {
 	requestFile, err := os.CreateTemp("", "agent-runtime-request-*.json")
 	if err != nil {
@@ -196,6 +210,93 @@ func (p *PythonPlanner) planWithWorker(ctx context.Context, req PlanRequest, pay
 	}
 }
 
+func (p *PythonPlanner) planWithWorkerStream(ctx context.Context, req PlanRequest, payload []byte, emit func(RuntimeStreamEvent)) (PlanResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	startCtx, startCancel := context.WithTimeout(ctx, p.cfg.Timeout)
+	defer startCancel()
+	worker, err := p.ensureWorkerLocked(startCtx)
+	if err != nil {
+		return PlanResult{}, err
+	}
+	requestID := fmt.Sprintf("%s-%d", req.Message.ID, time.Now().UnixNano())
+	envelope, err := json.Marshal(map[string]any{
+		"request_id": requestID,
+		"request":    json.RawMessage(payload),
+		"stream":     true,
+	})
+	if err != nil {
+		return PlanResult{}, err
+	}
+
+	runCtx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
+	defer cancel()
+	events := make(chan pythonWorkerEnvelope, 16)
+	errors := make(chan error, 1)
+	if _, err := worker.stdin.Write(append(envelope, '\n')); err != nil {
+		p.stopWorkerLocked()
+		return PlanResult{}, fmt.Errorf("write python worker stream request: %w", err)
+	}
+	go func() {
+		for {
+			line, err := worker.stdout.ReadString('\n')
+			if err != nil {
+				errors <- err
+				return
+			}
+			var envelope pythonWorkerEnvelope
+			if err := json.Unmarshal([]byte(line), &envelope); err != nil {
+				errors <- fmt.Errorf("decode python worker stream envelope: %w: %s", err, strings.TrimSpace(line))
+				return
+			}
+			events <- envelope
+			if envelope.Type == "result" {
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-runCtx.Done():
+			p.stopWorkerLocked()
+			return PlanResult{}, runCtx.Err()
+		case err := <-errors:
+			p.stopWorkerLocked()
+			return PlanResult{}, fmt.Errorf("python worker stream failed: %w", err)
+		case envelope := <-events:
+			if envelope.RequestID != requestID {
+				p.stopWorkerLocked()
+				return PlanResult{}, fmt.Errorf("python worker stream response id mismatch: got %q want %q", envelope.RequestID, requestID)
+			}
+			switch envelope.Type {
+			case "start":
+				if emit != nil {
+					emit(RuntimeStreamEvent{Type: "start", Intent: string(req.Intent.Kind), AgentID: req.Delegation.AgentID})
+				}
+			case "status":
+				if emit != nil {
+					emit(RuntimeStreamEvent{Type: "status", Message: envelope.Message})
+				}
+			case "delta":
+				if emit != nil && envelope.Delta != "" {
+					emit(RuntimeStreamEvent{Type: "delta", Delta: envelope.Delta})
+				}
+			case "result":
+				var result pythonRuntimeResult
+				if err := json.Unmarshal(envelope.Result, &result); err != nil {
+					return PlanResult{}, fmt.Errorf("decode python worker stream result: %w", err)
+				}
+				if result.Status == "failed" && strings.TrimSpace(result.ReplyText) != "" {
+					return PlanResult{}, fmt.Errorf("python worker stream failed: %s", result.ReplyText)
+				}
+				return result.toPlanResult(req), nil
+			}
+		}
+	}
+}
+
 func (p *PythonPlanner) ensureWorkerLocked(ctx context.Context) (*pythonRuntimeWorker, error) {
 	if p.worker != nil && p.worker.cmd.Process != nil {
 		return p.worker, nil
@@ -280,6 +381,8 @@ type pythonWorkerEnvelope struct {
 	RequestID string          `json:"request_id"`
 	Result    json.RawMessage `json:"result"`
 	Error     string          `json:"error,omitempty"`
+	Delta     string          `json:"delta,omitempty"`
+	Message   string          `json:"message,omitempty"`
 }
 
 func strconvQuote(value string) []byte {

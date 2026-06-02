@@ -98,7 +98,11 @@ Workers and Providers
 
 Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 stdin/stdout JSONL 发送请求，避免每轮 `exec python -m agent_runtime.main` 的冷启动。设置 `AGENT_RUNTIME_PYTHON_WORKER=false` 可回退到旧的单次 spawn 模式。
 
-`labelctl agent` 在等待 runtime 返回时必须即时显示 `planner-agent working...` 和耗时，避免用户误判为 PowerShell 卡死。当前优化已减少 planner prompt / JSON repair / validation 和 Python 子进程冷启动成本。要达到 `ccb` / Claude Code 的完整体感速度，后续还需要 SSE/NDJSON token streaming、tool progress streaming 和会话级提示词缓存；否则每轮仍需要等待 Mimo HTTP 请求完整返回。
+`labelctl agent` 在等待 runtime 返回时必须即时显示 `planner-agent working...` 和耗时，避免用户误判为 PowerShell 卡死。当前优化已减少 planner prompt / JSON repair / validation 和 Python 子进程冷启动成本。
+
+普通 fast chat 已通过 `/api/runtime/stream-message` 接入 NDJSON 事件流：Go `SessionRunner.RunStream` -> `PythonPlanner.PlanStream` -> 常驻 `python -m agent_runtime.worker` -> Mimo Anthropic-compatible SSE。CLI 收到 `delta` 事件后立即写到终端；如果反向代理不支持 SSE，Python runtime 会退回一次性 Mimo 回复并以单个 `delta` 发出，CLI 仍不需要走第二套 UI。
+
+复杂任务仍走受控 planner/tool-call JSON。当前 stream 只会输出 `status`、`tool_start` 和 `final`，下一步需要把 tool progress、审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
 
 ## 8. HuggingFace 模型下载边界
 
@@ -146,5 +150,5 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - model job 进度日志、取消和自动 resume。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；具体工具 handler 仍需继续外迁到 `intakeapp`、task/model worker 和 workflow repository。
 - QQ OneBot WebSocket 长连接 reader。
-- CLI / Gateway 的 token streaming 和实时 tool progress streaming。
+- CLI / Gateway 的复杂 planner 分步流式、实时 tool progress streaming、审批确认和会话恢复。
 - Python worker heartbeat、logs、retries、artifacts。

@@ -2,6 +2,7 @@ package labelctl
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -130,6 +131,19 @@ type runtimeModelJob struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+type runtimeStreamEvent struct {
+	Type      string   `json:"type"`
+	Delta     string   `json:"delta,omitempty"`
+	Text      string   `json:"text,omitempty"`
+	Status    string   `json:"status,omitempty"`
+	Message   string   `json:"message,omitempty"`
+	Intent    string   `json:"intent,omitempty"`
+	AgentID   string   `json:"agent_id,omitempty"`
+	ToolIDs   []string `json:"tool_ids,omitempty"`
+	Session   string   `json:"session,omitempty"`
+	ElapsedMS int64    `json:"elapsed_ms,omitempty"`
+}
+
 func newRuntimeChat(cfg Config, in io.Reader, out io.Writer, errOut io.Writer) *runtimeChat {
 	return &runtimeChat{
 		cfg:       cfg,
@@ -175,13 +189,20 @@ func (c *runtimeChat) Run() error {
 		}
 		c.turn++
 		c.printUser(input)
-		reply, elapsed, err := c.postRuntimeMessageWithProgress(input)
+		reply, elapsed, streamed, err := c.postRuntimeMessageWithProgress(input)
 		if err != nil {
 			fmt.Fprintf(c.errOut, "error: %v\n", err)
 			continue
 		}
+		if streamed {
+			continue
+		}
 		trace, _ := c.latestTrace()
-		c.printAssistant(reply.Reply.Text, trace, elapsed)
+		if reply.Reply.Text != "" {
+			c.printAssistant(reply.Reply.Text, trace, elapsed)
+		} else {
+			c.printAssistantFooter(trace, elapsed)
+		}
 	}
 }
 
@@ -252,20 +273,35 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 	case "/ping", "ping", "/bot-ping":
 		c.turn++
 		c.printUser("/bot-ping")
-		reply, elapsed, err := c.postRuntimeMessageWithProgress("/bot-ping")
+		reply, elapsed, streamed, err := c.postRuntimeMessageWithProgress("/bot-ping")
 		if err != nil {
 			return true, err
 		}
+		if streamed {
+			return true, nil
+		}
 		trace, _ := c.latestTrace()
-		c.printAssistant(reply.Reply.Text, trace, elapsed)
+		if reply.Reply.Text != "" {
+			c.printAssistant(reply.Reply.Text, trace, elapsed)
+		} else {
+			c.printAssistantFooter(trace, elapsed)
+		}
 		return true, nil
 	default:
 		return false, nil
 	}
 }
 
-func (c *runtimeChat) postRuntimeMessageWithProgress(input string) (runtimeSendResponse, time.Duration, error) {
+func (c *runtimeChat) postRuntimeMessageWithProgress(input string) (runtimeSendResponse, time.Duration, bool, error) {
 	started := time.Now()
+	if !cliStreamDisabled() {
+		if reply, elapsed, printed, err := c.postRuntimeMessageStream(input, started); err == nil {
+			if printed {
+				return runtimeSendResponse{}, elapsed, true, nil
+			}
+			return reply, elapsed, false, nil
+		}
+	}
 	type result struct {
 		reply runtimeSendResponse
 		err   error
@@ -285,11 +321,174 @@ func (c *runtimeChat) postRuntimeMessageWithProgress(input string) (runtimeSendR
 			if rendered {
 				fmt.Fprint(c.out, "\r\x1b[2K")
 			}
-			return res.reply, time.Since(started), res.err
+			return res.reply, time.Since(started), false, res.err
 		case <-ticker.C:
 			rendered = true
 			fmt.Fprintf(c.out, "\r%s", c.color(fmt.Sprintf("planner-agent working... %.1fs", time.Since(started).Seconds()), "dim"))
 		}
+	}
+}
+
+func (c *runtimeChat) postRuntimeMessageStream(input string, started time.Time) (runtimeSendResponse, time.Duration, bool, error) {
+	raw, err := runtimeInboundMessageBody(input, "cli-runtime")
+	if err != nil {
+		return runtimeSendResponse{}, 0, false, err
+	}
+	req, err := http.NewRequest(http.MethodPost, c.cfg.addr+"/api/runtime/stream-message", bytes.NewReader(raw))
+	if err != nil {
+		return runtimeSendResponse{}, 0, false, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 180 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return runtimeSendResponse{}, 0, false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return runtimeSendResponse{}, 0, false, fmt.Errorf("%s: %s", resp.Status, string(bodyBytes))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
+	var full strings.Builder
+	var final runtimeStreamEvent
+	var startedPanel bool
+	var statusRendered bool
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var event runtimeStreamEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return runtimeSendResponse{}, 0, startedPanel, fmt.Errorf("parse runtime stream event: %w: %s", err, line)
+		}
+		switch event.Type {
+		case "start":
+			if event.Intent != "" {
+				final.Intent = event.Intent
+			}
+			if event.AgentID != "" {
+				final.AgentID = event.AgentID
+			}
+		case "status", "tool_start":
+			statusRendered = true
+			message := valueOr(event.Message, "runtime working")
+			fmt.Fprintf(c.out, "\r%s", c.color(fmt.Sprintf("%s %.1fs", message, time.Since(started).Seconds()), "dim"))
+		case "delta":
+			if event.Delta == "" {
+				continue
+			}
+			if !startedPanel {
+				if statusRendered {
+					fmt.Fprint(c.out, "\r\x1b[2K")
+				}
+				c.printStreamHeader(final.AgentID, final.Intent)
+				startedPanel = true
+			}
+			fmt.Fprint(c.out, event.Delta)
+			full.WriteString(event.Delta)
+		case "final":
+			final = mergeRuntimeStreamFinal(final, event)
+			if full.Len() == 0 && event.Text != "" {
+				full.WriteString(event.Text)
+			}
+		case "error":
+			if statusRendered && !startedPanel {
+				fmt.Fprint(c.out, "\r\x1b[2K")
+			}
+			return runtimeSendResponse{}, 0, startedPanel, errors.New(valueOr(event.Message, "runtime stream failed"))
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return runtimeSendResponse{}, 0, startedPanel, err
+	}
+	elapsed := time.Since(started)
+	if startedPanel {
+		c.printStreamFooter(final, elapsed)
+		return runtimeSendResponse{}, elapsed, true, nil
+	}
+	if statusRendered {
+		fmt.Fprint(c.out, "\r\x1b[2K")
+	}
+	var reply runtimeSendResponse
+	reply.Reply.Text = strings.TrimSpace(full.String())
+	return reply, elapsed, false, nil
+}
+
+func (c *runtimeChat) printStreamHeader(agentID string, intent string) {
+	if agentID == "" {
+		agentID = "planner-agent"
+	}
+	if intent == "" {
+		intent = "chat"
+	}
+	fmt.Fprintf(c.out, "\n%s\n", c.color(fmt.Sprintf("╭─ Agent %s · streaming · intent=%s", agentID, intent), "green"))
+	fmt.Fprintf(c.out, "%s\n", c.color("│", "dim"))
+}
+
+func (c *runtimeChat) printStreamFooter(event runtimeStreamEvent, elapsed time.Duration) {
+	status := valueOr(event.Status, "ok")
+	intent := valueOr(event.Intent, "chat")
+	tools := joinOr(event.ToolIDs, "-")
+	session := event.Session
+	if session == "" {
+		session = "-"
+	}
+	fmt.Fprintf(c.out, "\n%s %s\n", c.color("│", "dim"), c.color(fmt.Sprintf("status=%s  intent=%s  tools=%s  elapsed=%s", status, intent, tools, compactDuration(elapsed)), "dim"))
+	fmt.Fprintf(c.out, "%s %s\n", c.color("│", "dim"), c.color("session "+session, "dim"))
+	fmt.Fprintf(c.out, "%s\n", c.color("╰"+strings.Repeat("─", c.panelWidth()-2)+"╯", statusColor(status)))
+}
+
+func (c *runtimeChat) printAssistantFooter(trace runtimeTrace, elapsed time.Duration) {
+	status := valueOr(trace.Status, "ok")
+	intent := valueOr(string(trace.Intent), "chat")
+	agentID := valueOr(trace.AgentID, "planner-agent")
+	c.printPanel("Agent "+agentID+" · "+status+" · "+compactDuration(elapsed), []string{
+		fmt.Sprintf("intent=%s  tools=%s", intent, joinOr(trace.ToolIDs, "-")),
+		"session   " + valueOr(trace.SessionKey, "-"),
+	}, statusColor(status))
+}
+
+func mergeRuntimeStreamFinal(base runtimeStreamEvent, next runtimeStreamEvent) runtimeStreamEvent {
+	if next.Type != "" {
+		base.Type = next.Type
+	}
+	if next.Text != "" {
+		base.Text = next.Text
+	}
+	if next.Status != "" {
+		base.Status = next.Status
+	}
+	if next.Message != "" {
+		base.Message = next.Message
+	}
+	if next.Intent != "" {
+		base.Intent = next.Intent
+	}
+	if next.AgentID != "" {
+		base.AgentID = next.AgentID
+	}
+	if len(next.ToolIDs) > 0 {
+		base.ToolIDs = next.ToolIDs
+	}
+	if next.Session != "" {
+		base.Session = next.Session
+	}
+	if next.ElapsedMS > 0 {
+		base.ElapsedMS = next.ElapsedMS
+	}
+	return base
+}
+
+func cliStreamDisabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_CLI_STREAM"))) {
+	case "0", "false", "no", "off", "none":
+		return true
+	default:
+		return false
 	}
 }
 

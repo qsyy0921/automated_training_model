@@ -46,6 +46,23 @@ func (s *Service) HandleChannelMessage(ctx context.Context, msg channel.InboundM
 	return s.runner.Run(ctx, msg)
 }
 
+func (s *Service) HandleChannelMessageStream(ctx context.Context, msg channel.InboundMessage, emit func(RuntimeStreamEvent)) (channel.OutboundMessage, error) {
+	if runner, ok := s.runner.(interface {
+		RunStream(context.Context, channel.InboundMessage, func(RuntimeStreamEvent)) (channel.OutboundMessage, error)
+	}); ok {
+		return runner.RunStream(ctx, msg, emit)
+	}
+	reply, err := s.runner.Run(ctx, msg)
+	if emit != nil {
+		if err != nil {
+			emit(RuntimeStreamEvent{Type: "error", Message: err.Error(), Status: "failed"})
+		} else {
+			emit(RuntimeStreamEvent{Type: "final", Text: reply.Text, Status: "ok"})
+		}
+	}
+	return reply, err
+}
+
 func (s *Service) Snapshot(limit int) RuntimeSnapshot {
 	if runner, ok := s.runner.(interface{ Snapshot(int) RuntimeSnapshot }); ok {
 		return runner.Snapshot(limit)

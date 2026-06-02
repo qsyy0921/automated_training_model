@@ -4,7 +4,7 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 from agent_runtime.contracts import Intent, RuntimeRequest, RuntimeResult
 
@@ -72,6 +72,54 @@ def chat_with_mimo(request: RuntimeRequest, intent: Intent, delegation: dict[str
     text = _extract_anthropic_text(raw)
     if not text:
         raise ValueError("Mimo chat returned an empty response")
+    return RuntimeResult(
+        status="planned",
+        intent=intent,
+        reply_text=text,
+        plan=[],
+        delegations=[delegation],
+    )
+
+
+def stream_chat_with_mimo(
+    request: RuntimeRequest,
+    intent: Intent,
+    delegation: dict[str, Any],
+    on_delta: Callable[[str], None],
+) -> RuntimeResult:
+    base_url = _anthropic_base_url()
+    token = os.getenv("ANTHROPIC_AUTH_TOKEN", "").strip()
+    model = _select_model(request, delegation)
+    if not base_url or not token:
+        raise RuntimeError("Mimo Anthropic-compatible environment is not configured")
+
+    body = {
+        "model": model,
+        "max_tokens": _int_env("AGENT_RUNTIME_MIMO_CHAT_MAX_TOKENS", 180),
+        "temperature": 0.2,
+        "system": _chat_system_prompt(),
+        "messages": [{"role": "user", "content": _chat_prompt(request)}],
+        "stream": True,
+    }
+    chunks: list[str] = []
+    try:
+        for delta in _post_json_stream(base_url, token, body):
+            if not delta:
+                continue
+            chunks.append(delta)
+            on_delta(delta)
+    except Exception:
+        # Some Anthropic-compatible reverse proxies expose /messages but not SSE.
+        # Keep the streaming contract usable by emitting the complete fast-chat
+        # answer as one delta instead of forcing callers back to a second code path.
+        result = chat_with_mimo(request, intent, delegation)
+        if result.reply_text:
+            on_delta(result.reply_text)
+        return result
+
+    text = "".join(chunks).strip()
+    if not text:
+        raise ValueError("Mimo streaming chat returned an empty response")
     return RuntimeResult(
         status="planned",
         intent=intent,
@@ -204,6 +252,53 @@ def _post_json(url: str, token: str, body: dict[str, Any]) -> dict[str, Any]:
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Mimo HTTP {exc.code}: {detail}") from exc
+
+
+def _post_json_stream(url: str, token: str, body: dict[str, Any]):
+    raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(url, data=raw, method="POST")
+    req.add_header("content-type", "application/json")
+    req.add_header("anthropic-version", os.getenv("ANTHROPIC_VERSION", "2023-06-01"))
+    req.add_header("x-api-key", token)
+    req.add_header("authorization", f"Bearer {token}")
+    timeout = float(os.getenv("AGENT_RUNTIME_MIMO_TIMEOUT_SECONDS", "30"))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    event = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                delta = _extract_stream_delta(event)
+                if delta:
+                    yield delta
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Mimo stream HTTP {exc.code}: {detail}") from exc
+
+
+def _extract_stream_delta(event: dict[str, Any]) -> str:
+    event_type = str(event.get("type") or "")
+    if event_type == "content_block_delta":
+        delta = event.get("delta") or {}
+        if isinstance(delta, dict):
+            return str(delta.get("text") or "")
+    if event_type == "message_delta":
+        delta = event.get("delta") or {}
+        if isinstance(delta, dict):
+            return str(delta.get("text") or "")
+    choices = event.get("choices") or []
+    if choices and isinstance(choices[0], dict):
+        delta = choices[0].get("delta") or {}
+        if isinstance(delta, dict):
+            return str(delta.get("content") or "")
+    return ""
 
 
 def _extract_anthropic_text(value: dict[str, Any]) -> str:
