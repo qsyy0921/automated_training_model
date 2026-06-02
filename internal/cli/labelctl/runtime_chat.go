@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -102,6 +103,32 @@ type runtimeTracesPayload struct {
 
 type runtimeJobsPayload struct {
 	Jobs []runtimeModelJob `json:"jobs"`
+}
+
+type runtimeJobPayload struct {
+	Job runtimeModelJob `json:"job"`
+}
+
+type runtimeModelJobLog struct {
+	At      string `json:"at"`
+	Level   string `json:"level"`
+	Message string `json:"message"`
+}
+
+type runtimeModelJobLogsPayload struct {
+	JobID           string               `json:"job_id"`
+	Status          string               `json:"status"`
+	ProgressPercent int                  `json:"progress_percent"`
+	Logs            []runtimeModelJobLog `json:"logs"`
+}
+
+type runtimeJobStreamEvent struct {
+	Type            string             `json:"type"`
+	JobID           string             `json:"job_id"`
+	Status          string             `json:"status"`
+	ProgressPercent int                `json:"progress_percent"`
+	Message         string             `json:"message"`
+	Log             runtimeModelJobLog `json:"log"`
 }
 
 type runtimeSession struct {
@@ -278,6 +305,21 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 		return true, c.printTraces()
 	case "/jobs", "/tasks":
 		return true, c.printJobs()
+	case "/job":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /job <job_id>")
+		}
+		return true, c.printJob(parts[1])
+	case "/job-logs", "/logs-job":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /job-logs <job_id>")
+		}
+		return true, c.printJobLogs(parts[1])
+	case "/follow-job":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /follow-job <job_id>")
+		}
+		return true, c.followJob(parts[1])
 	case "/doctor":
 		return true, c.printDoctor()
 	case "/clear":
@@ -519,6 +561,10 @@ func toolProgressLine(event runtimeStreamEvent) string {
 	return fmt.Sprintf("  • tool=%s status=%s %s", tool, status, message)
 }
 
+func modelJobLogLine(log runtimeModelJobLog) string {
+	return fmt.Sprintf("%s  %-5s  %s", compactTime(log.At), valueOr(log.Level, "info"), valueOr(log.Message, "-"))
+}
+
 func cliStreamDisabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_CLI_STREAM"))) {
 	case "0", "false", "no", "off", "none":
@@ -534,6 +580,9 @@ func (c *runtimeChat) printHelp() {
 		"/sessions    active channel/session table",
 		"/traces      recent agent/tool trace tree",
 		"/jobs        model/background job table",
+		"/job <id>    model/background job detail",
+		"/job-logs <id>    model job lifecycle logs",
+		"/follow-job <id>  stream model job logs until terminal or timeout",
 		"/doctor      server, runtime and local CLI diagnostics",
 		"/json <x>    raw JSON for status/sessions/traces/jobs",
 		"/clear       clear screen",
@@ -644,6 +693,95 @@ func (c *runtimeChat) printJobs() error {
 	}
 	c.printPanel("Model Jobs", lines, "yellow")
 	return nil
+}
+
+func (c *runtimeChat) printJob(id string) error {
+	var payload runtimeJobPayload
+	if err := getJSONValue(c.cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(id), &payload); err != nil {
+		return err
+	}
+	job := payload.Job
+	lines := []string{
+		fmt.Sprintf("id        %s", valueOr(job.ID, "-")),
+		fmt.Sprintf("repo      %s", valueOr(job.RepoID, "-")),
+		fmt.Sprintf("kind      %s", valueOr(job.Kind, "-")),
+		fmt.Sprintf("status    %s  progress=%d%%", valueOr(job.Status, "-"), job.ProgressPercent),
+		fmt.Sprintf("message   %s", valueOr(job.Message, "-")),
+		fmt.Sprintf("resumable %t  cancel_requested=%t", job.Resumable, job.CancelRequested),
+		fmt.Sprintf("updated   %s", compactTime(job.UpdatedAt)),
+	}
+	if job.ParentID != "" {
+		lines = append(lines, "parent    "+job.ParentID)
+	}
+	c.printPanel("Model Job", lines, statusColor(job.Status))
+	return nil
+}
+
+func (c *runtimeChat) printJobLogs(id string) error {
+	var payload runtimeModelJobLogsPayload
+	if err := getJSONValue(c.cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(id)+"/logs?limit=30", &payload); err != nil {
+		return err
+	}
+	lines := []string{
+		fmt.Sprintf("job       %s", valueOr(payload.JobID, id)),
+		fmt.Sprintf("status    %s  progress=%d%%", valueOr(payload.Status, "-"), payload.ProgressPercent),
+	}
+	if len(payload.Logs) == 0 {
+		lines = append(lines, "", "no logs")
+	} else {
+		lines = append(lines, "")
+		for _, log := range payload.Logs {
+			lines = append(lines, modelJobLogLine(log))
+		}
+	}
+	c.printPanel("Model Job Logs", lines, statusColor(payload.Status))
+	return nil
+}
+
+func (c *runtimeChat) followJob(id string) error {
+	req, err := http.NewRequest(http.MethodGet, c.cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(id)+"/logs/stream?timeout_ms=60000", nil)
+	if err != nil {
+		return err
+	}
+	applyGatewayAuth(req, c.cfg.token)
+	client := &http.Client{Timeout: 65 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("%s: %s", resp.Status, string(bodyBytes))
+	}
+	c.printPanel("Following Model Job", []string{
+		"job       " + id,
+		"endpoint  /api/runtime/model-jobs/" + id + "/logs/stream",
+	}, "yellow")
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var event runtimeJobStreamEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return fmt.Errorf("parse model job stream event: %w: %s", err, line)
+		}
+		switch event.Type {
+		case "log":
+			fmt.Fprintf(c.out, "%s\n", modelJobLogLine(event.Log))
+		case "final":
+			fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("final status=%s progress=%d%% %s", valueOr(event.Status, "-"), event.ProgressPercent, valueOr(event.Message, "")), statusColor(event.Status)))
+			return nil
+		case "error":
+			return errors.New(valueOr(event.Message, "model job stream failed"))
+		default:
+			fmt.Fprintf(c.out, "%s\n", firstLine(line, c.contentWidth()))
+		}
+	}
+	return scanner.Err()
 }
 
 func (c *runtimeChat) printDoctor() error {

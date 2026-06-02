@@ -183,10 +183,10 @@ Then 未注册 tool、未知参数、高风险审批缺失会先被 `internal/ap
 ### ATDD-014 ModelJob 生命周期日志查询
 
 Given `model.download_hf` 已创建 `ModelJob`
-When Web Agent Overview、CLI 或 Gateway 查询 `/api/runtime/model-jobs/{job_id}/logs`
-Then 返回该 job 的生命周期日志、状态和进度；`/logs/stream` 以 NDJSON 输出已有日志和终态事件；Web 中点击 model job 能看到日志列表。
+When Web Agent Overview、`labelctl runtime job-logs`、交互式 `labelctl agent /job-logs` 或 Gateway 查询 `/api/runtime/model-jobs/{job_id}/logs`
+Then 返回该 job 的生命周期日志、状态和进度；`/logs/stream` 以 NDJSON 输出已有日志和终态事件；Web 中点击 model job 能看到日志列表；交互式 CLI 可用 `/follow-job <job_id>` 跟随日志流直到终态或超时。
 
-证据：`internal/app/agentruntime/service_test.go`、`internal/api/httpapi/runtime_handlers_test.go`、`internal/cli/labelctl/domain_commands_test.go`、`npm run build --prefix web`。
+证据：`internal/app/agentruntime/service_test.go`、`internal/api/httpapi/runtime_handlers_test.go`、`internal/cli/labelctl/domain_commands_test.go`、`internal/cli/labelctl/runtime_chat_test.go`、`npm run build --prefix web`。
 
 ### ATDD-015 Runtime tool progress streaming
 

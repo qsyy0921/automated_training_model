@@ -116,6 +116,8 @@ Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 
 
 Go `RuntimeRouter` 会在进入 PlannerPort 前选择 `local_control`、`local_semantic` 或 `external_planner`。Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 已覆盖 `status`、`tool_start`、`tool_progress` 和 `final`；`tool_progress` 来自 `internal/app/toolapp.Runner` 的 preflight、handler start/done、blocked/error 事件，再由 `GoToolExecutor` 映射为 runtime NDJSON。下一步需要把审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
 
+交互式 `labelctl agent` 也必须能在同一 shell 内观测长任务，避免用户离开 Agent CLI 再开第二套命令。`/job <id>`、`/job-logs <id>` 和 `/follow-job <id>` 只访问 Gateway 的 `/api/runtime/model-jobs/*` 与 `/logs/stream`，不直接读取 `data_lake`，不绕过 runtime store 和权限中间件。
+
 ## 8. HuggingFace 模型下载边界
 
 目标模型：`nvidia/LocateAnything-3B`。

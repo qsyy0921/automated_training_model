@@ -99,6 +99,9 @@ atm:01 planner-agent> /status
 atm:01 planner-agent> /ping
 atm:02 planner-agent> 请帮我规划 ShanghaiTech 数据接入
 atm:03 planner-agent> /traces
+atm:03 planner-agent> /job <job_id>
+atm:03 planner-agent> /job-logs <job_id>
+atm:03 planner-agent> /follow-job <job_id>
 atm:03 planner-agent> /doctor
 atm:03 planner-agent> /exit
 ```
@@ -110,6 +113,9 @@ atm:03 planner-agent> /exit
 /sessions    当前 channel/session 表
 /traces      最近 agent/tool trace tree
 /jobs        模型下载和后台 job 表
+/job <id>    查看单个模型/后台 job
+/job-logs <id>    查看 job 生命周期日志
+/follow-job <id>  跟随 job NDJSON 日志流，直到终态或超时
 /doctor      gateway、本机 CLI、LLM/Mimo 环境变量诊断
 /json <x>    status/sessions/traces/jobs 原始 JSON
 /clear       清屏
@@ -117,7 +123,7 @@ atm:03 planner-agent> /exit
 /exit        退出
 ```
 
-等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。
+等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。长任务观测也在交互 CLI 内闭环：`/job`、`/job-logs` 和 `/follow-job` 复用 Gateway 的 model job API / NDJSON stream，不直接读取本地 data_lake 文件。
 
 也可以使用一次性命令：
 

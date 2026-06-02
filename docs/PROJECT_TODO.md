@@ -40,6 +40,7 @@
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [x] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [x] 在 Web Agent Overview 中接入 model job logs 查询，与 CLI/API 共用 `/api/runtime/model-jobs/{id}/logs`。
+- [x] 在交互式 `labelctl agent` 中接入 `/job`、`/job-logs`、`/follow-job`，复用 Gateway model job detail/logs/NDJSON stream。
 - [ ] 拆出独立 `Task Center`、`Model Registry`、`Governance` 页面。
 - [ ] 设计并实现 Go TUI 本地客户端，复用 `internal/cli/labelctl` 能力。
 - [ ] 为 React 前端增加 Playwright UI smoke tests。
