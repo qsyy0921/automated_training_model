@@ -11,9 +11,9 @@
 
 MVP 必须覆盖：
 
-- 四入口统一：Web、CLI、桌面端、QQ/NapCat 都进入同一个 runtime。
+- 四入口统一：Web、CLI、桌面端、QQ/NapCat 都进入同一个 runtime；QQ 支持 test-message、HTTP webhook/outbound 和可选 OneBot WebSocket reader。
 - Mimo 模型路由：文本规划走 `mimo-v2.5-pro`，视觉理解走 `mimo-v2.5`。
-- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 不依赖模型即可测试。
+- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
 - Sub-agent 决策：普通文本、视觉附件、数据附件分别进入不同 agent 角色。
 - ToolExecutor：所有副作用都通过工具出口，不能让 channel 或 UI 直接写数据湖、下载模型或提交训练。
 - Runtime trace：每次会话、意图、工具调用、错误、metadata 都可通过 API/CLI/Web 观察。
@@ -25,7 +25,7 @@ MVP 必须覆盖：
 当前 MVP 不承诺：
 
 - 完整训练、评估、压缩、发布和线上监控闭环已经真实运行。
-- QQ OneBot WebSocket 长连接 reader 已完成；当前先用 webhook/test-message。
+- QQ 真实账号群聊 @Bot 尚未完成端到端实测；当前仓库测试先覆盖 webhook/test-message/fake WebSocket，OneBot WebSocket reader 已有组件测试。
 - `ModelJobStore` 已具备生产级进度日志、取消和自动恢复；当前只有 JSON MVP 持久化，重启前未完成任务会恢复为 `interrupted`。
 - LocateAnything-3B 已完成真实 ShanghaiTech 推理；当前只完成下载、verify-only 和模型加载 smoke。
 - skill 自进化默认启用；当前只允许 draft-only，并需要人工审批。
@@ -55,7 +55,7 @@ Workers and Providers
 | --- | --- | --- | --- |
 | Channel Adapter | `internal/api/httpapi/channel_handlers.go`、`internal/infrastructure/qqbot` | OneBot/test-message 归一化、outbound envelope | 不能写 Data Lake、不能调模型、不能绕过 runtime |
 | Runtime Service | `internal/app/agentruntime/service.go` | 入口门面 | 不堆业务分支 |
-| Session Runner | `session.go` | session key、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
+| Session Runner | `session.go` | session key、本地控制 fast-path、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
 | PlannerPort | `planner.go`、`python_planner.go` | 规则计划和 Python/Mimo 计划 | 不执行副作用 |
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |

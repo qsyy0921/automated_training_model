@@ -63,13 +63,13 @@ Go 中的 `internal/app/agentruntime` 是最小控制面 shim，用来验证 Cha
   -> 如果启用 QQ_ONEBOT_OUTBOUND_ENABLED，再主动 POST 到 NapCat /send_msg
 ```
 
-如果 NapCat 使用反向 WebSocket，后续可以改成：
+如果 NapCat 使用 OneBot 正向 WebSocket，当前 Gateway 可选启用长连接：
 
 ```text
 NapCat WebSocket
-  -> qqbot runtime reader
+  -> qqbot WebSocket reader (QQ_ONEBOT_WS_ENABLED=true)
   -> AgentRuntime
-  -> qqbot outbound sender
+  -> 同一 WebSocket 写回 send_msg action
 ```
 
 核心数据结构不变。
@@ -171,7 +171,9 @@ internal/api/httpapi/
     GET  /api/runtime/traces
 ```
 
-当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。Data Intake Plan 的 dry-run 构造已经外迁到 `internal/app/intakeapp`，runtime 只调用 intake app 并把结果写入 trace metadata；服务启动时通过 `internal/infrastructure/intakerepo.JSONRepository` 把计划持久化到 `data_lake/runtime/intake/intake_plans.json`。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和长期运行的 OneBot WebSocket reader。
+当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，低风险控制意图先走 Go 本地 fast-path，其他消息再调用 Planner 输出直接回复或 ToolCall，并由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。Data Intake Plan 的 dry-run 构造已经外迁到 `internal/app/intakeapp`，runtime 只调用 intake app 并把结果写入 trace metadata；服务启动时通过 `internal/infrastructure/intakerepo.JSONRepository` 把计划持久化到 `data_lake/runtime/intake/intake_plans.json`。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。QQ/NapCat 已支持 HTTP webhook/test-message/outbound 和可选 OneBot WebSocket reader。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和真实账号群聊 @Bot 实测。
+
+低延迟策略参考 ccb / Hermes / OpenClaw 的工程做法：明确命令不等待模型，长任务不阻塞入口，普通 chat 用流式首包改善体感，复杂任务才进入结构化 planner。当前 fast-path 覆盖 `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 和 `/bot-help`，这些请求即使启用了 `AGENT_RUNTIME_USE_MIMO=true` 也不会调用 Python/Mimo。
 
 默认模式不依赖外部模型：
 
@@ -207,8 +209,8 @@ Mimo 路由规则：
 | 能力 | 当前实现 | 后续替换点 |
 | --- | --- | --- |
 | Session | `DefaultSessionKey(agentId, channel, peer)` + `RuntimeStore`，默认 JSON 持久化到 `data_lake/runtime` | 迁移到 SQLite/Postgres，并增加 context summary |
-| Intent | Go `ClassifyIntent` 规则层 | Python/Mimo planner 做二级语义识别 |
-| Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
+| Intent | Go `ClassifyIntent` 规则层；控制命令走本地 fast-path | Python/Mimo planner 做二级语义识别 |
+| Planner | 默认 `RulePlanner`，可选 `PythonPlanner`；控制命令启用本地 `RulePlanner` 快速计划 | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Schema / Preflight | `internal/app/toolapp` 支持 tool registry、allowed params、risk、approval gate | 接入持久 tool registry 和人工审批队列 |
 | Tool Runner | `internal/app/toolapp.Runner` 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截 | 增加 handler registry 持久化和审批队列联动 |
 | Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow、intake 调用、vision 调用、llm.plan、model MVP handler | 将 `model.*` 外迁到 task/model worker，将 `workflow.*` 外迁到 workflow/task repository |
@@ -216,7 +218,7 @@ Mimo 路由规则：
 | Data Intake Plan | `internal/app/intakeapp.DryRunPlanner` 生成 `intake.plan` 或 `vlm.inspect` dry-run 计划；`internal/infrastructure/intakerepo.JSONRepository` 默认持久化到 `data_lake/runtime/intake/intake_plans.json`；ShanghaiTech 数据附件会在 trace metadata 中记录 `plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 将 JSON MVP 推进到 quarantine、scan、approve/register workflow |
 | Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
-| Channel | QQ/NapCat webhook/test-message | OneBot WebSocket reader、Telegram、飞书 |
+| Channel | QQ/NapCat webhook/test-message/outbound；可选 OneBot WebSocket reader | 真实账号群聊 @Bot 实测、Telegram、飞书 |
 
 ## 7. 本机 QQ + NapCat 验证方案
 
@@ -266,6 +268,7 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 | ART-004 | 普通文本 | 进入 Agent Runtime，返回当前 runtime 能力说明。 |
 | ART-005 | 附件消息 | 通过 ToolExecutor 生成 dry-run Data Intake Plan 或视觉检查计划，trace 包含 `intake.plan` / `vlm.inspect`，不直接写 Data Lake。 |
 | ART-006 | 后续 Telegram/飞书 | 只能新增 adapter，不能修改 Agent Runtime 核心行为。 |
+| ART-006b | 启用 Mimo 后发送 `/bot-ping` | 仍由 Go 本地 fast-path 返回 `pong`，不调用 Python/Mimo planner。 |
 
 ## 9. 当前验证记录
 

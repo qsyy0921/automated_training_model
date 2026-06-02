@@ -69,7 +69,7 @@ Go 应该负责：
 
 - QQ Channel 配置、账号、启停、状态探测。
 - AppID / AppSecret 的 SecretRef 解析，不保存明文。
-- QQ WebSocket gateway 连接生命周期。
+- QQ WebSocket gateway 连接生命周期。当前 MVP 已支持可选 OneBot WebSocket reader。
 - 入站消息归一化和 session key 构造。
 - allowlist、群策略、mention gating、命令拦截。
 - 调用 Agent Core 前的治理、审计和审批。
@@ -175,6 +175,23 @@ type OutboundMessage struct {
 ```
 
 MVP 先保留文本消息和附件元数据。媒体文件不直接进入 Agent memory，只记录 metadata 和受控文件引用。图片、zip、manifest 等 Channel 数据接入详见 [CHANNEL_DATA_INGEST_SDD.md](CHANNEL_DATA_INGEST_SDD.md)。
+
+当前 QQ/NapCat 支持三种接入方式：
+
+| 方式 | 当前状态 | 用途 |
+| --- | --- | --- |
+| HTTP test-message | 已实现 | 本机 smoke、CLI/Web 测试入口 |
+| OneBot HTTP webhook | 已实现 | NapCat 上报到 `/api/channels/qq/onebot` |
+| OneBot WebSocket reader | 已实现，默认关闭 | `QQ_ONEBOT_WS_ENABLED=true` 时 Gateway 主动连接 `QQ_ONEBOT_WS_URL`，读取 message event，并在同一连接回写 `send_msg` |
+
+WebSocket reader 环境变量：
+
+```powershell
+$env:QQ_ONEBOT_WS_ENABLED="true"
+$env:QQ_ONEBOT_WS_URL="ws://127.0.0.1:3001"
+$env:QQ_ONEBOT_ACCOUNT_ID="default"
+$env:QQ_ONEBOT_ACCESS_TOKEN="如果 NapCat 设置了 token"
+```
 
 ## 6. 应用服务与端口
 

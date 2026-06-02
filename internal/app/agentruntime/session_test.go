@@ -41,6 +41,36 @@ func TestSessionRunnerPassesPlanToToolExecutor(t *testing.T) {
 		AccountID: "default",
 		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
 		SenderID:  "10001",
+		Text:      "帮我检查 runtime 状态",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Text != "ok" {
+		t.Fatalf("unexpected reply: %s", out.Text)
+	}
+	if planner.got.Session.Key != "agent:planner-agent:qq:direct:10001" {
+		t.Fatalf("unexpected planner session key: %s", planner.got.Session.Key)
+	}
+	if tools.got.Session.Key != planner.got.Session.Key {
+		t.Fatalf("tool executor did not receive session key")
+	}
+	if tools.got.ToolCalls[0].ToolID != "runtime.health" {
+		t.Fatalf("unexpected tool call: %s", tools.got.ToolCalls[0].ToolID)
+	}
+}
+
+func TestControlIntentUsesLocalFastPath(t *testing.T) {
+	planner := &fakePlanner{}
+	tools := &fakeTools{}
+	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
+
+	out, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
 		Text:      "/bot-ping",
 	})
 	if err != nil {
@@ -49,11 +79,8 @@ func TestSessionRunnerPassesPlanToToolExecutor(t *testing.T) {
 	if out.Text != "ok" {
 		t.Fatalf("unexpected reply: %s", out.Text)
 	}
-	if planner.got.Session.Key != "agent:go-control-plane:qq:direct:10001" {
-		t.Fatalf("unexpected planner session key: %s", planner.got.Session.Key)
-	}
-	if tools.got.Session.Key != planner.got.Session.Key {
-		t.Fatalf("tool executor did not receive session key")
+	if planner.got.Message.ID != "" {
+		t.Fatalf("control intent should not call external planner, got %+v", planner.got)
 	}
 	if tools.got.ToolCalls[0].ToolID != "runtime.health" {
 		t.Fatalf("unexpected tool call: %s", tools.got.ToolCalls[0].ToolID)

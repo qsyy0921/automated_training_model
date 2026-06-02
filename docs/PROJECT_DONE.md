@@ -35,6 +35,7 @@
 - [x] 增加 sub-agent 决策契约、runtime status API、CLI/桌面/QQ 最小入口和测试 SDD。
 - [x] 固化 sub-agent 使用时机：确定性低风险命令不委派；视觉附件走 `vision-agent`；zip/manifest/文件入湖走 `data-intake-agent`；自由文本走 `planner-agent`；高风险写操作不能绕过 approval gate。
 - [x] 增加 QQ/NapCat OneBot outbound sender，可通过环境变量开启真实 `send_msg` 回发。
+- [x] 新增 QQ/NapCat OneBot WebSocket reader：`QQ_ONEBOT_WS_ENABLED=true` 时 Gateway 主动连接 `QQ_ONEBOT_WS_URL`，读取 message event，进入同一个 Agent Runtime，并通过同一 WebSocket 回写 `send_msg`；默认关闭，不影响 webhook/test-message smoke。
 - [x] 拆分 Agent Runtime 为 `Service`、`SessionRunner`、`PlannerPort`、`ToolExecutorPort`、`RuntimeStore` 端口和内存开发实现，并新增 `/api/runtime/sessions`、`/api/runtime/traces` 可观测入口。
 - [x] 删除中断留下的不完整 `LocateAnything-3B` 下载目录，确认模型权重残留不进入 Git。
 - [x] 新增 Mimo Agent 安装提示词，明确 Codex 只维护 prompt/tool contract，模型下载必须由 Agent Runtime 调用 Mimo 规划后通过受控工具执行。
@@ -108,3 +109,4 @@
 - [x] 将 Go `PythonPlanner` 改为默认复用常驻 `python -m agent_runtime.worker`，通过 JSONL stdin/stdout 请求 Python/Mimo runtime；`AGENT_RUNTIME_PYTHON_WORKER=false` 可回退到旧的单次 spawn 模式，runtime status/CLI 显示 planner transport。
 - [x] 为 `labelctl agent` 增加等待态进度显示：runtime 请求未返回时显示 `planner-agent working...` 和耗时，减少 Mimo/Planner 请求期间终端无反馈的问题。
 - [x] 参考 `ccb` / Hermes 的低延迟体感，为普通 fast chat 增加 `/api/runtime/stream-message` NDJSON 流式路径：Go `RunStream`、Python worker `stream=true`、Mimo SSE delta 和 CLI 实时 token 输出已闭环；复杂 planner/tool 任务仍保留受控状态事件和最终结果。
+- [x] 参考 `ccb` / Hermes / OpenClaw 的本地控制路径，为 `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 和 `/bot-help` 增加 Go fast-path；即使启用 Mimo，也不会等待 Python/Mimo planner。

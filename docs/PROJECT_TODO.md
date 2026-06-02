@@ -6,7 +6,7 @@
 ## 近期必须做
 
 - [ ] 补齐 CLI 命令组：`dataset`、`models`、`deploy`、`logs`、`doctor`。
-- [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：复杂 planner 分步流式、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录。
+- [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：复杂 planner 分步流式、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录；当前 Go 控制命令 fast-path 和普通 fast chat streaming 已完成。
 - [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
@@ -15,7 +15,8 @@
 - [x] 按 `REFERENCE_AGENT_RUNTIME_ALIGNMENT.md` 拆出 `SessionRunner`、`PlannerPort`、`ToolExecutorPort`，避免 `agentruntime.Service` 继续膨胀。
 - [ ] 将 `skill-miner-agent` 从 draft-only 契约扩展为可人工审批的 skill 草稿生成器。
 - [ ] 实现 QQ MVP：单 account、私聊文本、群聊 @Bot、`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`。
-- [ ] 将 QQ MVP 从 HTTP webhook/test-message 扩展到长期 OneBot WebSocket reader，并补真实账号群聊 @Bot 实测记录。
+- [ ] 补真实账号群聊 @Bot 实测记录，验证 NapCat WebSocket reader 与 outbound 回发在本机登录 QQ 上可用。
+- [x] 将 QQ MVP 从 HTTP webhook/test-message 扩展到可选长期 OneBot WebSocket reader：`QQ_ONEBOT_WS_ENABLED=true` 时 Gateway 主动连接 NapCat WebSocket，读取消息并在同一连接回写 `send_msg`。
 - [x] 接入 NapCat outbound sender，让 `/api/channels/qq/onebot` 在环境变量开启后主动调用 OneBot `send_msg` 回发 QQ。
 - [x] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
 - [x] 默认启用常驻 `python -m agent_runtime.worker`，避免每轮 Mimo planner 都冷启动 Python；CLI 等待期间显示 `planner-agent working...` 耗时。

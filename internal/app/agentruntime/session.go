@@ -61,12 +61,13 @@ func (r *DefaultSessionRunner) Run(ctx context.Context, msg channel.InboundMessa
 		return reply, nil
 	}
 
-	plan, err := r.planner.Plan(ctx, PlanRequest{
+	planReq := PlanRequest{
 		Message:    msg,
 		Session:    session,
 		Intent:     intent,
 		Delegation: delegation,
-	})
+	}
+	plan, err := r.plan(ctx, planReq)
 	if err != nil {
 		r.record(session, msg, intent, nil, "planning_failed", "", err.Error(), nil)
 		return channel.OutboundMessage{}, err
@@ -122,13 +123,7 @@ func (r *DefaultSessionRunner) RunStream(ctx context.Context, msg channel.Inboun
 	}
 
 	planReq := PlanRequest{Message: msg, Session: session, Intent: intent, Delegation: delegation}
-	var plan PlanResult
-	var err error
-	if streamingPlanner, ok := r.planner.(StreamingPlannerPort); ok {
-		plan, err = streamingPlanner.PlanStream(ctx, planReq, safeEmit)
-	} else {
-		plan, err = r.planner.Plan(ctx, planReq)
-	}
+	plan, err := r.planStream(ctx, planReq, safeEmit)
 	if err != nil {
 		r.record(session, msg, intent, nil, "planning_failed", "", err.Error(), nil)
 		safeEmit(RuntimeStreamEvent{Type: "error", Status: "planning_failed", Message: err.Error(), Intent: string(intent.Kind), AgentID: session.AgentID, ElapsedMS: r.now().Sub(started).Milliseconds()})
@@ -158,6 +153,37 @@ func (r *DefaultSessionRunner) RunStream(ctx context.Context, msg channel.Inboun
 	r.record(session, msg, plan.Intent, plan.ToolCalls, result.Status, reply.Text, "", result.Metadata)
 	safeEmit(RuntimeStreamEvent{Type: "final", Text: reply.Text, Status: result.Status, Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), ElapsedMS: r.now().Sub(started).Milliseconds()})
 	return reply, nil
+}
+
+func (r *DefaultSessionRunner) plan(ctx context.Context, req PlanRequest) (PlanResult, error) {
+	if shouldUseLocalControlPlan(req.Intent) {
+		return NewRulePlanner().Plan(ctx, req)
+	}
+	return r.planner.Plan(ctx, req)
+}
+
+func (r *DefaultSessionRunner) planStream(ctx context.Context, req PlanRequest, emit func(RuntimeStreamEvent)) (PlanResult, error) {
+	if shouldUseLocalControlPlan(req.Intent) {
+		if emit != nil {
+			emit(RuntimeStreamEvent{Type: "status", Intent: string(req.Intent.Kind), AgentID: req.Session.AgentID, Message: "local control fast-path"})
+		}
+		return NewRulePlanner().Plan(ctx, req)
+	}
+	if streamingPlanner, ok := r.planner.(StreamingPlannerPort); ok {
+		return streamingPlanner.PlanStream(ctx, req, emit)
+	}
+	return r.planner.Plan(ctx, req)
+}
+
+func shouldUseLocalControlPlan(intent Intent) bool {
+	switch intent.Kind {
+	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun:
+		return true
+	case IntentUnknown:
+		return intent.Command == "/bot-help"
+	default:
+		return false
+	}
 }
 
 func (r *DefaultSessionRunner) Snapshot(limit int) RuntimeSnapshot {

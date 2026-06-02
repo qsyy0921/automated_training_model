@@ -12,7 +12,7 @@
 | CLI | ready | `labelctl agent` 交互式 Agent Runtime CLI；兼容 `runtime/channel/agent-run/governance` 一次性命令。 |
 | Web | ready | 默认进入 Agent Overview，视频审核是二级工作台。 |
 | Desktop | scaffolded | `cmd/agentdesktop` 和 `/api/desktop/status`，后续可替换为 Wails/Tauri。 |
-| QQ | adapter-ready | NapCat/OneBot webhook 和 test-message API。 |
+| QQ | adapter-ready | NapCat/OneBot webhook、test-message API 和可选 WebSocket reader。 |
 
 ## 本地测试命令
 
@@ -43,6 +43,8 @@ Mimo 模式验收：
 ```
 
 预期：`/status` 显示 `planner=python mimo=true token=true`，自然语言回复不是固定规则兜底句。
+
+控制命令验收：`/ping`、`/status`、`channel qq test /bot-ping`、QQ OneBot `/bot-ping` 走 Go 本地 fast-path，即使启用 Mimo，也不应等待 Python/Mimo planner。
 
 也可以直接运行一键 smoke test。默认不会主动回发真实 QQ；如果要使用当前 shell 里的 NapCat outbound 配置，增加 `-UseConfiguredQQOutbound`。
 
@@ -108,6 +110,7 @@ Invoke-RestMethod http://127.0.0.1:7870/api/channels/qq/onebot -Method Post -Con
 | EP-002 | `labelctl channel qq test /bot-ping` | 返回 `pong`。 |
 | EP-003 | QQ OneBot private `/bot-status` | 返回 runtime ready 和 OneBot send payload。 |
 | EP-003b | 设置 `QQ_ONEBOT_OUTBOUND_ENABLED=true` | webhook 处理后主动调用 NapCat `/send_msg`。 |
+| EP-003c | `qqbot.RunWebSocketClient` 本地 fake OneBot WS | 读取 private `/bot-ping` event，经 normalizer 后在同一 WebSocket 写回 `send_msg`。 |
 | EP-004 | Web `/` | 首屏是 Agent Overview，不再只显示视频审核页面。 |
 | EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`。 |
 | EP-006 | `labelctl skill draft ...` | 写入 draft-only `SKILL.md`，`enabled=false`。 |

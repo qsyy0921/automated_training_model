@@ -11,6 +11,7 @@ import (
 
 func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
 	outbound := qqbot.OutboundStatusFromEnv()
+	websocket := qqbot.WebSocketStatusFromEnv()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channels": []map[string]any{
 			{
@@ -21,6 +22,7 @@ func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
 				"inbound_endpoint": "/api/channels/qq/onebot",
 				"test_endpoint":    "/api/channels/qq/test-message",
 				"outbound_enabled": outbound.Enabled,
+				"websocket":        websocket,
 			},
 		},
 	})
@@ -28,6 +30,7 @@ func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) qqStatus(w http.ResponseWriter, r *http.Request) {
 	outbound := qqbot.OutboundStatusFromEnv()
+	websocket := qqbot.WebSocketStatusFromEnv()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"channel":          "qq",
 		"adapter":          "napcat-onebot",
@@ -35,6 +38,7 @@ func (s *Server) qqStatus(w http.ResponseWriter, r *http.Request) {
 		"inbound_endpoint": "/api/channels/qq/onebot",
 		"test_endpoint":    "/api/channels/qq/test-message",
 		"outbound":         outbound,
+		"websocket":        websocket,
 		"supported_commands": []string{
 			"/bot-ping",
 			"/bot-me",

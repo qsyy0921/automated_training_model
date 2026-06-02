@@ -27,6 +27,7 @@ import (
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/modelgateway"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/modelrepo"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/providerrepo"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/qqbot"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/queue"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/runtimerepo"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/secrets"
@@ -66,6 +67,22 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		return err
 	}
 	agentRuntimeSvc := agentruntime.NewServiceWithRuntimeStores(agentSvc, runtimeStore, modelJobStore, intakeRepo)
+	wsCfg := qqbot.WebSocketConfigFromEnv()
+	if wsCfg.Enabled {
+		go func() {
+			err := qqbot.RunWebSocketClient(ctx, wsCfg, func(ctx context.Context, event qqbot.OneBotEvent) (qqbot.OneBotReply, bool, error) {
+				msg := qqbot.NormalizeEvent(event, wsCfg.AccountID)
+				reply, err := agentRuntimeSvc.HandleChannelMessage(ctx, msg)
+				if err != nil {
+					return qqbot.OneBotReply{}, false, err
+				}
+				return qqbot.BuildSendMessage(reply), true, nil
+			})
+			if err != nil {
+				logger.Error("onebot websocket reader stopped", "error", err)
+			}
+		}()
+	}
 	providerSvc := providerapp.NewProviderService(providerrepo.NewMemoryRepository(), secrets.NewEnvStore())
 	workspaceSvc := workspaceapp.NewRuntimeService(
 		datasetSvc,
