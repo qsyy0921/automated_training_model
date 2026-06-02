@@ -6,11 +6,18 @@ import { apiClient } from "@shared/api/client";
 export function AgentOverviewPage() {
   const [view, setView] = useState<"overview" | "review">("overview");
   const [qqText, setQQText] = useState("/bot-ping");
+  const [selectedJobId, setSelectedJobId] = useState("");
   const runtime = useQuery({ queryKey: ["runtime-status"], queryFn: () => apiClient.runtimeStatus() });
   const channels = useQuery({ queryKey: ["channels"], queryFn: () => apiClient.listChannels() });
   const sessions = useQuery({ queryKey: ["runtime-sessions"], queryFn: () => apiClient.runtimeSessions(), refetchInterval: 3000 });
   const traces = useQuery({ queryKey: ["runtime-traces"], queryFn: () => apiClient.runtimeTraces(12), refetchInterval: 3000 });
   const modelJobs = useQuery({ queryKey: ["runtime-model-jobs"], queryFn: () => apiClient.runtimeModelJobs(8), refetchInterval: 3000 });
+  const modelJobLogs = useQuery({
+    queryKey: ["runtime-model-job-logs", selectedJobId],
+    queryFn: () => apiClient.runtimeModelJobLogs(selectedJobId, 30),
+    enabled: selectedJobId !== "",
+    refetchInterval: selectedJobId ? 3000 : false
+  });
   const intakeWorkflows = useQuery({ queryKey: ["runtime-intake-workflows"], queryFn: () => apiClient.runtimeIntakeWorkflows(6), refetchInterval: 3000 });
   const desktop = useQuery({ queryKey: ["desktop-status"], queryFn: () => apiClient.desktopStatus() });
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => apiClient.listAgents() });
@@ -153,7 +160,12 @@ export function AgentOverviewPage() {
           <div className="overviewList">
             {(modelJobs.data?.jobs ?? []).length === 0 ? <p className="empty">no model jobs</p> : null}
             {(modelJobs.data?.jobs ?? []).slice(0, 6).map((job) => (
-              <div className="overviewRow" key={job.id}>
+              <button
+                className={`overviewRow overviewRowButton${selectedJobId === job.id ? " active" : ""}`}
+                key={job.id}
+                type="button"
+                onClick={() => setSelectedJobId(job.id)}
+              >
                 <strong>{job.repo_id}</strong>
                 <span>{job.status} · {job.progress_percent ?? 0}%</span>
                 <small>
@@ -161,6 +173,27 @@ export function AgentOverviewPage() {
                   {job.resumable ? " · resumable" : ""}
                   {job.cancel_requested ? " · cancel requested" : ""}
                 </small>
+              </button>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Model Job Logs">
+          <div className="overviewList">
+            {selectedJobId === "" ? <p className="empty">选择一个 model job 查看日志</p> : null}
+            {selectedJobId !== "" ? (
+              <div className="overviewRow">
+                <strong>{modelJobLogs.data?.job_id ?? selectedJobId}</strong>
+                <span>{modelJobLogs.isLoading ? "loading" : `${modelJobLogs.data?.status ?? "unknown"} · ${modelJobLogs.data?.progress_percent ?? 0}%`}</span>
+                <small>Gateway: /api/runtime/model-jobs/{selectedJobId}/logs</small>
+              </div>
+            ) : null}
+            {(modelJobLogs.data?.logs ?? []).length === 0 && selectedJobId !== "" && !modelJobLogs.isLoading ? <p className="empty">暂无日志</p> : null}
+            {(modelJobLogs.data?.logs ?? []).slice(-8).map((log, index) => (
+              <div className="logRow" key={`${log.at}-${index}`}>
+                <span>{compactDateTime(log.at)}</span>
+                <strong>{log.level}</strong>
+                <small>{log.message}</small>
               </div>
             ))}
           </div>
@@ -242,4 +275,11 @@ function traceSummary(trace: { reply_text?: string; error?: string; session_key:
     return parts.join(" · ");
   }
   return trace.reply_text || trace.error || trace.session_key;
+}
+
+function compactDateTime(value: string) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("zh-CN", { hour12: false });
 }

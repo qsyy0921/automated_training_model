@@ -17,6 +17,7 @@ import type {
   RuntimeStatus,
   RuntimeTrace,
   RuntimeModelJob,
+  RuntimeModelJobLogs,
   RuntimePolicy,
   WorkflowSpec
 } from "@entities/agent/model";
@@ -83,6 +84,8 @@ export const apiClient = {
   runtimeTraces: async (limit = 30) => request<{ traces: RuntimeTrace[] | null }>(`/api/runtime/traces?limit=${limit}`),
   runtimeModelJobs: async (limit = 30) => request<{ jobs: RuntimeModelJob[] | null }>(`/api/runtime/model-jobs?limit=${limit}`),
   runtimeModelJob: async (id: string) => request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}`),
+  runtimeModelJobLogs: async (id: string, limit = 30) =>
+    request<RuntimeModelJobLogs>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/logs?limit=${limit}`),
   cancelRuntimeModelJob: async (id: string) =>
     request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   resumeRuntimeModelJob: async (id: string) =>

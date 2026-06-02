@@ -794,8 +794,37 @@ small {
   gap: 3px;
 }
 
+.overviewRowButton {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.overviewRowButton:hover,
+.overviewRowButton.active {
+  border-color: var(--brand);
+  background: #eef6ff;
+}
+
 .overviewRow strong,
 .overviewRow small {
+  overflow-wrap: anywhere;
+}
+
+.logRow {
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: 150px 66px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.logRow span,
+.logRow small {
+  color: var(--muted);
   overflow-wrap: anywhere;
 }
 

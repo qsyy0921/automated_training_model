@@ -236,6 +236,19 @@ export interface RuntimeModelJob {
   updated_at: string;
 }
 
+export interface RuntimeModelJobLog {
+  at: string;
+  level: string;
+  message: string;
+}
+
+export interface RuntimeModelJobLogs {
+  job_id: string;
+  status: string;
+  progress_percent: number;
+  logs: RuntimeModelJobLog[] | null;
+}
+
 export interface IntakeWorkflow {
   id: string;
   status: string;

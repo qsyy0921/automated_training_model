@@ -38,7 +38,8 @@
 - [x] 为 JSON MVP model jobs 补齐阶段进度、生命周期日志、取消请求和手动 resume child job；CLI/Gateway 可查询详情、日志、取消和恢复。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、真实 worker stdout/stderr 日志流、取消幂等性和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
-- [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
+- [x] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
+- [x] 在 Web Agent Overview 中接入 model job logs 查询，与 CLI/API 共用 `/api/runtime/model-jobs/{id}/logs`。
 - [ ] 拆出独立 `Task Center`、`Model Registry`、`Governance` 页面。
 - [ ] 设计并实现 Go TUI 本地客户端，复用 `internal/cli/labelctl` 能力。
 - [ ] 为 React 前端增加 Playwright UI smoke tests。

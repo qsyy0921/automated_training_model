@@ -68,6 +68,7 @@ Workers and Providers
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans/workflows | session/trace、model jobs、intake plans 和 intake workflows 默认 JSON 持久化；后续迁移到 task repository / intake repository |
 | Gateway Middleware | `internal/infrastructure/middleware` | request id、CORS、recover、Gateway token auth、non-loopback access guard | 不读取模型密钥；不把 token 写入 status 或日志 |
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
+| Web Agent Overview | `web/src/pages/agent-overview/AgentOverviewPage.tsx` | 展示 runtime status、sessions、traces、model jobs、model job logs、intake workflows 和 QQ test-message 入口 | 不直接写 Data Lake，不绕过 Gateway API |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
@@ -140,6 +141,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - `--verify-only`：对比远端文件清单和本地文件大小，缺失或大小不一致时失败。
 - `GET /api/runtime/model-jobs/{job_id}/logs`：读取已持久化的模型任务生命周期日志。
 - `GET /api/runtime/model-jobs/{job_id}/logs/stream`：以 NDJSON 输出已有日志和终态事件，为后续真实 worker 日志流保留兼容入口。
+- Web Agent Overview 可点击 model job 并查询 `/logs`，与 CLI/API 共用同一 Gateway 边界。
 
 ## 9. 当前可验收证据
 

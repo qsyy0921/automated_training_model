@@ -124,3 +124,4 @@
 - [x] 新增 `internal/app/skillapp`，将 skill draft 生成、列表、approve/reject 人工审批记录和 secret-like 内容拦截从 CLI 中拆出；`labelctl skill approve-draft` 只写 `approval.json`，不自动启用 skill。
 - [x] 为 `/api/runtime/stream-message` 补最小工具进度事件链路：`internal/app/toolapp.Runner` 在 preflight、handler start/done、blocked/error 时输出 `ProgressEvent`，`GoToolExecutor` 映射为 `tool_progress` NDJSON，`labelctl agent` 可实时显示工具执行进度。
 - [x] 为 Agent Runtime `ModelJob` 增加日志查询入口：`GET /api/runtime/model-jobs/{id}/logs` 返回生命周期日志，`/logs/stream` 输出最小 NDJSON log/final 事件；CLI 新增 `runtime job-logs`、`models job-logs` 和 `logs job`。
+- [x] Web Agent Overview 增加 model job logs 面板：点击模型任务后查询 `/api/runtime/model-jobs/{id}/logs`，在 Web/CLI/API 三个入口中统一查看同一份任务日志。

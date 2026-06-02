@@ -150,7 +150,7 @@ atm:03 planner-agent> /exit
 
 | 入口 | 当前能力 | 验证方式 |
 | --- | --- | --- |
-| Web | Agent Overview 查看 runtime status、sessions、traces、model jobs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
+| Web | Agent Overview 查看 runtime status、sessions、traces、model jobs、model job logs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
 | CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务、查看/审批/注册 intake workflow，并提供 dataset/models/deploy/logs/doctor 领域命令组 | `labelctl runtime ...`、`labelctl dataset ...`、`labelctl models ...`、`labelctl deploy ...`、`labelctl logs ...`、`labelctl doctor` |
 | 桌面端 | 复用 Gateway runtime snapshot，可查看 sessions/traces/jobs，并通过同一 runtime path 发送测试消息 | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 status` |
 | QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发；也可启用 OneBot WebSocket reader 长连接 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message`、`QQ_ONEBOT_WS_ENABLED=true` |
@@ -398,4 +398,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming 和最小 tool progress streaming；下一阶段重点是 approval 交互确认、durable queue、`model.*`/`workflow.*` handler 外迁、逐文件日志流、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web Agent Overview、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming 和最小 tool progress streaming；下一阶段重点是 approval 交互确认、durable queue、`model.*`/`workflow.*` handler 外迁、逐文件日志流、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

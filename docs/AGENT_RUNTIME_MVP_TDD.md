@@ -119,6 +119,7 @@ npm run build
 
 - Agent Overview 调用 runtime status。
 - sessions/traces/model-jobs 查询。
+- model job logs 查询和展示。
 - trace metadata 摘要显示 `plan_id`、`dataset_name`、`source_uri`。
 
 后续应补：
