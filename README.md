@@ -83,6 +83,9 @@ CLI 是主入口：
 ```powershell
 go run .\cmd\labelctl agent run -workflow data-to-deployment-lifecycle -dataset workspace-dataset -dry-run=true
 go run .\cmd\labelctl runtime status
+go run .\cmd\labelctl runtime sessions
+go run .\cmd\labelctl runtime traces
+go run .\cmd\labelctl runtime model-jobs
 go run .\cmd\labelctl channel qq test /bot-ping
 go run .\cmd\labelctl skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
 go run .\cmd\agentdesktop
@@ -90,6 +93,38 @@ go run .\cmd\labelctl governance all
 go run .\cmd\labelctl workflows
 go run .\cmd\labelctl runs
 ```
+
+### 四入口 Runtime 闭环
+
+当前 Web、CLI、桌面端和 QQ/NapCat 都进入同一个 Agent Runtime：
+
+| 入口 | 当前能力 | 验证方式 |
+| --- | --- | --- |
+| Web | Agent Overview 查看 runtime status、sessions、traces、model jobs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
+| CLI | 查询 runtime、发送测试消息、查看异步模型任务 | `labelctl runtime status/sessions/traces/model-jobs/send` |
+| 桌面端 | 复用 Gateway runtime snapshot | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870` |
+| QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message` |
+
+更完整的本机 smoke：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1
+```
+
+该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent`、ShanghaiTech 数据附件进入 `data-intake-agent`。
+
+### 什么时候使用 Sub-Agent
+
+| 场景 | 默认处理 |
+| --- | --- |
+| `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` | Go control plane 直接处理，不使用 sub-agent |
+| 普通自然语言请求 | `planner-agent`，负责意图细化和 tool-call plan |
+| QQ/Web 上传图片、截图、异常帧 | `vision-agent`，走 Mimo `mimo-v2.5` 视觉路由 |
+| QQ/Web 上传 zip、manifest、目录索引或数据附件 | `data-intake-agent`，生成隔离、扫描、入湖计划 |
+| 训练、评估、部署等长流程 | `training-agent` / 后续 release agent，只规划并通过 ToolExecutor/Workflow 执行 |
+| 成功 trace 总结可复用 skill | `skill-miner-agent`，默认关闭，只生成草稿，人工审批后启用 |
+
+Sub-agent 不能绕过 ToolExecutor、approval/preflight、data_lake 写入边界和审计。
 
 如果要让本机登录的 QQ 通过 NapCat 主动收到回复，先设置：
 
@@ -112,6 +147,18 @@ $env:LLM_API_KEY=""
 
 go run .\cmd\labelctl agent "注册一个本地数据集并创建从数据采集到部署的 dry-run 工作流"
 ```
+
+Mimo 本机配置从 `C:\Users\10495\Desktop\mimo.txt` 读取并写入服务端环境变量，不要写入 Git、浏览器端或 channel 消息：
+
+```powershell
+. .\ops\scripts\load-mimo-env.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-api.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-planner.ps1
+```
+
+文本规划默认使用 `mimo-v2.5-pro`，视觉理解默认使用 `mimo-v2.5`。
+
+模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，状态从 `runtime model-jobs` 查询。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
 
 ## 技术栈
 

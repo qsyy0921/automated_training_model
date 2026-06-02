@@ -73,3 +73,5 @@
 - [x] 将前端 `wasm:build` 改为 `powershell -NoProfile`，避免 Conda PowerShell profile 的 GBK 乱码异常污染 `npm run build` 输出。
 - [x] 分析并修正 Agent Runtime 长任务阻塞问题：`model.download_hf` 默认改为创建异步 `ModelJob`，入口立即返回 `queued/job_id`，新增 `/api/runtime/model-jobs`、`labelctl runtime model-jobs` 和 Web Model Jobs 面板。
 - [x] 在 `AGENT_RUNTIME_SDD.md` 记录 2026-06-02 长任务问题结论、参考 OpenClaw/cc/Hermes 的对齐原则、新执行契约和 ART-007 至 ART-011 验收项。
+- [x] 新增 `ops/scripts/smoke-runtime-mvp.ps1`：自动验证 Web/Gateway、CLI、桌面端、QQ test-message/OneBot 进入同一个 Agent Runtime，并检查 `planner-agent`、`vision-agent`、`data-intake-agent` trace。
+- [x] 更新 README、`ENTRYPOINTS_TEST_SDD.md` 和 `SUB_AGENT_STRATEGY_SDD.md`，记录四入口闭环、`runtime model-jobs`、Mimo 本机配置和什么时候使用 sub-agent。

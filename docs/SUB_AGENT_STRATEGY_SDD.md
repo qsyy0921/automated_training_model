@@ -63,6 +63,7 @@ EntryPoint(CLI/Web/Desktop/QQ)
 - `internal/app/agentruntime/subagent.go`：sub-agent 决策。
 - `internal/app/agentruntime/status.go`：runtime 状态、模型路由和入口状态。
 - `/api/runtime/status`：暴露运行时契约。
+- `ops/scripts/smoke-runtime-mvp.ps1`：验证普通文本、视觉附件、数据附件分别进入 `planner-agent`、`vision-agent`、`data-intake-agent`。
 
 后续 Python runtime 会接管 LLM-heavy planning，但 Go 仍保留入口、权限、审计和 workflow 控制面。
 
@@ -85,3 +86,4 @@ EntryPoint(CLI/Web/Desktop/QQ)
 | SA-003 | QQ 图片附件 | `vision-agent`，route=`vision`。 |
 | SA-004 | QQ zip 附件 | `data-intake-agent`，route=`text-planning`。 |
 | SA-005 | skill 自进化关闭 | 不生成启用态 skill，只允许草稿和审计。 |
+| SA-006 | `smoke-runtime-mvp.ps1` | runtime traces 中能看到 `planner-agent`、`vision-agent` 和 `data-intake-agent`。 |
