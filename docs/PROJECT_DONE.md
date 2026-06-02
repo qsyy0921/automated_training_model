@@ -104,3 +104,4 @@
 - [x] 将 `labelctl agent` 视觉输出继续向 `ccb` / Hermes 对齐：顶部 runtime 面板、entry point 面板、双行 prompt、用户/Agent 消息面板、trace tree 面板、doctor 面板和状态颜色已落地。
 - [x] 为 Python/Mimo runtime 增加 `fast chat` 分流：普通寒暄、身份说明和概念解释直接走自然语言回复；下载、安装、数据接入、测试、训练、评估、部署、HuggingFace、ShanghaiTech、tool/skill/MCP 等请求仍走受控 JSON planner。
 - [x] 将 Go `PythonPlanner` 改为默认复用常驻 `python -m agent_runtime.worker`，通过 JSONL stdin/stdout 请求 Python/Mimo runtime；`AGENT_RUNTIME_PYTHON_WORKER=false` 可回退到旧的单次 spawn 模式，runtime status/CLI 显示 planner transport。
+- [x] 为 `labelctl agent` 增加等待态进度显示：runtime 请求未返回时显示 `planner-agent working...` 和耗时，减少 Mimo/Planner 请求期间终端无反馈的问题。

@@ -175,9 +175,7 @@ func (c *runtimeChat) Run() error {
 		}
 		c.turn++
 		c.printUser(input)
-		started := time.Now()
-		reply, err := postRuntimeMessage(c.cfg, input)
-		elapsed := time.Since(started)
+		reply, elapsed, err := c.postRuntimeMessageWithProgress(input)
 		if err != nil {
 			fmt.Fprintf(c.errOut, "error: %v\n", err)
 			continue
@@ -254,16 +252,44 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 	case "/ping", "ping", "/bot-ping":
 		c.turn++
 		c.printUser("/bot-ping")
-		started := time.Now()
-		reply, err := postRuntimeMessage(c.cfg, "/bot-ping")
+		reply, elapsed, err := c.postRuntimeMessageWithProgress("/bot-ping")
 		if err != nil {
 			return true, err
 		}
 		trace, _ := c.latestTrace()
-		c.printAssistant(reply.Reply.Text, trace, time.Since(started))
+		c.printAssistant(reply.Reply.Text, trace, elapsed)
 		return true, nil
 	default:
 		return false, nil
+	}
+}
+
+func (c *runtimeChat) postRuntimeMessageWithProgress(input string) (runtimeSendResponse, time.Duration, error) {
+	started := time.Now()
+	type result struct {
+		reply runtimeSendResponse
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		reply, err := postRuntimeMessage(c.cfg, input)
+		done <- result{reply: reply, err: err}
+	}()
+
+	ticker := time.NewTicker(1200 * time.Millisecond)
+	defer ticker.Stop()
+	rendered := false
+	for {
+		select {
+		case res := <-done:
+			if rendered {
+				fmt.Fprint(c.out, "\r\x1b[2K")
+			}
+			return res.reply, time.Since(started), res.err
+		case <-ticker.C:
+			rendered = true
+			fmt.Fprintf(c.out, "\r%s", c.color(fmt.Sprintf("planner-agent working... %.1fs", time.Since(started).Seconds()), "dim"))
+		}
 	}
 }
 
@@ -298,6 +324,7 @@ func (c *runtimeChat) printStatus() error {
 		"",
 		"Planner",
 		fmt.Sprintf("  mode      %s -> %s", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-")),
+		fmt.Sprintf("  transport %s", valueOr(status.Runtime.Planner.Transport, "-")),
 		fmt.Sprintf("  mimo      enabled=%t token=%t fallback=%s", status.Runtime.Planner.MimoEnabled, status.Runtime.Planner.TokenPresent, valueOr(status.Runtime.Planner.MimoFallback, "-")),
 		fmt.Sprintf("  python    %s", valueOr(status.Runtime.Planner.Python, "-")),
 		fmt.Sprintf("  path      %s", valueOr(status.Runtime.Planner.PythonPath, "-")),
@@ -387,7 +414,7 @@ func (c *runtimeChat) printDoctor() error {
 	}
 	var status runtimeStatusPayload
 	if err := getJSONValue(c.cfg.addr+"/api/runtime/status", &status); err == nil {
-		lines = append(lines, fmt.Sprintf("planner   mode=%s effective=%s mimo=%t fallback=%s token=%t", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent))
+		lines = append(lines, fmt.Sprintf("planner   mode=%s effective=%s transport=%s mimo=%t fallback=%s token=%t", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), valueOr(status.Runtime.Planner.Transport, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent))
 		lines = append(lines, fmt.Sprintf("python    %s", valueOr(status.Runtime.Planner.PythonPath, "-")))
 	}
 	lines = append(lines,
