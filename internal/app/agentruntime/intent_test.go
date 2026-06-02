@@ -34,3 +34,33 @@ func TestClassifyAttachmentIntent(t *testing.T) {
 		t.Fatalf("unexpected skill: %s", intent.SkillID)
 	}
 }
+
+func TestClassifyRuntimeAboutFastPath(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "你好，你是谁"})
+	if intent.Kind != IntentRuntimeAbout {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.Metadata["local_fast_path"] != "true" {
+		t.Fatalf("runtime about should be marked as local fast path: %+v", intent.Metadata)
+	}
+}
+
+func TestClassifyLocateAnythingInstall(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "请帮我下载 HuggingFace nvidia/LocateAnything-3B 模型"})
+	if intent.Kind != IntentModelInstall {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.ToolID != "model.download_hf" {
+		t.Fatalf("unexpected tool: %s", intent.ToolID)
+	}
+}
+
+func TestClassifyLocateAnythingShanghaiTechTest(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "用 LocateAnything-3B 测试 ShanghaiTech original"})
+	if intent.Kind != IntentModelTest {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.DatasetID != "shanghaitech-original" {
+		t.Fatalf("unexpected dataset: %s", intent.DatasetID)
+	}
+}

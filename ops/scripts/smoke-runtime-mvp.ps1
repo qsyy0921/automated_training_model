@@ -198,10 +198,17 @@ try {
   Assert-True ($dataTrace.Count -eq 1) "trace missing intake.plan tool"
   Assert-True ($dataTrace[0].metadata.dataset_name -eq "shanghaitech-original") "intake.plan trace missing ShanghaiTech dataset metadata"
   Assert-True ($dataTrace[0].metadata.source_uri -eq $ShanghaiTechRoot) "intake.plan trace missing ShanghaiTech source uri"
+  Assert-True (-not [string]::IsNullOrWhiteSpace($dataTrace[0].metadata.workflow_id)) "intake.plan trace missing workflow_id"
   $intakePlanPath = Join-Path $RuntimeRoot "intake\intake_plans.json"
   Assert-True (Test-Path -LiteralPath $intakePlanPath) "intake plan repository was not written: $intakePlanPath"
   $intakePlans = Get-Content -LiteralPath $intakePlanPath -Raw | ConvertFrom-Json
   Assert-True (@($intakePlans | Where-Object { $_.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "intake repository missing ShanghaiTech plan"
+  $intakeWorkflowPath = Join-Path $RuntimeRoot "intake\intake_workflows.json"
+  Assert-True (Test-Path -LiteralPath $intakeWorkflowPath) "intake workflow repository was not written: $intakeWorkflowPath"
+  $intakeWorkflows = Get-Content -LiteralPath $intakeWorkflowPath -Raw | ConvertFrom-Json
+  Assert-True (@($intakeWorkflows | Where-Object { $_.plan.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "intake repository missing ShanghaiTech workflow"
+  $workflowAPI = Invoke-JSON -Url "$baseURL/api/runtime/intake/workflows"
+  Assert-True (@($workflowAPI.workflows | Where-Object { $_.plan.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "runtime intake workflow API missing ShanghaiTech workflow"
 
   Stop-LabelServer -Process $server -ListenAddr $Addr
   $server = Start-Process -FilePath $Go -ArgumentList $serverArgs -WorkingDirectory $repoRoot -RedirectStandardOutput $out -RedirectStandardError $err -WindowStyle Hidden -PassThru
@@ -222,6 +229,8 @@ try {
   Assert-True (@($restoredTraces.traces | Where-Object { $_.tool_ids -contains "intake.plan" }).Count -ge 1) "runtime traces did not persist across restart"
   $restoredIntakePlans = Get-Content -LiteralPath $intakePlanPath -Raw | ConvertFrom-Json
   Assert-True (@($restoredIntakePlans | Where-Object { $_.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "intake plans did not persist across restart"
+  $restoredWorkflows = Invoke-JSON -Url "$baseURL/api/runtime/intake/workflows"
+  Assert-True (@($restoredWorkflows.workflows | Where-Object { $_.plan.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "intake workflows did not persist across restart"
 
   Write-Host "smoke-runtime-mvp passed"
 } finally {

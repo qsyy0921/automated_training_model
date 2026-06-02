@@ -16,7 +16,7 @@ def run_runtime(request: RuntimeRequest) -> RuntimeResult:
     delegation = decide_sub_agent(intent, request)
     delegations = [delegation.to_dict()]
 
-    if mimo_enabled() and intent.kind in {"chat", "data_intake"}:
+    if mimo_enabled() and intent.kind in {"chat", "data_intake", "model_install", "model_test"}:
         try:
             if intent.kind == "chat" and _should_use_fast_chat(request):
                 result = chat_with_mimo(request, intent, delegations[0])
@@ -48,6 +48,17 @@ def run_runtime(request: RuntimeRequest) -> RuntimeResult:
             delegations=delegations,
         )
 
+    if intent.kind == "runtime_about":
+        return RuntimeResult(
+            status="planned",
+            intent=intent,
+            reply_text=(
+                "我是 automated_training_model 的本地 Agent Runtime。"
+                "Go Gateway 负责连接、权限、状态和审计；Python/Mimo 负责语义规划、多模态理解和工具计划。"
+            ),
+            delegations=delegations,
+        )
+
     if intent.kind == "data_intake":
         plan = [{"kind": "intake.quarantine", "params": {"count": str(len(request.attachments))}}]
         if delegation.tool_id == "vlm.inspect":
@@ -75,6 +86,62 @@ def run_runtime(request: RuntimeRequest) -> RuntimeResult:
                         "dry_run": "true",
                     },
                 }
+            ],
+            delegations=delegations,
+        )
+
+    if intent.kind == "model_install":
+        return RuntimeResult(
+            status="tool_planned_with_guard",
+            intent=intent,
+            reply_text="已识别 HuggingFace 模型安装请求，生成受控下载计划。",
+            plan=[
+                {
+                    "kind": "model.download_hf",
+                    "params": {
+                        "repo_id": "nvidia/LocateAnything-3B",
+                        "local_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+                        "manifest": "data_lake/catalog/models/nvidia_LocateAnything-3B.download.json",
+                    },
+                }
+            ],
+            delegations=delegations,
+        )
+
+    if intent.kind == "model_test":
+        data_root = _extract_shanghaitech_root(request.text)
+        return RuntimeResult(
+            status="tool_planned_with_guard",
+            intent=intent,
+            reply_text="已识别 LocateAnything-3B + ShanghaiTech 测试请求，生成校验、smoke 和 dry-run 计划。",
+            plan=[
+                {
+                    "kind": "model.verify_hf",
+                    "params": {
+                        "repo_id": "nvidia/LocateAnything-3B",
+                        "local_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+                        "manifest": "data_lake/catalog/models/nvidia_LocateAnything-3B.download.json",
+                        "verify_only": "true",
+                    },
+                },
+                {
+                    "kind": "model.smoke_locateanything",
+                    "params": {
+                        "model_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+                        "data_root": data_root,
+                        "output": "data_lake/catalog/models/nvidia_LocateAnything-3B.smoke.json",
+                    },
+                },
+                {
+                    "kind": "workflow.submit_run",
+                    "params": {
+                        "workflow_id": "data-to-deployment-lifecycle",
+                        "dataset_id": "shanghaitech-original",
+                        "dry_run": "true",
+                        "model_repo_id": "nvidia/LocateAnything-3B",
+                        "data_root": data_root,
+                    },
+                },
             ],
             delegations=delegations,
         )

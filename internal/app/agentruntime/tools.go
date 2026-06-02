@@ -125,22 +125,23 @@ func (e *GoToolExecutor) registerToolHandlers() {
 }
 
 func (e *GoToolExecutor) planDataIntake(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-	plan, err := e.intake.PlanFromMessageWithOptions(ctx, req.Message, intakeapp.PlanOptions{
+	workflow, err := e.intake.PrepareWorkflowFromMessage(ctx, req.Message, intakeapp.PlanOptions{
 		Mode:        intakeapp.PlanModeData,
 		DatasetName: intakeDatasetName(req, call),
 	})
 	if err != nil {
 		return ToolExecutionResult{}, err
 	}
+	plan := workflow.Plan
 	return ToolExecutionResult{
-		ReplyText: fmt.Sprintf("已生成 Data Intake Plan：plan=%s agent=%s dataset=%s attachments=%d risk=%s dry_run=true；正式入湖前需要人工审批。", plan.ID, req.Delegation.AgentID, plan.DatasetName, len(req.Message.Attachments), plan.RiskLevel),
+		ReplyText: fmt.Sprintf("已生成 Data Intake Workflow：workflow=%s plan=%s agent=%s dataset=%s status=%s attachments=%d risk=%s；正式入湖前需要人工审批。", workflow.ID, plan.ID, req.Delegation.AgentID, plan.DatasetName, workflow.Status, len(workflow.Attachments), plan.RiskLevel),
 		Status:    "planned",
-		Metadata:  intakePlanMetadata(plan, req.Message),
+		Metadata:  intakeWorkflowMetadata(workflow, req.Message),
 	}, nil
 }
 
 func (e *GoToolExecutor) planVisionInspection(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-	plan, err := e.intake.PlanFromMessageWithOptions(ctx, req.Message, intakeapp.PlanOptions{
+	workflow, err := e.intake.PrepareWorkflowFromMessage(ctx, req.Message, intakeapp.PlanOptions{
 		Mode:        intakeapp.PlanModeVision,
 		DatasetName: intakeDatasetName(req, call),
 		ModelRoute:  "vision",
@@ -149,11 +150,12 @@ func (e *GoToolExecutor) planVisionInspection(ctx context.Context, req ToolExecu
 	if err != nil {
 		return ToolExecutionResult{}, err
 	}
-	metadata := intakePlanMetadata(plan, req.Message)
+	plan := workflow.Plan
+	metadata := intakeWorkflowMetadata(workflow, req.Message)
 	metadata["model_route"] = "vision"
 	metadata["model"] = "mimo-v2.5"
 	return ToolExecutionResult{
-		ReplyText: fmt.Sprintf("已生成视觉数据检查计划：plan=%s agent=vision-agent route=mimo-v2.5 attachments=%d；当前 MVP 只做计划和审批边界，不自动写入 Data Lake。", plan.ID, len(req.Message.Attachments)),
+		ReplyText: fmt.Sprintf("已生成视觉数据检查 Workflow：workflow=%s plan=%s agent=vision-agent route=mimo-v2.5 status=%s attachments=%d；当前 MVP 只做 quarantine/scan/plan/approval 边界，不自动写入 Data Lake。", workflow.ID, plan.ID, workflow.Status, len(workflow.Attachments)),
 		Status:    "planned",
 		Metadata:  metadata,
 	}, nil
@@ -183,6 +185,27 @@ func intakePlanMetadata(plan channel.DataIntakePlan, msg channel.InboundMessage)
 	if source := firstAttachmentSource(msg.Attachments); source != "" {
 		metadata["source_uri"] = source
 	}
+	return metadata
+}
+
+func intakeWorkflowMetadata(workflow intakeapp.IntakeWorkflow, msg channel.InboundMessage) map[string]string {
+	metadata := intakePlanMetadata(workflow.Plan, msg)
+	workflowJSON, _ := json.Marshal(workflow)
+	accepted := 0
+	rejected := 0
+	for _, report := range workflow.ScanReports {
+		if report.Accepted {
+			accepted++
+		} else {
+			rejected++
+		}
+	}
+	metadata["workflow_id"] = workflow.ID
+	metadata["workflow_status"] = string(workflow.Status)
+	metadata["scan_accepted"] = strconv.Itoa(accepted)
+	metadata["scan_rejected"] = strconv.Itoa(rejected)
+	metadata["approval_required"] = strconv.FormatBool(workflow.ApprovalRequired)
+	metadata["workflow_json"] = string(workflowJSON)
 	return metadata
 }
 
@@ -341,6 +364,22 @@ func (e *GoToolExecutor) runHFModelJob(jobID string, call ToolCall) {
 
 func (e *GoToolExecutor) ListModelJobs(limit int) []ModelJob {
 	return e.modelJobs.List(limit)
+}
+
+func (e *GoToolExecutor) ListIntakeWorkflows(ctx context.Context, limit int) ([]intakeapp.IntakeWorkflow, error) {
+	return e.intake.ListWorkflows(ctx, limit)
+}
+
+func (e *GoToolExecutor) GetIntakeWorkflow(ctx context.Context, id string) (intakeapp.IntakeWorkflow, bool, error) {
+	return e.intake.GetWorkflow(ctx, id)
+}
+
+func (e *GoToolExecutor) ApproveIntakeWorkflow(ctx context.Context, id string, by string, note string) (intakeapp.IntakeWorkflow, error) {
+	return e.intake.ApproveWorkflow(ctx, id, by, note)
+}
+
+func (e *GoToolExecutor) RegisterIntakeWorkflow(ctx context.Context, id string, by string) (intakeapp.IntakeWorkflow, error) {
+	return e.intake.RegisterWorkflow(ctx, id, by)
 }
 
 func (e *GoToolExecutor) GetModelJob(id string) (ModelJob, bool) {

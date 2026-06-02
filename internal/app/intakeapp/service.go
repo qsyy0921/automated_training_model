@@ -16,6 +16,9 @@ type Service struct {
 }
 
 func NewService(repo Repository, scanner Scanner, planner Planner) *Service {
+	if scanner == nil {
+		scanner = NewStaticScanner()
+	}
 	return &Service{repo: repo, scanner: scanner, planner: planner}
 }
 

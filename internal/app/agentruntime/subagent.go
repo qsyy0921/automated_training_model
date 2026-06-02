@@ -31,6 +31,7 @@ func DefaultSubAgents() []SubAgentSpec {
 		{ID: "planner-agent", Name: "Planner Agent", Runtime: "python-agent-runtime", ModelRoute: "text-planning", Capabilities: []string{"intent-refine", "workflow-plan", "tool-plan"}, Status: "planned"},
 		{ID: "vision-agent", Name: "Vision Agent", Runtime: "python-agent-runtime", ModelRoute: "vision", Capabilities: []string{"image-understanding", "visual-data-check"}, Status: "planned"},
 		{ID: "data-intake-agent", Name: "Data Intake Agent", Runtime: "python-agent-runtime", ModelRoute: "text-planning", Capabilities: []string{"quarantine-plan", "manifest-plan", "data-governance"}, Status: "planned"},
+		{ID: "model-agent", Name: "Model Agent", Runtime: "python-worker", ModelRoute: "text-planning", Capabilities: []string{"model-download", "model-verify", "smoke-test"}, Status: "planned"},
 		{ID: "training-agent", Name: "Training Agent", Runtime: "python-worker", ModelRoute: "text-planning", Capabilities: []string{"training-plan", "evaluation-plan", "artifact-report"}, Status: "planned"},
 		{ID: "skill-miner-agent", Name: "Skill Miner Agent", Runtime: "python-agent-runtime", ModelRoute: "text-planning", Capabilities: []string{"trace-summary", "skill-draft", "human-approval"}, Status: "disabled-by-default"},
 	}
@@ -38,12 +39,22 @@ func DefaultSubAgents() []SubAgentSpec {
 
 func DecideSubAgent(intent Intent, msg channel.InboundMessage) DelegationDecision {
 	switch intent.Kind {
-	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun:
+	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun, IntentRuntimeAbout:
 		return DelegationDecision{
 			UseSubAgent: false,
 			Reason:      "low-risk deterministic runtime command handled by Go control plane",
 			SkillID:     intent.SkillID,
 			ToolID:      intent.ToolID,
+		}
+	case IntentModelInstall, IntentModelTest:
+		return DelegationDecision{
+			UseSubAgent:          true,
+			AgentID:              "model-agent",
+			Reason:               "model lifecycle requests need controlled worker tools and observable jobs",
+			RequiredCapabilities: []string{"model-download", "model-verify", "smoke-test"},
+			SkillID:              intent.SkillID,
+			ToolID:               intent.ToolID,
+			ModelRoute:           "text-planning",
 		}
 	case IntentDataIntake:
 		decision := DelegationDecision{

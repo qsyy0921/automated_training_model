@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from agent_runtime.contracts import RuntimeRequest, RuntimeResult
+from agent_runtime.intent import classify_intent
 from agent_runtime.main import _should_use_fast_chat, run_runtime
 
 
@@ -53,6 +54,25 @@ class FastChatTests(unittest.TestCase):
         self.assertEqual(fake_intent.kind, "chat")
         chat.assert_called_once()
         planner.assert_not_called()
+
+    def test_python_intent_honors_go_metadata(self) -> None:
+        request = _request("请帮我下载 HuggingFace nvidia/LocateAnything-3B 模型")
+        request.metadata = {"go_intent": "model_install"}
+
+        intent = classify_intent(request)
+
+        self.assertEqual(intent.kind, "model_install")
+        self.assertEqual(intent.tool_id, "model.download_hf")
+
+    def test_runtime_uses_go_model_intent_for_guard_plan(self) -> None:
+        request = _request("请帮我下载 HuggingFace nvidia/LocateAnything-3B 模型")
+        request.metadata = {"go_intent": "model_install"}
+
+        with patch("agent_runtime.main.mimo_enabled", return_value=False):
+            result = run_runtime(request)
+
+        self.assertEqual(result.intent.kind, "model_install")
+        self.assertEqual(result.plan[0]["kind"], "model.download_hf")
 
 
 if __name__ == "__main__":

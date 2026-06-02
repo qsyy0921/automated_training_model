@@ -223,10 +223,16 @@ Agent 计划：
 
 ## 10. 实施顺序
 
+当前 MVP 实现状态：
+
+- `internal/app/intakeapp` 已实现 `PrepareWorkflowFromMessage`，覆盖附件 quarantine、静态 metadata scan、dry-run Data Intake Plan、pending approval workflow、approve 和 register metadata。
+- `internal/infrastructure/intakerepo.JSONRepository` 默认持久化 `intake_plans.json`、`intake_attachments.json` 和 `intake_workflows.json`。
+- Gateway 已提供 `GET /api/runtime/intake/workflows`、`GET /api/runtime/intake/workflows/{id}`、`POST /approve`、`POST /register`；CLI 已提供 `labelctl runtime intake`、`approve-intake`、`register-intake`。
+- 当前 scan 仍是 metadata 静态扫描，不展开压缩包、不做真实文件隔离复制、不写正式 Dataset Registry。
+
 1. 在 Channel domain 增加 `ChannelAttachment` 和 `DataIntakePlan`。
 2. 增加 `internal/app/intakeapp`，负责 quarantine、scan、plan、accept/reject。
 3. QQ Adapter 支持附件 metadata 和受控下载。
 4. Agent Planner 输出 JSON DataIntakePlan。
 5. 接入 Mimo OpenAI-compatible provider 做本地交互式测试。
 6. 增加 SDD 测试中的安全、权限、VLM 和入湖 dry-run 测试。
-

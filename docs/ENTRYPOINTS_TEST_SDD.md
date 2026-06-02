@@ -31,6 +31,9 @@ $go = Resolve-Go
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime cancel-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime resume-job <job_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime intake
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime approve-intake <workflow_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime register-intake <workflow_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 desktop status
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 ```
@@ -70,12 +73,12 @@ Mimo 模式验收：
 `smoke-runtime-mvp.ps1` 是当前推荐的 Runtime MVP 验收脚本。它额外覆盖：
 
 - CLI `agent` 交互式入口和 `runtime send /bot-ping`。
-- Web/Gateway 可查询 runtime status、sessions、traces、model-jobs，并支持查询单个 model job、请求取消和手动 resume。
+- Web/Gateway 可查询 runtime status、sessions、traces、model-jobs 和 intake workflows，并支持查询单个 model job、请求取消、手动 resume、审批/注册 intake workflow。
 - 桌面端复用 `/api/desktop/status`。
 - QQ test-message 和 OneBot webhook 都进入同一个 Agent Runtime。
 - 普通文本进入 `planner-agent`。
 - 图片附件进入 `vision-agent`。
-- ShanghaiTech original 数据附件进入 `data-intake-agent`，trace 包含 `intake.plan`、`dataset_name=shanghaitech-original` 和 source uri。
+- ShanghaiTech original 数据附件进入 `data-intake-agent`，trace 包含 `workflow_id`、`intake.plan`、`dataset_name=shanghaitech-original` 和 source uri。
 
 启用真实 QQ 回发时，先配置 NapCat OneBot HTTP API：
 

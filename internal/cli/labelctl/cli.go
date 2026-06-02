@@ -201,6 +201,27 @@ func runRuntime(cfg Config, args []string) error {
 	if args[0] == "model-jobs" || args[0] == "jobs" {
 		return getJSON(cfg.addr + "/api/runtime/model-jobs")
 	}
+	if args[0] == "intake-workflows" || args[0] == "intake" {
+		return getJSON(cfg.addr + "/api/runtime/intake/workflows")
+	}
+	if args[0] == "intake-workflow" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime intake-workflow <workflow_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/intake/workflows/" + url.PathEscape(args[1]))
+	}
+	if args[0] == "approve-intake" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime approve-intake <workflow_id>")
+		}
+		return postJSON(cfg.addr+"/api/runtime/intake/workflows/"+url.PathEscape(args[1])+"/approve", map[string]string{"by": "labelctl"})
+	}
+	if args[0] == "register-intake" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime register-intake <workflow_id>")
+		}
+		return postJSON(cfg.addr+"/api/runtime/intake/workflows/"+url.PathEscape(args[1])+"/register", map[string]string{"by": "labelctl"})
+	}
 	if args[0] == "job" {
 		if len(args) < 2 {
 			return errors.New("usage: labelctl runtime job <job_id>")
@@ -845,7 +866,7 @@ func usage() {
   workflows
   runs
   audit
-  runtime [status|sessions|traces|model-jobs|job <id>|cancel-job <id>|resume-job <id>|send <message>|chat]
+  runtime [status|sessions|traces|model-jobs|job <id>|cancel-job <id>|resume-job <id>|intake|intake-workflow <id>|approve-intake <id>|register-intake <id>|send <message>|chat]
   desktop [status]
   channels
   channel qq status

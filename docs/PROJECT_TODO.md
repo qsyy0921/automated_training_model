@@ -6,12 +6,13 @@
 ## 近期必须做
 
 - [ ] 补齐 CLI 命令组：`dataset`、`models`、`deploy`、`logs`、`doctor`。
-- [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：复杂 planner 分步流式、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录；当前 Go 控制命令 fast-path 和普通 fast chat streaming 已完成。
+- [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：复杂 planner 分步流式、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录；当前 Go 控制命令 fast-path、本地语义 fast-path 和普通 fast chat streaming 已完成。
 - [x] 增加 Gateway token auth、allowed origins 和 non-loopback 访问保护：loopback 默认开发放行，非 loopback `/api/` 必须配置并携带 token；CLI/桌面端支持 `-token`。
 - [ ] 增加持久 remote profile、短期 token/RBAC、pairing code、CSRF/origin 管理操作细化。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
-- [ ] 将 `internal/app/intakeapp` 从 JSON dry-run plan repository 推进到完整 intake workflow：Channel 附件 quarantine、scan、approve/register。
+- [x] 将 `internal/app/intakeapp` 从 JSON dry-run plan repository 推进到 intake workflow MVP：Channel 附件 quarantine、静态 scan、pending approval、approve/register metadata。
+- [ ] 将 intake workflow MVP 推进到生产入湖：真实文件隔离区、压缩包展开/路径穿越扫描、manifest schema scan、审批队列、正式 dataset registry 写入和审计。
 - [x] 将 Agent Runtime 的 LLM planner、fast chat、tool-call plan 迁移到 `workers/python/agent_runtime`，Go 只保留 Gateway/runtime shim 和受控 ToolExecutor。
 - [x] 按 `REFERENCE_AGENT_RUNTIME_ALIGNMENT.md` 拆出 `SessionRunner`、`PlannerPort`、`ToolExecutorPort`，避免 `agentruntime.Service` 继续膨胀。
 - [ ] 将 `skill-miner-agent` 从 draft-only 契约扩展为可人工审批的 skill 草稿生成器。
@@ -22,6 +23,7 @@
 - [x] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
 - [x] 默认启用常驻 `python -m agent_runtime.worker`，避免每轮 Mimo planner 都冷启动 Python；CLI 等待期间显示 `planner-agent working...` 耗时。
 - [x] 为普通 fast chat 接入 `/api/runtime/stream-message` NDJSON token streaming：CLI 收到 Mimo `delta` 后立即刷屏，反向代理不支持 SSE 时退回单 delta。
+- [x] 增加 Go 本地语义 fast-path：runtime self-description、已知 LocateAnything 下载和 ShanghaiTech smoke 固定流程不等待 Mimo；`AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可关闭并回到 Mimo planner。
 - [x] 通过 Agent Runtime + Mimo planner 异步执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [x] 将 Agent Runtime session/trace 从纯内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime`，smoke 覆盖重启恢复。
 - [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。

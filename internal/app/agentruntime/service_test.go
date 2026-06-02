@@ -88,6 +88,9 @@ func TestAttachmentMessageDoesNotWriteData(t *testing.T) {
 	if traces[0].Metadata["plan_id"] == "" {
 		t.Fatalf("expected plan metadata, got %+v", traces[0].Metadata)
 	}
+	if traces[0].Metadata["workflow_id"] == "" || traces[0].Metadata["workflow_status"] == "" {
+		t.Fatalf("expected workflow metadata, got %+v", traces[0].Metadata)
+	}
 	if traces[0].Metadata["dry_run"] != "true" {
 		t.Fatalf("expected dry-run plan metadata, got %+v", traces[0].Metadata)
 	}

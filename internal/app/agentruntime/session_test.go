@@ -67,7 +67,7 @@ func TestSessionRunnerPassesPlanToToolExecutor(t *testing.T) {
 		AccountID: "default",
 		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
 		SenderID:  "10001",
-		Text:      "帮我检查 runtime 状态",
+		Text:      "帮我规划一个小模型训练任务",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -83,6 +83,60 @@ func TestSessionRunnerPassesPlanToToolExecutor(t *testing.T) {
 	}
 	if tools.got.ToolCalls[0].ToolID != "runtime.health" {
 		t.Fatalf("unexpected tool call: %s", tools.got.ToolCalls[0].ToolID)
+	}
+}
+
+func TestRuntimeAboutUsesLocalFastPath(t *testing.T) {
+	planner := &fakePlanner{}
+	tools := &fakeTools{}
+	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
+
+	out, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "你好，你是谁",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planner.got.Message.ID != "" {
+		t.Fatalf("runtime about should not call external planner, got %+v", planner.got)
+	}
+	if tools.got.Message.ID != "" {
+		t.Fatalf("runtime about should not call tool executor, got %+v", tools.got)
+	}
+	if out.Text == "" || out.Text == "ok" {
+		t.Fatalf("unexpected runtime about reply: %q", out.Text)
+	}
+}
+
+func TestKnownModelInstallUsesLocalSemanticPlan(t *testing.T) {
+	planner := &fakePlanner{}
+	tools := &fakeTools{}
+	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
+
+	_, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "请帮我下载 HuggingFace nvidia/LocateAnything-3B 模型",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planner.got.Message.ID != "" {
+		t.Fatalf("known model install should use local semantic plan, got %+v", planner.got)
+	}
+	if tools.got.Delegation.AgentID != "model-agent" {
+		t.Fatalf("expected model-agent delegation, got %+v", tools.got.Delegation)
+	}
+	if len(tools.got.ToolCalls) != 1 || tools.got.ToolCalls[0].ToolID != "model.download_hf" {
+		t.Fatalf("unexpected model install tool calls: %+v", tools.got.ToolCalls)
 	}
 }
 

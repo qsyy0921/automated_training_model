@@ -188,4 +188,4 @@ internal/api/httpapi/channel_handlers.go
 3. Python worker 非 dry-run 未执行真实任务。
 4. 治理 contract 还没有接到强制 preflight。
 5. Lineage catalog 和 artifact manifest 还没有成为硬约束。
-6. Channel adapter、Data Intake 和 Gateway auth 目前只有边界，尚未接入实际运行路径。
+6. Channel adapter、Data Intake 和 Gateway auth 已接入 Runtime MVP；但 Data Intake 仍是静态 scan + approval/register metadata，尚未做真实文件隔离复制、压缩包深度扫描和正式 Dataset Registry 写入。

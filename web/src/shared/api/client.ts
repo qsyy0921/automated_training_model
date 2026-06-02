@@ -11,6 +11,7 @@ import type {
   EnforcementPoint,
   ReleasePolicy,
   GatewayAuthStatus,
+  IntakeWorkflow,
   RuntimeSession,
   RuntimeSnapshot,
   RuntimeStatus,
@@ -86,6 +87,10 @@ export const apiClient = {
     request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   resumeRuntimeModelJob: async (id: string) =>
     request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/resume`, { method: "POST" }),
+  runtimeIntakeWorkflows: async (limit = 30) =>
+    request<{ workflows: IntakeWorkflow[] | null }>(`/api/runtime/intake/workflows?limit=${limit}`),
+  runtimeIntakeWorkflow: async (id: string) =>
+    request<{ workflow: IntakeWorkflow }>(`/api/runtime/intake/workflows/${encodeURIComponent(id)}`),
   runtimeSend: async (text: string) =>
     request<Record<string, unknown>>("/api/channels/qq/test-message", {
       method: "POST",

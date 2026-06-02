@@ -14,12 +14,13 @@ MVP 必须覆盖：
 - 四入口统一：Web、CLI、桌面端、QQ/NapCat 都进入同一个 runtime；QQ 支持 test-message、HTTP webhook/outbound 和可选 OneBot WebSocket reader。
 - Mimo 模型路由：文本规划走 `mimo-v2.5-pro`，视觉理解走 `mimo-v2.5`。
 - 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
+- 本地语义 fast-path：自我介绍/能力说明、已知 `LocateAnything-3B` 下载、`LocateAnything-3B + ShanghaiTech` smoke 这类高置信度固定意图由 Go 直接生成受控计划，避免为了意图识别单独等待模型。
 - Sub-agent 决策：普通文本、视觉附件、数据附件分别进入不同 agent 角色。
 - ToolExecutor：所有副作用都通过工具出口，不能让 channel 或 UI 直接写数据湖、下载模型或提交训练。
 - Runtime trace：每次会话、意图、工具调用、错误、metadata 都可通过 API/CLI/Web 观察。
 - Gateway remote guard：本机 loopback 默认可开发调试，非 loopback `/api/` 访问必须配置并携带 Gateway token，allowed origins 由环境变量控制。
 - HuggingFace 下载 skill：支持 dry-run、远端清单、断点续传、verify-only 和 Git 排除边界。
-- ShanghaiTech original 数据 smoke：能识别数据源、生成 data intake plan trace，并明确真实推理阻塞点。
+- ShanghaiTech original 数据 smoke：能识别数据源、生成 data intake workflow/plan trace，并明确真实推理阻塞点。
 
 ## 3. 非目标
 
@@ -56,13 +57,13 @@ Workers and Providers
 | --- | --- | --- | --- |
 | Channel Adapter | `internal/api/httpapi/channel_handlers.go`、`internal/infrastructure/qqbot` | OneBot/test-message 归一化、outbound envelope | 不能写 Data Lake、不能调模型、不能绕过 runtime |
 | Runtime Service | `internal/app/agentruntime/service.go` | 入口门面 | 不堆业务分支 |
-| Session Runner | `session.go` | session key、本地控制 fast-path、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
+| Session Runner | `session.go` | session key、本地控制 fast-path、本地语义 fast-path、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
 | PlannerPort | `planner.go`、`python_planner.go` | 规则计划和 Python/Mimo 计划 | 不执行副作用 |
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
 | Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截 | 不绑定 channel/session/runtime store |
-| ToolExecutor | `tools.go` | 注册 MVP 工具 handler、model job、workflow dry-run；`intake.plan` / `vlm.inspect` 只调用 `intakeapp` | 后续把 `model.*` 外迁到 task/model worker，把 `workflow.*` 外迁到 workflow repository |
-| Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans | session/trace、model jobs 和 intake plans 默认 JSON 持久化；后续迁移到 task repository / intake repository |
+| ToolExecutor | `tools.go` | 注册 MVP 工具 handler、model job、workflow dry-run；`intake.plan` / `vlm.inspect` 只调用 `intakeapp` 生成 quarantine/scan/plan/workflow | 后续把 `model.*` 外迁到 task/model worker，把 `workflow.*` 外迁到 workflow repository |
+| Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans/workflows | session/trace、model jobs、intake plans 和 intake workflows 默认 JSON 持久化；后续迁移到 task repository / intake repository |
 | Gateway Middleware | `internal/infrastructure/middleware` | request id、CORS、recover、Gateway token auth、non-loopback access guard | 不读取模型密钥；不把 token 写入 status 或日志 |
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
@@ -73,9 +74,11 @@ Workers and Providers
 | 输入 | 是否使用 sub-agent | Agent | 原因 |
 | --- | --- | --- | --- |
 | `/bot-ping`、`/bot-status` 等确定性命令 | 否 | Go control plane | 低风险、离线可测 |
+| 自我介绍/能力说明 | 否 | Go control plane | 本地确定性回答，避免把项目身份问题交给模型自由发挥 |
 | 普通自然语言 | 是 | `planner-agent` | 需要意图细化和 tool-call plan |
+| 已知模型下载/测试固定流程 | 是 | `model-agent` | Go 先生成固定工具链；未知模型仍交给 Mimo planner |
 | 图片、截图、异常帧 | 是 | `vision-agent` | 需要 `mimo-v2.5` 视觉路由 |
-| zip、manifest、目录索引、数据附件 | 是 | `data-intake-agent` | 需要 quarantine、scan、dry-run intake plan 和审批 |
+| zip、manifest、目录索引、数据附件 | 是 | `data-intake-agent` | 需要 quarantine、scan、dry-run intake plan、pending approval workflow 和审批 |
 | 训练、评估、部署长流程 | 是 | `training-agent` / future release agent | 需要任务生命周期、日志、artifact |
 | 成功 trace 总结 skill | 是但默认关闭 | `skill-miner-agent` | 只能生成草稿，人工审批后启用 |
 
@@ -93,8 +96,10 @@ Workers and Providers
 
 `labelctl agent` 的普通聊天和工具规划必须分离：
 
-- 普通聊天、身份说明、概念解释走 `Mimo fast chat`，直接请求自然语言回复，不要求模型输出 JSON。
-- 下载模型、安装依赖、数据接入、测试、训练、评估、部署、HuggingFace、ShanghaiTech、tool/skill/MCP 等请求走 `Mimo planner`，输出受控 tool-call JSON，再由 Go ToolExecutor 执行。
+- 自我介绍、能力说明等项目身份问题走 Go 本地 fast-path，直接返回 runtime 身份，避免模型回答成“我是 Mimo”。
+- 普通聊天、概念解释走 `Mimo fast chat`，直接请求自然语言回复，不要求模型输出 JSON。
+- 下载模型、安装依赖、数据接入、测试、训练、评估、部署、HuggingFace、ShanghaiTech、tool/skill/MCP 等复杂请求走 `Mimo planner`，输出受控 tool-call JSON，再由 Go ToolExecutor 执行。
+- 已知 `LocateAnything-3B` 下载和 `LocateAnything-3B + ShanghaiTech` smoke 属于高置信度固定流程，默认 `AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=true`，由 Go 直接生成 `model.download_hf` 或 `model.verify_hf -> model.smoke_locateanything -> workflow.submit_run(dry_run=true)`；设置 `AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可强制回到 Mimo planner。
 - `AGENT_RUNTIME_FAST_CHAT=false` 可关闭 fast chat，强制普通聊天也走 planner。
 - `AGENT_RUNTIME_MIMO_CHAT_MAX_TOKENS` 控制普通聊天输出上限，默认 180；`AGENT_RUNTIME_MIMO_PLAN_MAX_TOKENS` 控制 planner 输出上限，默认 800。
 
@@ -104,7 +109,7 @@ Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 
 
 普通 fast chat 已通过 `/api/runtime/stream-message` 接入 NDJSON 事件流：Go `SessionRunner.RunStream` -> `PythonPlanner.PlanStream` -> 常驻 `python -m agent_runtime.worker` -> Mimo Anthropic-compatible SSE。CLI 收到 `delta` 事件后立即写到终端；如果反向代理不支持 SSE，Python runtime 会退回一次性 Mimo 回复并以单个 `delta` 发出，CLI 仍不需要走第二套 UI。
 
-复杂任务仍走受控 planner/tool-call JSON。当前 stream 只会输出 `status`、`tool_start` 和 `final`，下一步需要把 tool progress、审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
+Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 只会输出 `status`、`tool_start` 和 `final`，下一步需要把 tool progress、审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
 
 ## 8. HuggingFace 模型下载边界
 
@@ -151,7 +156,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 
 - ShanghaiTech original 真实推理。
 - model job 逐文件字节级进度、实时日志流和自动 resume。
-- Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 dry-run plan 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json`。具体 `model.*`、`workflow.*` handler 仍需继续外迁到 task/model worker 和 workflow repository。
+- Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`。具体 `model.*`、`workflow.*` handler 仍需继续外迁到 task/model worker 和 workflow repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、实时 tool progress streaming、审批确认和会话恢复。
 - Python worker heartbeat、logs、retries、artifacts。

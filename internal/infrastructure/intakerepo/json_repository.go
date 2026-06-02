@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
 
@@ -16,6 +17,7 @@ type JSONRepository struct {
 	root        string
 	plans       map[string]channel.DataIntakePlan
 	attachments map[string]channel.Attachment
+	workflows   map[string]intakeapp.IntakeWorkflow
 }
 
 func NewJSONRepository(root string) (*JSONRepository, error) {
@@ -27,6 +29,7 @@ func NewJSONRepository(root string) (*JSONRepository, error) {
 		root:        root,
 		plans:       map[string]channel.DataIntakePlan{},
 		attachments: map[string]channel.Attachment{},
+		workflows:   map[string]intakeapp.IntakeWorkflow{},
 	}
 	if err := repo.load(); err != nil {
 		return nil, err
@@ -56,6 +59,39 @@ func (r *JSONRepository) ListPlans() []channel.DataIntakePlan {
 	return sortedPlans(r.plans)
 }
 
+func (r *JSONRepository) SaveWorkflow(ctx context.Context, workflow intakeapp.IntakeWorkflow) (intakeapp.IntakeWorkflow, error) {
+	_ = ctx
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.workflows[workflow.ID] = workflow
+	return workflow, r.persistLocked()
+}
+
+func (r *JSONRepository) GetWorkflow(ctx context.Context, id string) (intakeapp.IntakeWorkflow, bool, error) {
+	_ = ctx
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	workflow, ok := r.workflows[id]
+	return workflow, ok, nil
+}
+
+func (r *JSONRepository) ListWorkflows(ctx context.Context, limit int) ([]intakeapp.IntakeWorkflow, error) {
+	_ = ctx
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := sortedWorkflows(r.workflows)
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 func (r *JSONRepository) load() error {
 	var plans []channel.DataIntakePlan
 	if err := readJSONFile(r.plansPath(), &plans); err != nil {
@@ -75,6 +111,15 @@ func (r *JSONRepository) load() error {
 			r.attachments[attachment.ID] = attachment
 		}
 	}
+	var workflows []intakeapp.IntakeWorkflow
+	if err := readJSONFile(r.workflowsPath(), &workflows); err != nil {
+		return err
+	}
+	for _, workflow := range workflows {
+		if workflow.ID != "" {
+			r.workflows[workflow.ID] = workflow
+		}
+	}
 	return nil
 }
 
@@ -82,7 +127,10 @@ func (r *JSONRepository) persistLocked() error {
 	if err := writeJSONFile(r.plansPath(), sortedPlans(r.plans)); err != nil {
 		return err
 	}
-	return writeJSONFile(r.attachmentsPath(), sortedAttachments(r.attachments))
+	if err := writeJSONFile(r.attachmentsPath(), sortedAttachments(r.attachments)); err != nil {
+		return err
+	}
+	return writeJSONFile(r.workflowsPath(), sortedWorkflows(r.workflows))
 }
 
 func (r *JSONRepository) plansPath() string {
@@ -91,6 +139,10 @@ func (r *JSONRepository) plansPath() string {
 
 func (r *JSONRepository) attachmentsPath() string {
 	return filepath.Join(r.root, "intake_attachments.json")
+}
+
+func (r *JSONRepository) workflowsPath() string {
+	return filepath.Join(r.root, "intake_workflows.json")
 }
 
 func sortedPlans(items map[string]channel.DataIntakePlan) []channel.DataIntakePlan {
@@ -111,6 +163,17 @@ func sortedAttachments(items map[string]channel.Attachment) []channel.Attachment
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out
+}
+
+func sortedWorkflows(items map[string]intakeapp.IntakeWorkflow) []intakeapp.IntakeWorkflow {
+	out := make([]intakeapp.IntakeWorkflow, 0, len(items))
+	for _, item := range items {
+		out = append(out, item)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].UpdatedAt.After(out[j].UpdatedAt)
 	})
 	return out
 }

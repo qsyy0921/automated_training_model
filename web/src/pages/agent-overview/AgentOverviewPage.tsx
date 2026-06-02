@@ -11,6 +11,7 @@ export function AgentOverviewPage() {
   const sessions = useQuery({ queryKey: ["runtime-sessions"], queryFn: () => apiClient.runtimeSessions(), refetchInterval: 3000 });
   const traces = useQuery({ queryKey: ["runtime-traces"], queryFn: () => apiClient.runtimeTraces(12), refetchInterval: 3000 });
   const modelJobs = useQuery({ queryKey: ["runtime-model-jobs"], queryFn: () => apiClient.runtimeModelJobs(8), refetchInterval: 3000 });
+  const intakeWorkflows = useQuery({ queryKey: ["runtime-intake-workflows"], queryFn: () => apiClient.runtimeIntakeWorkflows(6), refetchInterval: 3000 });
   const desktop = useQuery({ queryKey: ["desktop-status"], queryFn: () => apiClient.desktopStatus() });
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => apiClient.listAgents() });
   const runs = useQuery({ queryKey: ["agent-runs"], queryFn: () => apiClient.listAgentRuns() });
@@ -159,6 +160,22 @@ export function AgentOverviewPage() {
                   {job.message || job.error || job.id}
                   {job.resumable ? " · resumable" : ""}
                   {job.cancel_requested ? " · cancel requested" : ""}
+                </small>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Intake Workflows">
+          <div className="overviewList">
+            {(intakeWorkflows.data?.workflows ?? []).length === 0 ? <p className="empty">no intake workflows</p> : null}
+            {(intakeWorkflows.data?.workflows ?? []).slice(0, 6).map((workflow) => (
+              <div className="overviewRow" key={workflow.id}>
+                <strong>{workflow.plan.dataset_name || workflow.plan.id}</strong>
+                <span>{workflow.status}</span>
+                <small>
+                  {workflow.id} · scans={workflow.scan_reports?.length ?? 0}
+                  {workflow.approval_required ? " · approval required" : ""}
                 </small>
               </div>
             ))}

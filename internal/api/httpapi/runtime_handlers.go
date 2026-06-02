@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -30,6 +31,67 @@ func (s *Server) runtimeTraces(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) runtimeModelJobs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"jobs": s.runtime.ListModelJobs(runtimeTraceLimit(r))})
+}
+
+func (s *Server) runtimeIntakeWorkflows(w http.ResponseWriter, r *http.Request) {
+	workflows, err := s.runtime.ListIntakeWorkflows(r.Context(), runtimeTraceLimit(r))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"workflows": workflows})
+}
+
+func (s *Server) runtimeIntakeWorkflowDetail(w http.ResponseWriter, r *http.Request) {
+	id, action := runtimeIntakeWorkflowPath(r)
+	if id == "" || action != "" {
+		writeError(w, http.StatusNotFound, errors.New("intake workflow not found"))
+		return
+	}
+	workflow, ok, err := s.runtime.GetIntakeWorkflow(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, errors.New("intake workflow not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"workflow": workflow})
+}
+
+func (s *Server) runtimeIntakeWorkflowAction(w http.ResponseWriter, r *http.Request) {
+	id, action := runtimeIntakeWorkflowPath(r)
+	if id == "" || action == "" {
+		writeError(w, http.StatusNotFound, errors.New("intake workflow action not found"))
+		return
+	}
+	var payload struct {
+		By   string `json:"by"`
+		Note string `json:"note"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&payload)
+	if strings.TrimSpace(payload.By) == "" {
+		payload.By = "local-operator"
+	}
+	var (
+		workflow any
+		err      error
+	)
+	switch action {
+	case "approve":
+		workflow, err = s.runtime.ApproveIntakeWorkflow(r.Context(), id, payload.By, payload.Note)
+	case "register":
+		workflow, err = s.runtime.RegisterIntakeWorkflow(r.Context(), id, payload.By)
+	default:
+		writeError(w, http.StatusNotFound, errors.New("intake workflow action not found"))
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"workflow": workflow})
 }
 
 func (s *Server) runtimeModelJobDetail(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +151,18 @@ func (s *Server) desktopStatus(w http.ResponseWriter, r *http.Request) {
 
 func runtimeModelJobPath(r *http.Request) (string, string) {
 	rest := strings.TrimPrefix(r.URL.Path, "/api/runtime/model-jobs/")
+	parts := strings.Split(strings.Trim(rest, "/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		return "", ""
+	}
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], parts[1]
+}
+
+func runtimeIntakeWorkflowPath(r *http.Request) (string, string) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/runtime/intake/workflows/")
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
 	if len(parts) == 0 || parts[0] == "" {
 		return "", ""

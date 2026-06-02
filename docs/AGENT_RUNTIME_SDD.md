@@ -91,8 +91,13 @@ NapCat WebSocket
 | `/bot-status` | runtime status | 返回 Gateway/Runtime 状态 |
 | `/bot-runs` | list runs | 查询最近 Agent runs |
 | `/bot-run dry <dataset>` | dry-run workflow | 提交 `data-to-deployment-lifecycle` dry-run |
+| `你好 / 你是谁 / 你能做什么` | runtime_about | Go 本地返回 Agent Runtime 身份和能力 |
+| `下载 LocateAnything-3B` | model_install | Go 本地生成 `model.download_hf` 受控计划 |
+| `LocateAnything-3B 测试 ShanghaiTech` | model_test | Go 本地生成 verify / smoke / dry-run 固定工具链 |
 
 规则层的好处是可测、可审计、不会因为模型幻觉触发危险动作。
+
+本地语义 fast-path 只覆盖高置信度固定流程。默认开启 `AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=true`；如果需要强制让 Mimo 生成模型下载/测试 tool-call plan，可设置为 `false`。
 
 ### 4.2 LLM 层
 
@@ -173,9 +178,9 @@ internal/api/httpapi/
     GET  /api/runtime/traces
 ```
 
-当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，低风险控制意图先走 Go 本地 fast-path，其他消息再调用 Planner 输出直接回复或 ToolCall，并由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。Data Intake / Vision 这类带附件的请求有 mandatory tool guard：Mimo/Python planner 必须输出精确单工具计划 `intake.plan` 或 `vlm.inspect`，否则 Go `SessionRunner` 会保留 Go 侧 sub-agent delegation 并回退本地 `RulePlanner`，避免模型临时扩展工具链或破坏必要的数据治理路径。Data Intake Plan 的 dry-run 构造已经外迁到 `internal/app/intakeapp`，runtime 只调用 intake app 并把结果写入 trace metadata；服务启动时通过 `internal/infrastructure/intakerepo.JSONRepository` 把计划持久化到 `data_lake/runtime/intake/intake_plans.json`。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。QQ/NapCat 已支持 HTTP webhook/test-message/outbound 和可选 OneBot WebSocket reader。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和真实账号群聊 @Bot 实测。
+当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，低风险控制意图先走 Go 本地 fast-path，高置信度固定流程走 Go 本地语义 fast-path，其他消息再调用 Planner 输出直接回复或 ToolCall，并由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。Go 计算出的 `go_intent` 会通过 Python request metadata 传给 `workers/python/agent_runtime`，避免 Python worker 重复粗分类；Python/Mimo 只做二级语义规划和参数细化。Data Intake / Vision 这类带附件的请求有 mandatory tool guard：Mimo/Python planner 必须输出精确单工具计划 `intake.plan` 或 `vlm.inspect`，否则 Go `SessionRunner` 会保留 Go 侧 sub-agent delegation 并回退本地 `RulePlanner`，避免模型临时扩展工具链或破坏必要的数据治理路径。Data Intake 的 quarantine、静态 scan、dry-run plan、pending approval workflow 已经外迁到 `internal/app/intakeapp`，runtime 只调用 intake app 并把 `workflow_id`、`plan_id`、scan 结果摘要和审批边界写入 trace metadata；服务启动时通过 `internal/infrastructure/intakerepo.JSONRepository` 把计划和 workflow 持久化到 `data_lake/runtime/intake`。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。QQ/NapCat 已支持 HTTP webhook/test-message/outbound 和可选 OneBot WebSocket reader。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和真实账号群聊 @Bot 实测。
 
-低延迟策略参考 ccb / Hermes / OpenClaw 的工程做法：明确命令不等待模型，长任务不阻塞入口，普通 chat 用流式首包改善体感，复杂任务才进入结构化 planner。当前 fast-path 覆盖 `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 和 `/bot-help`，这些请求即使启用了 `AGENT_RUNTIME_USE_MIMO=true` 也不会调用 Python/Mimo。
+低延迟策略参考 ccb / Hermes / OpenClaw 的工程做法：明确命令不等待模型，项目身份不让模型自由发挥，长任务不阻塞入口，普通 chat 用流式首包改善体感，复杂任务才进入结构化 planner。当前 fast-path 覆盖 `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-help`、runtime self-description、已知 LocateAnything 下载和 ShanghaiTech smoke 固定工具链；这些请求即使启用了 `AGENT_RUNTIME_USE_MIMO=true` 也不会等待 Python/Mimo。
 
 默认模式不依赖外部模型：
 
@@ -192,7 +197,7 @@ $env:AGENT_RUNTIME_PYTHONPATH="F:\automated_training_model\workers\python"
 ```
 
 Mimo / VLM provider key 只允许放在服务端环境变量或 SecretRef 中，不能写入仓库、前端代码或 channel payload。
-HuggingFace 模型安装不由 Codex 直接执行；Codex 只维护 prompt、skill、tool contract 和测试入口。实际安装流程必须由 Agent Runtime 调用 Mimo 输出 `model.download_hf` / `model.verify_hf` tool-call plan，再由 Go ToolExecutor 受控执行。Mimo 安装提示词见 [AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md](AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md)。
+HuggingFace 模型安装不由 Codex 直接执行；Codex 只维护 prompt、skill、tool contract 和测试入口。实际安装流程必须由 Agent Runtime 生成 `model.download_hf` / `model.verify_hf` tool-call plan，再由 Go ToolExecutor 受控执行。未知模型或不完整参数交给 Mimo planner；已知 `nvidia/LocateAnything-3B` 固定流程可由 Go 本地语义 fast-path 直接生成受控计划。Mimo 安装提示词见 [AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md](AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md)。
 
 当前本机开发策略是 Agent Runtime 默认拥有执行权限：`model.download_hf` 可以创建真实下载任务，但必须以异步 `ModelJob` 形式运行，写入仍被限制在 `data_lake/models/artifacts/huggingface` 目录内，不能写入 Git 路径或任意路径。需要收紧权限时，服务端设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`，此时真实下载必须由 tool-call params 显式包含 `approved=true`。
 
@@ -211,13 +216,13 @@ Mimo 路由规则：
 | 能力 | 当前实现 | 后续替换点 |
 | --- | --- | --- |
 | Session | `DefaultSessionKey(agentId, channel, peer)` + `RuntimeStore`，默认 JSON 持久化到 `data_lake/runtime` | 迁移到 SQLite/Postgres，并增加 context summary |
-| Intent | Go `ClassifyIntent` 规则层；控制命令走本地 fast-path | Python/Mimo planner 做二级语义识别 |
+| Intent | Go `ClassifyIntent` 规则层；控制命令和高置信度固定语义走本地 fast-path；`go_intent` 传入 Python metadata | Python/Mimo planner 做二级语义识别和参数细化 |
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner`；控制命令启用本地 `RulePlanner` 快速计划 | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Schema / Preflight | `internal/app/toolapp` 支持 tool registry、allowed params、risk、approval gate | 接入持久 tool registry 和人工审批队列 |
 | Tool Runner | `internal/app/toolapp.Runner` 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截 | 增加 handler registry 持久化和审批队列联动 |
 | Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow、intake 调用、vision 调用、llm.plan、model MVP handler | 将 `model.*` 外迁到 task/model worker，将 `workflow.*` 外迁到 workflow/task repository |
-| Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
-| Data Intake Plan | `internal/app/intakeapp.DryRunPlanner` 生成 `intake.plan` 或 `vlm.inspect` dry-run 计划；`internal/infrastructure/intakerepo.JSONRepository` 默认持久化到 `data_lake/runtime/intake/intake_plans.json`；ShanghaiTech 数据附件会在 trace metadata 中记录 `plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 将 JSON MVP 推进到 quarantine、scan、approve/register workflow |
+| Model Install | `model.download_hf` / `model.verify_hf` 限制在 data_lake；已知 LocateAnything 固定流程可由 Go 本地语义 fast-path 生成计划，未知模型仍交给 Mimo planner；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
+| Data Intake Workflow | `internal/app/intakeapp` 生成 quarantine、静态 scan、`intake.plan` / `vlm.inspect` dry-run 计划和 pending approval workflow；`internal/infrastructure/intakerepo.JSONRepository` 默认持久化到 `data_lake/runtime/intake`；ShanghaiTech 数据附件会在 trace metadata 中记录 `workflow_id`、`plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 将 JSON MVP 推进到真实文件隔离区、深度 scan、审批队列和正式 dataset registry 写入 |
 | Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
 | Channel | QQ/NapCat webhook/test-message/outbound；可选 OneBot WebSocket reader | 真实账号群聊 @Bot 实测、Telegram、飞书 |
@@ -268,7 +273,7 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 | ART-002 | OneBot 群聊图片消息 | 归一化为 group peer，附件进入 `attachments`。 |
 | ART-003 | `/bot-run dry shanghaitech-original` | 创建 dry-run Agent run，params 包含 `source=qq`。 |
 | ART-004 | 普通文本 | 进入 Agent Runtime，返回当前 runtime 能力说明。 |
-| ART-005 | 附件消息 | 通过 ToolExecutor 生成 dry-run Data Intake Plan 或视觉检查计划，trace 包含 `intake.plan` / `vlm.inspect`，不直接写 Data Lake。 |
+| ART-005 | 附件消息 | 通过 ToolExecutor 生成 Data Intake Workflow 或视觉检查 Workflow，trace 包含 `workflow_id`、`intake.plan` / `vlm.inspect`，不直接写正式 Data Lake。 |
 | ART-006 | 后续 Telegram/飞书 | 只能新增 adapter，不能修改 Agent Runtime 核心行为。 |
 | ART-006b | 启用 Mimo 后发送 `/bot-ping` | 仍由 Go 本地 fast-path 返回 `pong`，不调用 Python/Mimo planner。 |
 
@@ -282,7 +287,7 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 - Go ToolExecutor 权限边界已验证：本机开发默认允许 Agent Runtime 执行 `model.download_hf`；设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 后才会返回 `approval_required`，并要求 `approved=true`。
 - ShanghaiTech original 数据目录已验证存在：`F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original`，顶层包含 `training`、`testing`、`testframemask`。
 - ShanghaiTech 测试计划已验证：当用户要求用 ShanghaiTech original 测试 LocateAnything-3B 时，runtime 会规划 `model.verify_hf` + `model.smoke_locateanything` + `workflow.submit_run(dry_run=true)`，并生成 trace；真实推理仍依赖 GPU/runtime 条件。
-- ShanghaiTech Channel 数据附件 smoke 已验证：`smoke-runtime-mvp.ps1` 会把 `F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original` 作为附件源发送到 QQ test-message，runtime 生成 `intake.plan` trace，并在 metadata 记录 `dataset_name=shanghaitech-original` 与 `source_uri`。
+- ShanghaiTech Channel 数据附件 smoke 已验证：`smoke-runtime-mvp.ps1` 会把 `F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original` 作为附件源发送到 QQ test-message，runtime 生成 `intake.plan` trace 和 intake workflow，并在 metadata 记录 `workflow_id`、`dataset_name=shanghaitech-original` 与 `source_uri`。
 - HuggingFace downloader skill dry-run 已通过：`nvidia/LocateAnything-3B` 的下载路径限制在 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，manifest 路径为 `data_lake/catalog/models/nvidia_LocateAnything-3B.download.json`；dry-run 不创建权重目录。
 - Agent Runtime 真实下载已通过：`runtime-hf-install.ps1 -StartDownload -WaitForCompletion` 通过 Mimo planner 触发 `model.download_hf`，job `model-job-1780371206860804000` 最终 `succeeded`。
 - HuggingFace verify-only 已通过：`download_hf_snapshot.py --verify-only` 显示 `complete=true`、`missing_files=[]`、远端文件数 38、远端总字节 7,795,875,224；本地模型目录仍位于 ignored 的 `data_lake/` 下。

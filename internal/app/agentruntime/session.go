@@ -3,9 +3,11 @@ package agentruntime
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
 
@@ -159,6 +161,9 @@ func (r *DefaultSessionRunner) plan(ctx context.Context, req PlanRequest) (PlanR
 	if shouldUseLocalControlPlan(req.Intent) {
 		return NewRulePlanner().Plan(ctx, req)
 	}
+	if shouldUseLocalSemanticPlan(req.Intent) {
+		return NewRulePlanner().Plan(ctx, req)
+	}
 	plan, err := r.planner.Plan(ctx, req)
 	if err != nil {
 		return PlanResult{}, err
@@ -170,6 +175,12 @@ func (r *DefaultSessionRunner) planStream(ctx context.Context, req PlanRequest, 
 	if shouldUseLocalControlPlan(req.Intent) {
 		if emit != nil {
 			emit(RuntimeStreamEvent{Type: "status", Intent: string(req.Intent.Kind), AgentID: req.Session.AgentID, Message: "local control fast-path"})
+		}
+		return NewRulePlanner().Plan(ctx, req)
+	}
+	if shouldUseLocalSemanticPlan(req.Intent) {
+		if emit != nil {
+			emit(RuntimeStreamEvent{Type: "status", Intent: string(req.Intent.Kind), AgentID: req.Session.AgentID, Message: "local semantic fast-path"})
 		}
 		return NewRulePlanner().Plan(ctx, req)
 	}
@@ -206,10 +217,22 @@ func (r *DefaultSessionRunner) enforceMandatoryPlan(ctx context.Context, req Pla
 
 func shouldUseLocalControlPlan(intent Intent) bool {
 	switch intent.Kind {
-	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun:
+	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun, IntentRuntimeAbout:
 		return true
 	case IntentUnknown:
 		return intent.Command == "/bot-help"
+	default:
+		return false
+	}
+}
+
+func shouldUseLocalSemanticPlan(intent Intent) bool {
+	if isFalseEnv(os.Getenv("AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH")) {
+		return false
+	}
+	switch intent.Kind {
+	case IntentModelInstall, IntentModelTest:
+		return true
 	default:
 		return false
 	}
@@ -232,6 +255,42 @@ func (r *DefaultSessionRunner) ListModelJobs(limit int) []ModelJob {
 		return tools.ListModelJobs(limit)
 	}
 	return nil
+}
+
+func (r *DefaultSessionRunner) ListIntakeWorkflows(ctx context.Context, limit int) ([]intakeapp.IntakeWorkflow, error) {
+	if tools, ok := r.tools.(interface {
+		ListIntakeWorkflows(context.Context, int) ([]intakeapp.IntakeWorkflow, error)
+	}); ok {
+		return tools.ListIntakeWorkflows(ctx, limit)
+	}
+	return nil, fmt.Errorf("intake workflow listing is not supported by this runtime")
+}
+
+func (r *DefaultSessionRunner) GetIntakeWorkflow(ctx context.Context, id string) (intakeapp.IntakeWorkflow, bool, error) {
+	if tools, ok := r.tools.(interface {
+		GetIntakeWorkflow(context.Context, string) (intakeapp.IntakeWorkflow, bool, error)
+	}); ok {
+		return tools.GetIntakeWorkflow(ctx, id)
+	}
+	return intakeapp.IntakeWorkflow{}, false, fmt.Errorf("intake workflow lookup is not supported by this runtime")
+}
+
+func (r *DefaultSessionRunner) ApproveIntakeWorkflow(ctx context.Context, id string, by string, note string) (intakeapp.IntakeWorkflow, error) {
+	if tools, ok := r.tools.(interface {
+		ApproveIntakeWorkflow(context.Context, string, string, string) (intakeapp.IntakeWorkflow, error)
+	}); ok {
+		return tools.ApproveIntakeWorkflow(ctx, id, by, note)
+	}
+	return intakeapp.IntakeWorkflow{}, fmt.Errorf("intake workflow approval is not supported by this runtime")
+}
+
+func (r *DefaultSessionRunner) RegisterIntakeWorkflow(ctx context.Context, id string, by string) (intakeapp.IntakeWorkflow, error) {
+	if tools, ok := r.tools.(interface {
+		RegisterIntakeWorkflow(context.Context, string, string) (intakeapp.IntakeWorkflow, error)
+	}); ok {
+		return tools.RegisterIntakeWorkflow(ctx, id, by)
+	}
+	return intakeapp.IntakeWorkflow{}, fmt.Errorf("intake workflow register is not supported by this runtime")
 }
 
 func (r *DefaultSessionRunner) GetModelJob(id string) (ModelJob, bool) {

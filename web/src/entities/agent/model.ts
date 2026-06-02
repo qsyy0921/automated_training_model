@@ -236,6 +236,23 @@ export interface RuntimeModelJob {
   updated_at: string;
 }
 
+export interface IntakeWorkflow {
+  id: string;
+  status: string;
+  plan: {
+    id: string;
+    dataset_name?: string;
+    risk_level?: string;
+    dry_run: boolean;
+  };
+  attachments?: Array<{ id: string; name?: string; status: string; source_uri?: string }>;
+  scan_reports?: Array<{ attachment_id: string; accepted: boolean; reason?: string }>;
+  approval_required: boolean;
+  registered_dataset_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface RuntimeSnapshot {
   started_at: string;
   updated_at: string;

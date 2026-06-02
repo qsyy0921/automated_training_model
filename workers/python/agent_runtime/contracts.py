@@ -33,6 +33,7 @@ class RuntimeRequest:
     mentioned: bool = False
     attachments: list[Attachment] = field(default_factory=list)
     session_key: str = ""
+    metadata: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "RuntimeRequest":
@@ -48,6 +49,7 @@ class RuntimeRequest:
             mentioned=bool(value.get("mentioned", False)),
             attachments=attachments,
             session_key=str(value.get("session_key") or ""),
+            metadata={str(k): str(v) for k, v in dict(value.get("metadata") or {}).items()},
         )
 
 

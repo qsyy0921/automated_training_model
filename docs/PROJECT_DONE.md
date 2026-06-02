@@ -110,7 +110,9 @@
 - [x] 为 `labelctl agent` 增加等待态进度显示：runtime 请求未返回时显示 `planner-agent working...` 和耗时，减少 Mimo/Planner 请求期间终端无反馈的问题。
 - [x] 参考 `ccb` / Hermes 的低延迟体感，为普通 fast chat 增加 `/api/runtime/stream-message` NDJSON 流式路径：Go `RunStream`、Python worker `stream=true`、Mimo SSE delta 和 CLI 实时 token 输出已闭环；复杂 planner/tool 任务仍保留受控状态事件和最终结果。
 - [x] 参考 `ccb` / Hermes / OpenClaw 的本地控制路径，为 `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 和 `/bot-help` 增加 Go fast-path；即使启用 Mimo，也不会等待 Python/Mimo planner。
+- [x] 继续按 `ccb` / Hermes 的低延迟方式拆分 Agent Runtime 意图层：Go `ClassifyIntent` 负责统一入口快速分类，runtime self-description、已知 LocateAnything 下载和 ShanghaiTech smoke 固定流程走本地语义 fast-path；`go_intent` 通过 metadata 传给 Python worker，Python/Mimo 只做二级语义规划和参数细化。
 - [x] 新增 Gateway 访问保护：`internal/infrastructure/middleware.GatewayAuth` 默认允许 loopback 开发访问，非 loopback `/api/` 需要 `ATM_GATEWAY_TOKEN` / `GATEWAY_AUTH_TOKEN`，支持 `ATM_ALLOWED_ORIGINS`，runtime/desktop status 只暴露脱敏 auth profile。
 - [x] `labelctl` 和 `cmd/agentdesktop` 支持 `-token`，默认读取 `ATM_GATEWAY_TOKEN` / `GATEWAY_AUTH_TOKEN`，用于远程 Gateway profile 的最小连接验证。
 - [x] 加固 data-intake / vision 附件治理：Mimo/Python planner 必须输出精确单工具计划 `intake.plan` 或 `vlm.inspect`，否则 Go `SessionRunner` 会保留 Go 侧 sub-agent delegation 并回退到本地 `RulePlanner`。
 - [x] 为 Agent Runtime `ModelJob` 增加阶段进度、生命周期日志、取消请求和手动 resume child job：新增 `GET /api/runtime/model-jobs/{id}`、`POST /cancel`、`POST /resume`，以及 `labelctl runtime job/cancel-job/resume-job`。
+- [x] 将 `intakeapp` 推进到 intake workflow MVP：QQ/Web 附件进入 quarantine、静态 metadata scan、Data Intake Plan、pending approval；新增 workflow JSON 持久化、Gateway 查询/approve/register API、CLI `runtime intake/approve-intake/register-intake` 和 Web Agent Overview 只读面板。

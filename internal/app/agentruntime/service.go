@@ -13,6 +13,7 @@ import (
 const defaultWorkflowID = "data-to-deployment-lifecycle"
 
 var ErrUnsupportedModelJobAction = errors.New("model job action is not supported by this runtime")
+var ErrUnsupportedIntakeWorkflowAction = errors.New("intake workflow action is not supported by this runtime")
 
 type AgentControlPlane interface {
 	SubmitWorkflowRun(ctx context.Context, req agent.RunRequest) (agent.WorkflowRun, error)
@@ -98,6 +99,42 @@ func (s *Service) ListModelJobs(limit int) []ModelJob {
 		return runner.ListModelJobs(limit)
 	}
 	return nil
+}
+
+func (s *Service) ListIntakeWorkflows(ctx context.Context, limit int) ([]intakeapp.IntakeWorkflow, error) {
+	if runner, ok := s.runner.(interface {
+		ListIntakeWorkflows(context.Context, int) ([]intakeapp.IntakeWorkflow, error)
+	}); ok {
+		return runner.ListIntakeWorkflows(ctx, limit)
+	}
+	return nil, ErrUnsupportedIntakeWorkflowAction
+}
+
+func (s *Service) GetIntakeWorkflow(ctx context.Context, id string) (intakeapp.IntakeWorkflow, bool, error) {
+	if runner, ok := s.runner.(interface {
+		GetIntakeWorkflow(context.Context, string) (intakeapp.IntakeWorkflow, bool, error)
+	}); ok {
+		return runner.GetIntakeWorkflow(ctx, id)
+	}
+	return intakeapp.IntakeWorkflow{}, false, ErrUnsupportedIntakeWorkflowAction
+}
+
+func (s *Service) ApproveIntakeWorkflow(ctx context.Context, id string, by string, note string) (intakeapp.IntakeWorkflow, error) {
+	if runner, ok := s.runner.(interface {
+		ApproveIntakeWorkflow(context.Context, string, string, string) (intakeapp.IntakeWorkflow, error)
+	}); ok {
+		return runner.ApproveIntakeWorkflow(ctx, id, by, note)
+	}
+	return intakeapp.IntakeWorkflow{}, ErrUnsupportedIntakeWorkflowAction
+}
+
+func (s *Service) RegisterIntakeWorkflow(ctx context.Context, id string, by string) (intakeapp.IntakeWorkflow, error) {
+	if runner, ok := s.runner.(interface {
+		RegisterIntakeWorkflow(context.Context, string, string) (intakeapp.IntakeWorkflow, error)
+	}); ok {
+		return runner.RegisterIntakeWorkflow(ctx, id, by)
+	}
+	return intakeapp.IntakeWorkflow{}, ErrUnsupportedIntakeWorkflowAction
 }
 
 func (s *Service) GetModelJob(id string) (ModelJob, bool) {

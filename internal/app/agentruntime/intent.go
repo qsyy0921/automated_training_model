@@ -16,6 +16,9 @@ const (
 	IntentListRuns      IntentKind = "list_runs"
 	IntentSubmitDryRun  IntentKind = "submit_dry_run"
 	IntentDataIntake    IntentKind = "data_intake"
+	IntentRuntimeAbout  IntentKind = "runtime_about"
+	IntentModelInstall  IntentKind = "model_install"
+	IntentModelTest     IntentKind = "model_test"
 	IntentChat          IntentKind = "chat"
 )
 
@@ -45,6 +48,34 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 	}
 	if text == "" {
 		return Intent{Kind: IntentUnknown, Confidence: 1}
+	}
+	if runtimeAboutText(text) {
+		return Intent{
+			Kind:       IntentRuntimeAbout,
+			RawText:    text,
+			SkillID:    "runtime-self-description",
+			Confidence: 0.95,
+			Metadata:   map[string]string{"local_fast_path": "true"},
+		}
+	}
+	if modelTestText(text) {
+		return Intent{
+			Kind:       IntentModelTest,
+			RawText:    text,
+			DatasetID:  inferredDatasetID(text),
+			SkillID:    "model-validation",
+			ToolID:     "model.smoke_locateanything",
+			Confidence: 0.9,
+		}
+	}
+	if modelInstallText(text) {
+		return Intent{
+			Kind:       IntentModelInstall,
+			RawText:    text,
+			SkillID:    "huggingface-model-downloader",
+			ToolID:     "model.download_hf",
+			Confidence: 0.9,
+		}
 	}
 	if !strings.HasPrefix(text, "/") {
 		return Intent{
@@ -84,4 +115,49 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 		intent.Kind = IntentUnknown
 	}
 	return intent
+}
+
+func runtimeAboutText(text string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(text))
+	normalized = strings.ReplaceAll(normalized, " ", "")
+	if normalized == "你好" || normalized == "你哈" || normalized == "hello" || normalized == "hi" {
+		return true
+	}
+	for _, marker := range []string{
+		"你是谁",
+		"你是什么",
+		"介绍一下你自己",
+		"你能做什么",
+		"当前能力",
+		"runtime能做什么",
+		"agent能做什么",
+	} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func modelInstallText(text string) bool {
+	normalized := strings.ToLower(text)
+	hasModel := strings.Contains(normalized, "huggingface") || strings.Contains(normalized, "locateanything") || strings.Contains(normalized, "模型")
+	hasAction := strings.Contains(normalized, "下载") || strings.Contains(normalized, "安装") || strings.Contains(normalized, "download") || strings.Contains(normalized, "install")
+	return hasModel && hasAction
+}
+
+func modelTestText(text string) bool {
+	normalized := strings.ToLower(text)
+	hasModel := strings.Contains(normalized, "locateanything")
+	hasDataset := strings.Contains(normalized, "shanghaitech") || strings.Contains(normalized, "上海")
+	hasAction := strings.Contains(normalized, "测试") || strings.Contains(normalized, "验证") || strings.Contains(normalized, "dry-run") || strings.Contains(normalized, "dry run") || strings.Contains(normalized, "smoke")
+	return hasModel && hasDataset && hasAction
+}
+
+func inferredDatasetID(text string) string {
+	normalized := strings.ToLower(text)
+	if strings.Contains(normalized, "shanghaitech") || strings.Contains(normalized, "上海") {
+		return "shanghaitech-original"
+	}
+	return ""
 }

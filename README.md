@@ -62,8 +62,8 @@ Model & Data Training Platform
 - Agent Runtime session/trace 默认持久化到 `data_lake/runtime`，Web/CLI/桌面端/QQ 共用同一份运行态审计记录。
 - Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前未完成的下载任务会恢复为 `interrupted`，重新提交后可利用 HuggingFace cache 继续。
 - Tool schema / preflight / runner 已拆到 `internal/app/toolapp`：未注册工具、未知参数、高风险审批缺失和缺失 handler 会在具体执行前被拦截。
-- Data Intake Plan 的 dry-run 构造已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，并把 `plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划默认持久化到 `data_lake/runtime/intake/intake_plans.json`。
-- Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
+- Data Intake Workflow 的 MVP 已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，完成附件 quarantine、静态 scan、dry-run plan 和 pending approval workflow，并把 `workflow_id`、`plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划和 workflow 默认持久化到 `data_lake/runtime/intake`。
+- Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令、runtime self-description 和已知 LocateAnything 固定流程走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
 
 ## Agent 生命周期
 
@@ -117,7 +117,7 @@ atm:03 planner-agent> /exit
 /exit        退出
 ```
 
-等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行当前仍以状态事件 + 最终结果为主，实时 tool progress streaming 仍在 TODO 中。
+等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行当前仍以状态事件 + 最终结果为主，实时 tool progress streaming 仍在 TODO 中。
 
 也可以使用一次性命令：
 
@@ -141,7 +141,7 @@ atm:03 planner-agent> /exit
 | 入口 | 当前能力 | 验证方式 |
 | --- | --- | --- |
 | Web | Agent Overview 查看 runtime status、sessions、traces、model jobs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
-| CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务 | `labelctl runtime status/sessions/traces/model-jobs/job/cancel-job/resume-job/send` |
+| CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务、查看/审批/注册 intake workflow | `labelctl runtime status/sessions/traces/model-jobs/job/cancel-job/resume-job/intake/approve-intake/register-intake/send` |
 | 桌面端 | 复用 Gateway runtime snapshot | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870` |
 | QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发；也可启用 OneBot WebSocket reader 长连接 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message`、`QQ_ONEBOT_WS_ENABLED=true` |
 
@@ -172,7 +172,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-ins
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
 ```
 
-该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent` 并产生 `vlm.inspect` trace、ShanghaiTech 数据附件进入 `data-intake-agent` 并产生 `intake.plan` trace metadata；随后重启 labelserver，确认 session/trace 和 intake plan 能从 JSON store 恢复。
+该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent` 并产生 `vlm.inspect` trace、ShanghaiTech 数据附件进入 `data-intake-agent` 并产生 `intake.plan` trace metadata 和 intake workflow；随后重启 labelserver，确认 session/trace、intake plan 和 intake workflow 能从 JSON store 恢复。
 
 `runtime-hf-install.ps1` 默认只做 Mimo -> Agent Runtime -> `model.download_hf` 预检，并通过审批边界停在 `approval_required`，不会下载权重；只有显式传入 `-StartDownload -WaitForCompletion` 才会开始真实 7GB 级模型下载。当前本机已通过 Agent Runtime 下载并 verify-only 校验 `nvidia/LocateAnything-3B`，本地路径为 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，该目录在 `data_lake/` 下，不进入 Git。
 
@@ -183,9 +183,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locatean
 | 场景 | 默认处理 |
 | --- | --- |
 | `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` | Go control plane 直接处理，不使用 sub-agent |
+| 项目身份/能力说明、已知 LocateAnything 固定流程 | Go 本地语义 fast-path；模型下载/测试仍通过 ToolExecutor 受控执行 |
 | 普通自然语言请求 | `planner-agent`，负责意图细化和 tool-call plan |
 | QQ/Web 上传图片、截图、异常帧 | `vision-agent`，走 Mimo `mimo-v2.5` 视觉路由 |
-| QQ/Web 上传 zip、manifest、目录索引或数据附件 | `data-intake-agent`，通过 ToolExecutor 生成 dry-run Data Intake Plan，trace metadata 记录 `plan_id`、`dataset_name`、`source_uri` 和审批边界 |
+| QQ/Web 上传 zip、manifest、目录索引或数据附件 | `data-intake-agent`，通过 ToolExecutor 调用 `intakeapp` 生成 quarantine/scan/plan/pending approval workflow，trace metadata 记录 `workflow_id`、`plan_id`、`dataset_name`、`source_uri` 和审批边界 |
 | 训练、评估、部署等长流程 | `training-agent` / 后续 release agent，只规划并通过 ToolExecutor/Workflow 执行 |
 | 成功 trace 总结可复用 skill | `skill-miner-agent`，默认关闭，只生成草稿，人工审批后启用 |
 
@@ -230,7 +231,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-api
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-planner.ps1
 ```
 
-文本规划默认使用 `mimo-v2.5-pro`，视觉理解默认使用 `mimo-v2.5`。普通聊天默认走 fast chat，`AGENT_RUNTIME_FAST_CHAT=false` 可关闭；`AGENT_RUNTIME_PYTHON_WORKER=false` 可把 Python planner 从常驻 worker 回退到单次 spawn 模式。
+文本规划默认使用 `mimo-v2.5-pro`，视觉理解默认使用 `mimo-v2.5`。普通聊天默认走 fast chat，`AGENT_RUNTIME_FAST_CHAT=false` 可关闭；已知 LocateAnything 固定流程默认走 Go 本地语义 fast-path，`AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可强制回到 Mimo planner；`AGENT_RUNTIME_PYTHON_WORKER=false` 可把 Python planner 从常驻 worker 回退到单次 spawn 模式。
 
 模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态、进度、日志、取消标记和恢复关系持久化到 `data_lake/runtime/model_jobs.json`。可通过 `runtime model-jobs` 查看列表，`runtime job <job_id>` 查看详情，`runtime cancel-job <job_id>` 请求取消，`runtime resume-job <job_id>` 基于 HuggingFace cache 新建恢复任务。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
 
@@ -375,4 +376,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化、intake plan JSON 持久化、tool schema/preflight/runner 边界、intake dry-run planner 外迁、Go 控制命令 fast-path、Mimo fast chat、常驻 Python planner worker 和 CLI fast chat token streaming；下一阶段重点是 tool progress streaming、durable queue、`model.*`/`workflow.*` handler 外迁、model job 进度日志/取消/自动 resume、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker 和 CLI fast chat token streaming；下一阶段重点是 tool progress streaming、durable queue、`model.*`/`workflow.*` handler 外迁、逐文件日志流、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

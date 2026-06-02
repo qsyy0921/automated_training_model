@@ -28,6 +28,23 @@ def decide_sub_agent(intent: Intent, request: RuntimeRequest) -> DelegationDecis
             skill_id=intent.skill_id,
             tool_id=intent.tool_id,
         )
+    if intent.kind == "runtime_about":
+        return DelegationDecision(
+            use_sub_agent=False,
+            reason="local runtime self-description handled by Go control plane",
+            skill_id=intent.skill_id,
+            tool_id=intent.tool_id,
+        )
+    if intent.kind in {"model_install", "model_test"}:
+        return DelegationDecision(
+            use_sub_agent=True,
+            agent_id="model-agent",
+            reason="model lifecycle requests need controlled worker tools and observable jobs",
+            required_capabilities=["model-download", "model-verify", "smoke-test"],
+            skill_id=intent.skill_id,
+            tool_id=intent.tool_id,
+            model_route="text-planning",
+        )
     if intent.kind == "data_intake":
         if _has_visual_attachment(request):
             return DelegationDecision(
