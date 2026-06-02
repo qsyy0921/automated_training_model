@@ -28,17 +28,18 @@ type StreamingToolExecutorPort interface {
 }
 
 type RuntimeStreamEvent struct {
-	Type      string   `json:"type"`
-	Delta     string   `json:"delta,omitempty"`
-	Text      string   `json:"text,omitempty"`
-	Status    string   `json:"status,omitempty"`
-	Message   string   `json:"message,omitempty"`
-	Intent    string   `json:"intent,omitempty"`
-	AgentID   string   `json:"agent_id,omitempty"`
-	ToolIDs   []string `json:"tool_ids,omitempty"`
-	ToolID    string   `json:"tool_id,omitempty"`
-	Session   string   `json:"session,omitempty"`
-	ElapsedMS int64    `json:"elapsed_ms,omitempty"`
+	Type          string         `json:"type"`
+	Delta         string         `json:"delta,omitempty"`
+	Text          string         `json:"text,omitempty"`
+	Status        string         `json:"status,omitempty"`
+	Message       string         `json:"message,omitempty"`
+	Intent        string         `json:"intent,omitempty"`
+	AgentID       string         `json:"agent_id,omitempty"`
+	ToolIDs       []string       `json:"tool_ids,omitempty"`
+	ToolID        string         `json:"tool_id,omitempty"`
+	Session       string         `json:"session,omitempty"`
+	ElapsedMS     int64          `json:"elapsed_ms,omitempty"`
+	ErrorEnvelope *ErrorEnvelope `json:"error_envelope,omitempty"`
 }
 
 type PlanRequest struct {

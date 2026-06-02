@@ -60,7 +60,8 @@ func (s *Service) HandleChannelMessageStream(ctx context.Context, msg channel.In
 	reply, err := s.runner.Run(ctx, msg)
 	if emit != nil {
 		if err != nil {
-			emit(RuntimeStreamEvent{Type: "error", Message: err.Error(), Status: "failed"})
+			envelope := ErrorEnvelopeFromStatus("failed", "agent-runtime", err)
+			emit(RuntimeStreamEvent{Type: "error", Message: envelope.Message, Status: "failed", ErrorEnvelope: &envelope})
 		} else {
 			emit(RuntimeStreamEvent{Type: "final", Text: reply.Text, Status: "ok"})
 		}

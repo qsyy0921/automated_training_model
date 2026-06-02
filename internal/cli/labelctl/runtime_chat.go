@@ -177,17 +177,25 @@ type runtimeModelJob struct {
 }
 
 type runtimeStreamEvent struct {
-	Type      string   `json:"type"`
-	Delta     string   `json:"delta,omitempty"`
-	Text      string   `json:"text,omitempty"`
-	Status    string   `json:"status,omitempty"`
-	Message   string   `json:"message,omitempty"`
-	Intent    string   `json:"intent,omitempty"`
-	AgentID   string   `json:"agent_id,omitempty"`
-	ToolIDs   []string `json:"tool_ids,omitempty"`
-	ToolID    string   `json:"tool_id,omitempty"`
-	Session   string   `json:"session,omitempty"`
-	ElapsedMS int64    `json:"elapsed_ms,omitempty"`
+	Type          string                `json:"type"`
+	Delta         string                `json:"delta,omitempty"`
+	Text          string                `json:"text,omitempty"`
+	Status        string                `json:"status,omitempty"`
+	Message       string                `json:"message,omitempty"`
+	Intent        string                `json:"intent,omitempty"`
+	AgentID       string                `json:"agent_id,omitempty"`
+	ToolIDs       []string              `json:"tool_ids,omitempty"`
+	ToolID        string                `json:"tool_id,omitempty"`
+	Session       string                `json:"session,omitempty"`
+	ElapsedMS     int64                 `json:"elapsed_ms,omitempty"`
+	ErrorEnvelope *runtimeErrorEnvelope `json:"error_envelope,omitempty"`
+}
+
+type runtimeErrorEnvelope struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Source    string `json:"source"`
+	Retryable bool   `json:"retryable"`
 }
 
 func newRuntimeChat(cfg Config, in io.Reader, out io.Writer, errOut io.Writer) *runtimeChat {
@@ -467,7 +475,7 @@ func (c *runtimeChat) postRuntimeMessageStream(input string, started time.Time) 
 			if statusRendered && !startedPanel {
 				fmt.Fprint(c.out, "\r\x1b[2K")
 			}
-			return runtimeSendResponse{}, 0, startedPanel, errors.New(valueOr(event.Message, "runtime stream failed"))
+			return runtimeSendResponse{}, 0, startedPanel, errors.New(runtimeStreamErrorMessage(event))
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -559,6 +567,13 @@ func toolProgressLine(event runtimeStreamEvent) string {
 	}
 	status := valueOr(event.Status, "running")
 	return fmt.Sprintf("  • tool=%s status=%s %s", tool, status, message)
+}
+
+func runtimeStreamErrorMessage(event runtimeStreamEvent) string {
+	if event.ErrorEnvelope != nil && strings.TrimSpace(event.ErrorEnvelope.Message) != "" {
+		return event.ErrorEnvelope.Message
+	}
+	return valueOr(event.Message, "runtime stream failed")
 }
 
 func modelJobLogLine(log runtimeModelJobLog) string {

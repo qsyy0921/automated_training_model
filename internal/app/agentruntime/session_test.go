@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -47,6 +48,12 @@ func (f *multiToolPlanner) Plan(ctx context.Context, req PlanRequest) (PlanResul
 	}, nil
 }
 
+type failingPlanner struct{}
+
+func (f failingPlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) {
+	return PlanResult{}, errors.New("planner unavailable")
+}
+
 type fakeTools struct {
 	got ToolExecutionRequest
 }
@@ -71,6 +78,12 @@ func (f *streamingFakeTools) ExecuteStream(ctx context.Context, req ToolExecutio
 		emit(RuntimeStreamEvent{Type: "tool_progress", ToolID: "runtime.health", ToolIDs: []string{"runtime.health"}, Status: "running", Message: "tool_start: running tool handler"})
 	}
 	return ToolExecutionResult{ReplyText: "ok", Status: "ok"}, nil
+}
+
+type failingTools struct{}
+
+func (f failingTools) Execute(ctx context.Context, req ToolExecutionRequest) (ToolExecutionResult, error) {
+	return ToolExecutionResult{}, errors.New("tool runner failed")
 }
 
 func TestSessionRunnerPassesPlanToToolExecutor(t *testing.T) {
@@ -132,6 +145,56 @@ func TestSessionRunnerStreamsToolProgress(t *testing.T) {
 	}
 	if !foundProgress {
 		t.Fatalf("expected tool_progress event with session, got %+v", events)
+	}
+}
+
+func TestSessionRunnerStreamsPlanningErrorEnvelope(t *testing.T) {
+	svc := NewServiceWithPorts(failingPlanner{}, &fakeTools{}, func() time.Time { return time.Unix(0, 0) })
+	events := []RuntimeStreamEvent{}
+	_, err := svc.HandleChannelMessageStream(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "请分析一个新需求",
+	}, func(event RuntimeStreamEvent) {
+		events = append(events, event)
+	})
+	if err == nil {
+		t.Fatal("expected planning error")
+	}
+	errorEvent := findRuntimeEvent(events, "error")
+	if errorEvent.ErrorEnvelope == nil {
+		t.Fatalf("expected error envelope, got %+v", events)
+	}
+	if errorEvent.ErrorEnvelope.Code != "runtime.planning_failed" || errorEvent.ErrorEnvelope.Source != "planner-agent" {
+		t.Fatalf("unexpected error envelope: %+v", errorEvent.ErrorEnvelope)
+	}
+}
+
+func TestSessionRunnerStreamsToolErrorEnvelope(t *testing.T) {
+	svc := NewServiceWithPorts(&fakePlanner{}, failingTools{}, func() time.Time { return time.Unix(0, 0) })
+	events := []RuntimeStreamEvent{}
+	_, err := svc.HandleChannelMessageStream(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "帮我检查运行时",
+	}, func(event RuntimeStreamEvent) {
+		events = append(events, event)
+	})
+	if err == nil {
+		t.Fatal("expected tool error")
+	}
+	errorEvent := findRuntimeEvent(events, "error")
+	if errorEvent.ErrorEnvelope == nil {
+		t.Fatalf("expected error envelope, got %+v", events)
+	}
+	if errorEvent.ErrorEnvelope.Code != "runtime.tool_failed" || errorEvent.ErrorEnvelope.Source != "planner-agent" {
+		t.Fatalf("unexpected error envelope: %+v", errorEvent.ErrorEnvelope)
 	}
 }
 
@@ -321,4 +384,13 @@ func TestDefaultSessionKeyFallsBackToSender(t *testing.T) {
 	if key != "agent:planner-agent:qq:direct:sender-1" {
 		t.Fatalf("unexpected session key: %s", key)
 	}
+}
+
+func findRuntimeEvent(events []RuntimeStreamEvent, eventType string) RuntimeStreamEvent {
+	for _, event := range events {
+		if event.Type == eventType {
+			return event
+		}
+	}
+	return RuntimeStreamEvent{}
 }

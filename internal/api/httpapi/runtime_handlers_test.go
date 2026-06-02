@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,5 +60,25 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, `"type":"log"`) || !strings.Contains(body, `"type":"final"`) || !strings.Contains(body, `"status":"succeeded"`) {
 		t.Fatalf("unexpected stream body: %s", body)
+	}
+}
+
+func TestRuntimeModelJobNotFoundReturnsErrorEnvelope(t *testing.T) {
+	server := &Server{runtime: agentruntime.NewServiceWithRunner(fakeRuntimeRunner{job: agentruntime.ModelJob{ID: "job1"}})}
+	req := httptest.NewRequest(http.MethodGet, "/api/runtime/model-jobs/missing", nil)
+	rec := httptest.NewRecorder()
+	server.runtimeModelJobDetail(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Error         string                     `json:"error"`
+		ErrorEnvelope agentruntime.ErrorEnvelope `json:"error_envelope"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("parse response: %v\n%s", err, rec.Body.String())
+	}
+	if payload.Error == "" || payload.ErrorEnvelope.Code != "gateway.not_found" || payload.ErrorEnvelope.Source != "gateway" {
+		t.Fatalf("unexpected error envelope: %+v body=%s", payload, rec.Body.String())
 	}
 }

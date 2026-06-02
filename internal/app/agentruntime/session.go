@@ -127,8 +127,9 @@ func (r *DefaultSessionRunner) RunStream(ctx context.Context, msg channel.Inboun
 	planReq := PlanRequest{Message: msg, Session: session, Intent: intent, Delegation: delegation}
 	plan, err := r.planStream(ctx, planReq, safeEmit)
 	if err != nil {
+		envelope := ErrorEnvelopeFromStatus("planning_failed", session.AgentID, err)
 		r.record(session, msg, intent, nil, "planning_failed", "", err.Error(), nil)
-		safeEmit(RuntimeStreamEvent{Type: "error", Status: "planning_failed", Message: err.Error(), Intent: string(intent.Kind), AgentID: session.AgentID, ElapsedMS: r.now().Sub(started).Milliseconds()})
+		safeEmit(RuntimeStreamEvent{Type: "error", Status: "planning_failed", Message: envelope.Message, Intent: string(intent.Kind), AgentID: session.AgentID, ElapsedMS: r.now().Sub(started).Milliseconds(), ErrorEnvelope: &envelope})
 		return channel.OutboundMessage{}, err
 	}
 	if len(plan.ToolCalls) == 0 {
@@ -163,8 +164,9 @@ func (r *DefaultSessionRunner) RunStream(ctx context.Context, msg channel.Inboun
 		result, err = r.tools.Execute(ctx, toolReq)
 	}
 	if err != nil {
+		envelope := ErrorEnvelopeFromStatus("tool_failed", session.AgentID, err)
 		r.record(session, msg, plan.Intent, plan.ToolCalls, "tool_failed", "", err.Error(), nil)
-		safeEmit(RuntimeStreamEvent{Type: "error", Status: "tool_failed", Message: err.Error(), Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), ElapsedMS: r.now().Sub(started).Milliseconds()})
+		safeEmit(RuntimeStreamEvent{Type: "error", Status: "tool_failed", Message: envelope.Message, Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), ElapsedMS: r.now().Sub(started).Milliseconds(), ErrorEnvelope: &envelope})
 		return channel.OutboundMessage{}, err
 	}
 	reply.Text = result.ReplyText

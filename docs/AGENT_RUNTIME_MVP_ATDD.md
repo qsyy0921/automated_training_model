@@ -196,7 +196,15 @@ Then 在 `final` 事件前至少输出 `tool_progress`，并包含 tool id、sta
 
 证据：`internal/app/toolapp/runner_test.go`、`internal/app/agentruntime/session_test.go` 和 `internal/cli/labelctl/runtime_chat_test.go`。
 
-### ATDD-016 Git 安全边界
+### ATDD-016 Runtime / Gateway error envelope
+
+Given planner、tool 或 Gateway API 发生错误
+When runtime stream 或 HTTP JSON 返回错误
+Then 响应保留兼容的 `error` 字符串，同时提供 `error_envelope.code`、`message`、`source`、`retryable`；CLI 优先显示 envelope message。
+
+证据：`internal/app/agentruntime/errors_test.go`、`internal/app/agentruntime/session_test.go`、`internal/api/httpapi/runtime_handlers_test.go` 和 `internal/cli/labelctl/runtime_chat_test.go`。
+
+### ATDD-017 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -228,4 +236,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-013 | 已覆盖 | `schema_test.go` + `service_test.go` |
 | ATDD-014 | 已覆盖 | `service_test.go` + `runtime_handlers_test.go` + `domain_commands_test.go` |
 | ATDD-015 | 已覆盖 | `runner_test.go` + `session_test.go` + `runtime_chat_test.go` |
-| ATDD-016 | 每次提交前执行 | rg + git status |
+| ATDD-016 | 已覆盖 | `errors_test.go` + `session_test.go` + `runtime_handlers_test.go` + `runtime_chat_test.go` |
+| ATDD-017 | 每次提交前执行 | rg + git status |

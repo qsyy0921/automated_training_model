@@ -28,5 +28,13 @@ type BoxesResponse struct {
 }
 
 type ErrorResponse struct {
-	Error string `json:"error"`
+	Error         string        `json:"error"`
+	ErrorEnvelope ErrorEnvelope `json:"error_envelope,omitempty"`
+}
+
+type ErrorEnvelope struct {
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Source    string `json:"source"`
+	Retryable bool   `json:"retryable"`
 }

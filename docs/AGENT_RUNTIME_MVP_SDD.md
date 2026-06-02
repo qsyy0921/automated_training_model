@@ -59,6 +59,7 @@ Workers and Providers
 | Runtime Service | `internal/app/agentruntime/service.go` | 入口门面 | 不堆业务分支 |
 | Session Runner | `session.go` | session key、router 选择、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
 | Runtime Router | `router.go` | 参考 CCB/Hermes 的混合路由方式，先判定 local control、local semantic、external planner 三类路径 | 不执行工具，不保存状态 |
+| Error Envelope | `errors.go`、`ports.go`、`internal/api/httpapi/server.go` | runtime stream 和 Gateway JSON error 的结构化错误契约：`code`、`message`、`source`、`retryable` | 保留旧 `error` 字符串兼容；不暴露 token、prompt 或密钥 |
 | PlannerPort | `planner.go`、`python_planner.go` | 规则计划和 Python/Mimo 计划 | 不执行副作用 |
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
@@ -117,6 +118,8 @@ Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 
 Go `RuntimeRouter` 会在进入 PlannerPort 前选择 `local_control`、`local_semantic` 或 `external_planner`。Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 已覆盖 `status`、`tool_start`、`tool_progress` 和 `final`；`tool_progress` 来自 `internal/app/toolapp.Runner` 的 preflight、handler start/done、blocked/error 事件，再由 `GoToolExecutor` 映射为 runtime NDJSON。下一步需要把审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
 
 交互式 `labelctl agent` 也必须能在同一 shell 内观测长任务，避免用户离开 Agent CLI 再开第二套命令。`/job <id>`、`/job-logs <id>` 和 `/follow-job <id>` 只访问 Gateway 的 `/api/runtime/model-jobs/*` 与 `/logs/stream`，不直接读取 `data_lake`，不绕过 runtime store 和权限中间件。
+
+错误契约采用兼容扩展：HTTP JSON 错误保留 `error` 字符串并新增 `error_envelope`；runtime NDJSON `error` 事件同样携带 `error_envelope`。CLI 优先显示 envelope 中的 `message`，而自动化测试可以使用 `code`、`source` 和 `retryable` 做稳定断言。
 
 ## 8. HuggingFace 模型下载边界
 

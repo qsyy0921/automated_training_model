@@ -32,6 +32,7 @@
 - [x] 将 Data Intake Plan 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/intake/intake_plans.json`，smoke 覆盖 ShanghaiTech plan 写入和重启后保留。
 - [x] 新增 `internal/app/toolapp`，固化 tool schema、参数白名单、risk level 和 approval/preflight gate。
 - [x] 将 `GoToolExecutor` 的执行循环迁移到 `internal/app/toolapp.Runner`，由 runner 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截。
+- [x] 增加 runtime/gateway 统一 `error_envelope`：HTTP JSON error 保留旧 `error` 字段并新增结构化 code/source/retryable；runtime stream error 事件和 CLI 也使用同一契约。
 - [x] 将 `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析外迁到 `internal/app/modelruntime`，`GoToolExecutor` 只保留注册、审批、异步 job 生命周期和结果适配。
 - [ ] 将 `GoToolExecutor` 剩余具体工具 handler 继续迁移到独立 app/worker：`modelruntime` 后续接统一 task/model worker，`runtimeworkflow` 后续接正式 workflow/task repository，`vlm.inspect` 后续接入真实 VLM worker。
 - [x] 将 `intake.plan` / `vlm.inspect` 的 dry-run Data Intake Plan 构造外迁到 `internal/app/intakeapp`，runtime 只负责 tool handler 调用和 trace metadata。

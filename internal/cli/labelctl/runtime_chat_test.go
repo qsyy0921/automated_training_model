@@ -38,6 +38,20 @@ func TestToolProgressLinePrefersSingleToolID(t *testing.T) {
 	}
 }
 
+func TestRuntimeStreamErrorMessagePrefersEnvelope(t *testing.T) {
+	got := runtimeStreamErrorMessage(runtimeStreamEvent{
+		Message: "plain error",
+		ErrorEnvelope: &runtimeErrorEnvelope{
+			Code:    "runtime.planning_failed",
+			Message: "planner unavailable",
+			Source:  "planner-agent",
+		},
+	})
+	if got != "planner unavailable" {
+		t.Fatalf("runtimeStreamErrorMessage() = %q", got)
+	}
+}
+
 func TestModelJobLogLineFormatsLifecycleLog(t *testing.T) {
 	got := modelJobLogLine(runtimeModelJobLog{
 		At:      "2026-06-03T12:34:56Z",

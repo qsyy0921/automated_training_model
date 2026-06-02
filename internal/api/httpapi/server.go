@@ -535,7 +535,16 @@ func writeError(w http.ResponseWriter, status int, err error) {
 }
 
 func writeErrorText(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, types.ErrorResponse{Error: msg})
+	envelope := agentruntime.ErrorEnvelopeFromHTTPStatus(status, msg)
+	writeJSON(w, status, types.ErrorResponse{
+		Error: msg,
+		ErrorEnvelope: types.ErrorEnvelope{
+			Code:      envelope.Code,
+			Message:   envelope.Message,
+			Source:    envelope.Source,
+			Retryable: envelope.Retryable,
+		},
+	})
 }
 
 func extractZip(src string, dst string) error {
