@@ -139,6 +139,8 @@ atm:03 planner-agent> /exit
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 doctor
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 skill drafts
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 skill approve-draft qq-data-intake-demo -by operator -note "reviewed"
 ```
 
 ### 四入口 Runtime 闭环

@@ -139,6 +139,6 @@ Invoke-RestMethod http://127.0.0.1:7870/api/channels/qq/onebot -Method Post -Con
 | EP-004 | Web `/` | 首屏是 Agent Overview，不再只显示视频审核页面。 |
 | EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`，并通过 sessions/traces/jobs/send 命令复用同一 Gateway runtime。 |
 | EP-005b | `labelctl dataset/models/deploy/logs/doctor` | 领域命令组复用现有 Gateway API，不绕过 Agent Runtime / lifecycle / task 边界。 |
-| EP-006 | `labelctl skill draft ...` | 写入 draft-only `SKILL.md`，`enabled=false`。 |
-| EP-007 | `smoke-agent-entrypoints.ps1` | 自动启动服务并验证 CLI、QQ webhook、desktop 和 skill draft。 |
+| EP-006 | `labelctl skill draft ...` / `skill approve-draft ...` | 写入 draft `SKILL.md` 和 `approval.json`，`enabled=false`，不自动启用。 |
+| EP-007 | `smoke-agent-entrypoints.ps1` | 自动启动服务并验证 CLI、QQ webhook、desktop、skill draft list 和人工审批记录。 |
 | EP-008 | `smoke-runtime-mvp.ps1` | 验证四入口同 runtime、sub-agent routing、model-jobs API、`vlm.inspect` trace 和带 metadata 的 ShanghaiTech `intake.plan`。 |

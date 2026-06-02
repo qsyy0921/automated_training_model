@@ -121,3 +121,4 @@
 - [x] 将 `cmd/agentdesktop` 从只打印 `/api/desktop/status` JSON 的 scaffold 升级为最小桌面 runtime 面板：支持 `status`、`sessions`、`traces`、`jobs`、`send <message>` 和 `json`，仍通过 Gateway API 和 QQ test-message path 进入同一个 Agent Runtime。
 - [x] 补齐 `labelctl dataset/models/deploy/logs/doctor` 领域命令组：dataset 注册/激活、model 注册/查询/job 管理、deployment 提交/task 查询取消、日志查看和 Gateway doctor 均复用现有 API，并新增 CLI routing tests。
 - [x] 参考 `ccb` / Hermes 的混合路由方式，新增 Go `RuntimeRouter`，显式区分 `local_control`、`local_semantic` 和 `external_planner`；`规划 ShanghaiTech 数据接入` 这类高置信度工程意图会直接进入 `data-intake-agent` + `intake.plan`，不再为了意图识别等待 Mimo。
+- [x] 新增 `internal/app/skillapp`，将 skill draft 生成、列表、approve/reject 人工审批记录和 secret-like 内容拦截从 CLI 中拆出；`labelctl skill approve-draft` 只写 `approval.json`，不自动启用 skill。

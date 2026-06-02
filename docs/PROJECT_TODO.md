@@ -16,7 +16,8 @@
 - [ ] 将 intake workflow MVP 推进到生产入湖：真实文件隔离区、压缩包展开/路径穿越扫描、manifest schema scan、审批队列、正式 dataset registry 写入和审计。
 - [x] 将 Agent Runtime 的 LLM planner、fast chat、tool-call plan 迁移到 `workers/python/agent_runtime`，Go 只保留 Gateway/runtime shim 和受控 ToolExecutor。
 - [x] 按 `REFERENCE_AGENT_RUNTIME_ALIGNMENT.md` 拆出 `SessionRunner`、`PlannerPort`、`ToolExecutorPort`，避免 `agentruntime.Service` 继续膨胀。
-- [ ] 将 `skill-miner-agent` 从 draft-only 契约扩展为可人工审批的 skill 草稿生成器。
+- [x] 将 `skill-miner-agent` 从 draft-only 契约扩展为可人工审批的 skill 草稿状态机：支持 draft/list/approve/reject，审批记录不会自动启用 skill。
+- [ ] 将 skill 草稿 promotion/enable 接入正式 Skill Registry、审计事件、版本回滚和运行时加载边界。
 - [ ] 实现 QQ MVP：单 account、私聊文本、群聊 @Bot、`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`。
 - [ ] 补真实账号群聊 @Bot 实测记录，验证 NapCat WebSocket reader 与 outbound 回发在本机登录 QQ 上可用。
 - [x] 将 QQ MVP 从 HTTP webhook/test-message 扩展到可选长期 OneBot WebSocket reader：`QQ_ONEBOT_WS_ENABLED=true` 时 Gateway 主动连接 NapCat WebSocket，读取消息并在同一连接回写 `send_msg`。

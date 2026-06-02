@@ -17,6 +17,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/qsyy0921/automated_training_model/internal/app/skillapp"
 )
 
 const (
@@ -442,13 +444,19 @@ func runAgentWorkflow(cfg Config, args []string) error {
 
 func runSkill(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: labelctl skill download-model ... | draft ...")
+		return errors.New("usage: labelctl skill download-model ... | draft|drafts|approve-draft|reject-draft ...")
 	}
 	switch args[0] {
 	case "download-model":
 		return runDownloadModelSkill(args[1:])
 	case "draft":
 		return runDraftSkill(args[1:])
+	case "drafts", "list-drafts":
+		return runListSkillDrafts(args[1:])
+	case "approve-draft":
+		return runReviewSkillDraft(args[1:], true)
+	case "reject-draft":
+		return runReviewSkillDraft(args[1:], false)
 	default:
 		return fmt.Errorf("unknown skill command: %s", args[0])
 	}
@@ -467,9 +475,6 @@ func runDraftSkill(args []string) error {
 	if skillID == "" {
 		return errors.New("-id is required")
 	}
-	if !regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`).MatchString(skillID) {
-		return fmt.Errorf("invalid skill id: %s", skillID)
-	}
 	skillTitle := strings.TrimSpace(*title)
 	if skillTitle == "" {
 		skillTitle = skillID
@@ -478,47 +483,80 @@ func runDraftSkill(args []string) error {
 	if skillSummary == "" {
 		return errors.New("-summary is required")
 	}
-	if looksSecretLike(skillSummary) {
-		return errors.New("summary looks like it may contain a secret; remove tokens, keys, cookies, and raw private data before drafting a skill")
-	}
-	targetDir := filepath.Join(*draftRoot, skillID)
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
+	draft, err := skillapp.NewService(time.Now).Draft(skillapp.DraftRequest{
+		ID:      skillID,
+		Title:   skillTitle,
+		Summary: skillSummary,
+		Root:    *draftRoot,
+	})
+	if err != nil {
 		return err
 	}
-	target := filepath.Join(targetDir, "SKILL.md")
-	body := strings.Join([]string{
-		"---",
-		"name: " + skillID,
-		"description: " + skillSummary,
-		"status: draft",
-		"enabled: false",
-		"---",
-		"",
-		"# " + skillTitle,
-		"",
-		"## Summary",
-		"",
-		skillSummary,
-		"",
-		"## Safety",
-		"",
-		"- This skill is a draft and is not enabled automatically.",
-		"- Review and remove secrets, private data, and environment-specific paths before promotion.",
-		"- Promotion requires human approval and an audit event.",
-		"",
-		"## Workflow",
-		"",
-		"1. Describe the trigger condition.",
-		"2. List required tools or MCP servers.",
-		"3. Define approval gates and rollback behavior.",
-		"4. Add focused tests before enabling.",
-		"",
-	}, "\n")
-	if err := os.WriteFile(target, []byte(body), 0644); err != nil {
+	fmt.Println("draft skill written:", draft.Path)
+	fmt.Println("status:", draft.Status)
+	fmt.Println("enabled:", draft.Enabled)
+	return nil
+}
+
+func runListSkillDrafts(args []string) error {
+	fs := flag.NewFlagSet("skill drafts", flag.ExitOnError)
+	draftRoot := fs.String("draft-root", filepath.Join("data_lake", "agents", "skill_drafts"), "draft skill root")
+	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	fmt.Println("draft skill written:", target)
-	fmt.Println("enabled: false")
+	drafts, err := skillapp.NewService(time.Now).List(*draftRoot)
+	if err != nil {
+		return err
+	}
+	if len(drafts) == 0 {
+		fmt.Println("no skill drafts")
+		return nil
+	}
+	for _, draft := range drafts {
+		fmt.Printf("%s\t%s\tenabled=%t\t%s\n", draft.ID, draft.Status, draft.Enabled, draft.Path)
+	}
+	return nil
+}
+
+func runReviewSkillDraft(args []string, approve bool) error {
+	name := "skill reject-draft"
+	if approve {
+		name = "skill approve-draft"
+	}
+	fs := flag.NewFlagSet(name, flag.ExitOnError)
+	draftRoot := fs.String("draft-root", filepath.Join("data_lake", "agents", "skill_drafts"), "draft skill root")
+	by := fs.String("by", "labelctl", "reviewer id")
+	note := fs.String("note", "", "review note")
+	skillID := ""
+	parseArgs := args
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		skillID = args[0]
+		parseArgs = args[1:]
+	}
+	if err := fs.Parse(parseArgs); err != nil {
+		return err
+	}
+	if skillID == "" {
+		if fs.NArg() != 1 {
+			return fmt.Errorf("usage: labelctl %s <skill-id> [-by reviewer] [-note note]", name)
+		}
+		skillID = fs.Arg(0)
+	}
+	req := skillapp.ReviewRequest{ID: skillID, Root: *draftRoot, By: *by, Note: *note}
+	var (
+		record skillapp.ReviewRecord
+		err    error
+	)
+	if approve {
+		record, err = skillapp.NewService(time.Now).Approve(req)
+	} else {
+		record, err = skillapp.NewService(time.Now).Reject(req)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Printf("skill draft %s: %s by %s\n", record.SkillID, record.Status, record.By)
+	fmt.Println("enabled:", record.Enabled)
 	return nil
 }
 
@@ -869,17 +907,6 @@ func firstEnvWithDefault(fallback string, names ...string) string {
 	return fallback
 }
 
-func looksSecretLike(value string) bool {
-	value = strings.ToLower(value)
-	patterns := []string{"api_key", "apikey", "auth_token", "bearer ", "sk-", "tp-", "cookie=", "password="}
-	for _, pattern := range patterns {
-		if strings.Contains(value, pattern) {
-			return true
-		}
-	}
-	return false
-}
-
 func usage() {
 	fmt.Println(`labelctl commands:
   agent                         start Claude Code style Agent Runtime CLI
@@ -910,6 +937,9 @@ func usage() {
   agent-run -workflow data-to-deployment-lifecycle -dataset <dataset-id> -scene <scene> [-dry-run=true]
   skill download-model -repo <org/repo> [-pull-lfs] [-dry-run]
   skill draft -id <skill-id> -summary <workflow-summary> [-title <title>]
+  skill drafts [-draft-root <path>]
+  skill approve-draft <skill-id> [-by reviewer] [-note note]
+  skill reject-draft <skill-id> [-by reviewer] [-note note]
   llm ask <prompt>
   llm agent [-auto]
 

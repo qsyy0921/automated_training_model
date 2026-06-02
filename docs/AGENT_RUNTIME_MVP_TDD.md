@@ -51,6 +51,7 @@ Integration / Smoke Tests
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope；fake OneBot WebSocket reader 读取 message event 并回写 `send_msg` |
 | CLI agent | `internal/cli/labelctl/runtime_chat_test.go`、`internal/cli/labelctl/domain_commands_test.go`、`labelctl agent` smoke | PowerShell BOM 输入归一化、trace metadata 渲染、交互式 `/status`、`/doctor`、`/ping` 和自然语言消息进入同一 Runtime；dataset/models/deploy/logs/doctor 领域命令组路由到正确 Gateway API 并携带 token |
+| Skill drafts | `internal/app/skillapp/service_test.go`、`internal/cli/labelctl/skill_commands_test.go` | 草稿创建、列表、approve/reject 人工审批记录、secret-like 内容拦截；审批不自动启用 skill |
 
 命令：
 

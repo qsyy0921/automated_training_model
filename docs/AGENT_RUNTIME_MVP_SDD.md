@@ -30,7 +30,7 @@ MVP 必须覆盖：
 - QQ 真实账号群聊 @Bot 尚未完成端到端实测；当前仓库测试先覆盖 webhook/test-message/fake WebSocket，OneBot WebSocket reader 已有组件测试。
 - `ModelJobStore` 已具备 JSON MVP 持久化、阶段进度、生命周期日志、取消请求和手动 resume；尚未具备逐文件字节级进度、实时日志流和自动后台恢复。
 - LocateAnything-3B 已完成真实 ShanghaiTech 推理；当前只完成下载、verify-only 和模型加载 smoke。
-- skill 自进化默认启用；当前只允许 draft-only，并需要人工审批。
+- skill 自进化默认关闭；当前支持手动生成草稿、列出草稿、写入 approve/reject 人工审批记录，但仍不会自动启用。
 
 ## 4. 分层设计
 

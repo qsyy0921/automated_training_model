@@ -73,4 +73,7 @@ Runtime trace
 
 - `workers/python/agent_runtime/skill_evolution.py`：默认关闭的配置契约。
 - `internal/app/agentruntime/status.go`：通过 `/api/runtime/status` 暴露当前开关状态。
-- `labelctl skill draft -id <skill-id> -summary <summary>`：手动写入 draft-only `SKILL.md`，不自动启用。
+- `internal/app/skillapp`：管理 skill draft、列表、approve/reject 人工审批记录和 secret-like 内容拦截。
+- `labelctl skill draft -id <skill-id> -summary <summary>`：手动写入 draft `SKILL.md`，不自动启用。
+- `labelctl skill drafts`：列出草稿和审批状态。
+- `labelctl skill approve-draft <skill-id>` / `reject-draft <skill-id>`：写入 `approval.json`，记录人工决策；即使 approved，`enabled=false`，后续启用/推广必须另走 promotion gate。

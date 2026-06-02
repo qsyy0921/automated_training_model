@@ -101,7 +101,13 @@ try {
   Invoke-RestMethod "$baseURL/api/channels/qq/onebot" -Method Post -ContentType "application/json" -Body $body | ConvertTo-Json -Depth 8
 
   & $Go run .\cmd\agentdesktop -addr $baseURL
-  & $Go run .\cmd\labelctl skill draft -id smoke-agent-entrypoints -summary "CLI Web desktop and QQ entrypoint smoke workflow" -draft-root (Join-Path $tmpDir "skill_drafts")
+  $skillDraftRoot = Join-Path $tmpDir "skill_drafts"
+  if (Test-Path -LiteralPath $skillDraftRoot) {
+    Remove-Item -LiteralPath $skillDraftRoot -Recurse -Force
+  }
+  & $Go run .\cmd\labelctl skill draft -id smoke-agent-entrypoints -summary "CLI Web desktop and QQ entrypoint smoke workflow" -draft-root $skillDraftRoot
+  & $Go run .\cmd\labelctl skill drafts -draft-root $skillDraftRoot
+  & $Go run .\cmd\labelctl skill approve-draft smoke-agent-entrypoints -draft-root $skillDraftRoot -by smoke -note "entrypoint smoke reviewed"
   Write-Host "smoke-agent-entrypoints passed"
 } finally {
   Stop-LabelServer -Process $server -ListenAddr $Addr
