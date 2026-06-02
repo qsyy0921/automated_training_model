@@ -20,6 +20,8 @@
 - [x] 通过 Agent Runtime + Mimo planner 异步执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [x] 将 Agent Runtime session/trace 从纯内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime`，smoke 覆盖重启恢复。
 - [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。
+- [x] 新增 `internal/app/toolapp`，固化 tool schema、参数白名单、risk level 和 approval/preflight gate。
+- [ ] 将 `GoToolExecutor` 的具体执行实现继续迁移到 `internal/app/toolapp` runner 分发，保留 `agentruntime` 只做 session/planner/trace 编排。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐下载进度、日志、取消和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。

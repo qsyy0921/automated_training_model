@@ -58,7 +58,8 @@ Workers and Providers
 | Session Runner | `session.go` | session key、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
 | PlannerPort | `planner.go`、`python_planner.go` | 规则计划和 Python/Mimo 计划 | 不执行副作用 |
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
-| ToolExecutor | `tools.go` | 工具执行、preflight、model job、workflow dry-run | 后续要拆到 `toolapp`，避免继续膨胀 |
+| Tool Schema / Preflight | `internal/app/toolapp` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
+| ToolExecutor | `tools.go` | 工具执行、model job、workflow dry-run | 后续把具体执行实现迁移到 `toolapp`，避免继续膨胀 |
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo` | sessions、traces、model jobs | session/trace 和 model jobs 默认 JSON 持久化；后续迁移到 task repository |
 | Python Runtime | `workers/python/agent_runtime` | Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
@@ -126,6 +127,6 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 
 - ShanghaiTech original 真实推理。
 - model job 进度日志、取消和自动 resume。
-- ToolExecutor 拆成 `internal/app/toolapp`。
+- ToolExecutor 具体执行实现迁移到 `internal/app/toolapp`；当前已拆出 tool schema / preflight / approval gate。
 - QQ OneBot WebSocket 长连接 reader。
 - Python worker heartbeat、logs、retries、artifacts。

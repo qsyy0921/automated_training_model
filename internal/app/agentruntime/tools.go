@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/toolapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
@@ -20,6 +21,7 @@ type GoToolExecutor struct {
 	agents         AgentControlPlane
 	now            func() time.Time
 	modelJobs      ModelJobStore
+	toolCatalog    toolapp.Catalog
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
 }
 
@@ -28,9 +30,10 @@ func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolEx
 		now = time.Now
 	}
 	executor := &GoToolExecutor{
-		agents:    agents,
-		now:       now,
-		modelJobs: NewModelJobStore(now),
+		agents:      agents,
+		now:         now,
+		modelJobs:   NewModelJobStore(now),
+		toolCatalog: toolapp.DefaultCatalog(),
 	}
 	executor.runHFModelTool = executor.runHFModelScript
 	return executor
@@ -52,6 +55,14 @@ func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) 
 	status := "ok"
 	metadata := map[string]string{}
 	for _, call := range req.ToolCalls {
+		preflight := e.preflight(call)
+		if !preflight.Allowed {
+			return ToolExecutionResult{
+				ReplyText: preflight.Message,
+				Status:    preflight.Status,
+				Metadata:  preflight.Metadata,
+			}, nil
+		}
 		result, err := e.executeOne(ctx, req, call)
 		if err != nil {
 			return ToolExecutionResult{}, err
@@ -70,6 +81,13 @@ func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) 
 		metadata = nil
 	}
 	return ToolExecutionResult{ReplyText: strings.Join(results, "\n"), Status: status, Metadata: metadata}, nil
+}
+
+func (e *GoToolExecutor) preflight(call ToolCall) toolapp.PreflightResult {
+	policy := toolapp.PreflightPolicy{
+		RequireExplicitApprovalForHighRisk: strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL")), "true"),
+	}
+	return toolapp.Preflight(e.toolCatalog, policy, call)
 }
 
 func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {

@@ -193,6 +193,65 @@ func TestModelDownloadCanBeRestrictedByServerPolicy(t *testing.T) {
 	}
 }
 
+func TestHighRiskToolPreflightCanRequireApproval(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL", "true")
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "planner-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "approval_required" {
+		t.Fatalf("expected approval_required, got %+v", result)
+	}
+}
+
+func TestToolPreflightRejectsUnknownParamsBeforeExecution(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "verify model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "planner-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.verify_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B", "shell": "bad"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "preflight_failed" {
+		t.Fatalf("expected preflight_failed, got %+v", result)
+	}
+}
+
 func TestModelDownloadDefaultPolicyAllowsExecution(t *testing.T) {
 	if modelDownloadRequiresApproval(ToolCall{Params: map[string]string{}}) {
 		t.Fatal("default runtime policy should grant model download permission")

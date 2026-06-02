@@ -91,3 +91,5 @@
 - [x] 增强 `smoke-runtime-mvp.ps1`：使用独立 `tmp/runtime-smoke-*` store，发送四入口消息后重启 labelserver，并验证 `/api/runtime/sessions` 与 `/api/runtime/traces` 可恢复。
 - [x] 将 `ModelJobStore` 拆成 app 层端口和内存开发实现，并新增 `internal/infrastructure/runtimerepo.JSONModelJobStore`。
 - [x] Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前仍处于 `queued/running` 的任务会恢复为 `interrupted`，避免 UI/CLI 误判后台任务仍在运行。
+- [x] 新增 `internal/app/toolapp`，将 tool schema、参数白名单、risk level 和 approval/preflight gate 从 `agentruntime` 中拆出。
+- [x] `GoToolExecutor.Execute` 执行前接入 `toolapp.Preflight`，覆盖未注册 tool、未知参数、高风险审批缺失等拦截路径；默认本机开发模式仍允许受控高风险工具执行，可用 `AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL=true` 统一收紧。

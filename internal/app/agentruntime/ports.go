@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/toolapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
 
@@ -33,14 +34,7 @@ type PlanResult struct {
 	Status     string             `json:"status,omitempty"`
 }
 
-type ToolCall struct {
-	ID               string            `json:"id"`
-	ToolID           string            `json:"tool_id"`
-	SkillID          string            `json:"skill_id,omitempty"`
-	MCPServer        string            `json:"mcp_server,omitempty"`
-	Params           map[string]string `json:"params,omitempty"`
-	RequiresApproval bool              `json:"requires_approval,omitempty"`
-}
+type ToolCall = toolapp.ToolCall
 
 type ToolExecutionRequest struct {
 	Message    channel.InboundMessage `json:"message"`
