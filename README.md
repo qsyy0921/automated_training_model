@@ -109,9 +109,12 @@ go run .\cmd\labelctl runs
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1
 ```
 
 该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent` 并产生 `vlm.inspect` trace、ShanghaiTech 数据附件进入 `data-intake-agent` 并产生 `intake.plan` trace metadata。
+
+`runtime-hf-install.ps1` 默认只做 Mimo -> Agent Runtime -> `model.download_hf` 预检，并通过审批边界停在 `approval_required`，不会下载权重；只有显式传入 `-StartDownload -WaitForCompletion` 才会开始真实 7GB 级模型下载。
 
 ### 什么时候使用 Sub-Agent
 
@@ -244,6 +247,9 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 - [Agent 架构图](docs/AGENT_ARCHITECTURE_DIAGRAMS.md)
 - [Agent 系统设计](docs/AGENT_SYSTEM_DESIGN.md)
 - [Agent Runtime 设计](docs/AGENT_RUNTIME_SDD.md)
+- [Agent Runtime MVP SDD](docs/AGENT_RUNTIME_MVP_SDD.md)
+- [Agent Runtime MVP ATDD](docs/AGENT_RUNTIME_MVP_ATDD.md)
+- [Agent Runtime MVP TDD](docs/AGENT_RUNTIME_MVP_TDD.md)
 - [Sub-Agent 使用策略](docs/SUB_AGENT_STRATEGY_SDD.md)
 - [Intent / Tool / Skill / MCP 设计](docs/INTENT_TOOL_SKILL_MCP_SDD.md)
 - [图片生成代理与 Skill 自进化](docs/IMAGE_PROXY_AND_SKILL_EVOLUTION_SDD.md)

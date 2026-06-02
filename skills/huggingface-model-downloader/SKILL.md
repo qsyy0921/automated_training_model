@@ -37,7 +37,9 @@ python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py `
 ```
 
 The script uses `huggingface_hub.snapshot_download`, supports resume behavior,
-and writes a small JSON manifest with file counts and total bytes.
+and writes a small JSON manifest with file counts and total bytes. Dry-run and
+verify-only both query HuggingFace remote file metadata first, so the manifest
+can record expected file count and expected total bytes before downloading.
 
 ## Validation
 
@@ -65,3 +67,8 @@ git status --short
 
 Expected result: the model directory stays ignored by Git; only code, scripts,
 docs, and small catalog manifests can appear in Git.
+
+For `nvidia/LocateAnything-3B`, the current public remote manifest reports 38
+files and 7,795,875,224 bytes. The largest files are two safetensors shards, so
+real download and verify-only should be treated as a long-running Agent Runtime
+model job.

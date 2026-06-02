@@ -8,6 +8,9 @@
 | [AGENT_ARCHITECTURE_DIAGRAMS.md](AGENT_ARCHITECTURE_DIAGRAMS.md) | 三张 imagegen 架构图与可维护 Mermaid 源图。 |
 | [AGENT_SYSTEM_DESIGN.md](AGENT_SYSTEM_DESIGN.md) | Agent Serving 与 Model/Data Training 的领域边界和治理 contract。 |
 | [AGENT_RUNTIME_SDD.md](AGENT_RUNTIME_SDD.md) | Agent Runtime、Channel Router、Intent Router 和 QQ/NapCat 通信验证设计。 |
+| [AGENT_RUNTIME_MVP_SDD.md](AGENT_RUNTIME_MVP_SDD.md) | Agent Runtime MVP 的当前范围、模块边界、Mimo/HF/ShanghaiTech 设计和未完成项。 |
+| [AGENT_RUNTIME_MVP_ATDD.md](AGENT_RUNTIME_MVP_ATDD.md) | Agent Runtime MVP 的验收场景、证据命令和完成状态矩阵。 |
+| [AGENT_RUNTIME_MVP_TDD.md](AGENT_RUNTIME_MVP_TDD.md) | Agent Runtime MVP 的单元、组件、smoke 测试策略和提交前测试清单。 |
 | [AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md](AGENT_RUNTIME_MIMO_INSTALL_PROMPT.md) | Mimo Agent Runtime 用于 HuggingFace 模型安装、校验和数据测试规划的中文 Prompt 与 tool-call JSON 约束。 |
 | [REFERENCE_AGENT_RUNTIME_ALIGNMENT.md](REFERENCE_AGENT_RUNTIME_ALIGNMENT.md) | 对 OpenClaw、cc、Hermes 三个参考项目的架构取舍和本项目落点。 |
 | [SUB_AGENT_STRATEGY_SDD.md](SUB_AGENT_STRATEGY_SDD.md) | 什么时候使用 sub-agent、什么时候不用，以及 Go/Python runtime 的调度规则。 |

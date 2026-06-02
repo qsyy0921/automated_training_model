@@ -76,3 +76,6 @@
 - [x] 新增 `ops/scripts/smoke-runtime-mvp.ps1`：自动验证 Web/Gateway、CLI、桌面端、QQ test-message/OneBot 进入同一个 Agent Runtime，并检查 `planner-agent`、`vision-agent`、`data-intake-agent` trace。
 - [x] 更新 README、`ENTRYPOINTS_TEST_SDD.md` 和 `SUB_AGENT_STRATEGY_SDD.md`，记录四入口闭环、`runtime model-jobs`、Mimo 本机配置和什么时候使用 sub-agent。
 - [x] 将附件类 `data_intake` 从纯文本回复推进为 ToolExecutor 计划：数据附件生成 `intake.plan` trace metadata，视觉附件生成 `vlm.inspect` trace metadata；ShanghaiTech original 数据源 smoke 可在 runtime trace 中看到 `dataset_name` 和 `source_uri`。
+- [x] 新增 Agent Runtime MVP 的 SDD / ATDD / TDD 文档，明确四入口、Sub-agent、Mimo、HuggingFace、ShanghaiTech、测试矩阵和未完成项。
+- [x] 增强 HuggingFace downloader dry-run / verify-only：先读取远端文件清单，记录 `remote_file_count`、`remote_total_bytes`，verify-only 可识别缺失或大小不匹配文件。
+- [x] 新增 `ops/scripts/runtime-hf-install.ps1`，用于通过 Agent Runtime + Mimo 触发 LocateAnything-3B 安装预检；默认审批模式返回 `approval_required`，不会下载权重。

@@ -217,9 +217,11 @@ def _validate_plan_contract(request: RuntimeRequest, parsed: dict[str, Any]) -> 
 
     text = request.text.lower()
     kinds = {str(item.get("kind") or "") for item in plan if isinstance(item, dict)}
-    if "locateanything-3b" in text and ("下载" in text or "安装" in text):
+    if "locateanything-3b" in text and ("下载" in text or "安装" in text or "download" in text or "install" in text):
         if "model.download_hf" not in kinds:
             raise ValueError("Mimo planner omitted model.download_hf for LocateAnything install request")
+        if "model.verify_hf" in kinds:
+            raise ValueError("Mimo planner must not verify before downloading for pure LocateAnything install request")
         if "workflow.submit_run" in kinds:
             raise ValueError("Mimo planner must not submit workflow for pure LocateAnything install request")
     if "locateanything-3b" in text and "shanghaitech" in text and ("dry-run" in text or "dry run" in text or "测试" in text):

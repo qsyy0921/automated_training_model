@@ -120,7 +120,7 @@ def _guarded_plan(request: RuntimeRequest, intent, delegations: list[dict[str, o
             ],
             delegations=delegations,
         )
-    if "locateanything-3b" in text and ("下载" in text or "安装" in text):
+    if "locateanything-3b" in text and ("下载" in text or "安装" in text or "download" in text or "install" in text):
         return RuntimeResult(
             status="tool_planned_with_guard",
             intent=intent,
