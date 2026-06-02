@@ -147,7 +147,7 @@ internal/app/agentruntime/
   session.go       SessionRunner，负责 session key、规划调用、工具执行和 trace 记录
   planner.go       默认规则 Planner，可离线运行并输出 ToolCall 计划
   python_planner.go 可选 Python Planner 适配器，通过 AGENT_RUNTIME_PLANNER=python 启用
-  tools.go         Go ToolExecutor，注册 runtime、workflow app、intake app、vision、llm.plan、model MVP handler
+  tools.go         Go ToolExecutor，注册 runtime、workflow app、intake app、vision、llm.plan、modelruntime handler adapter
   store.go         RuntimeStore 端口和内存开发实现，支撑 /api/runtime/sessions 和 /api/runtime/traces
   intent.go        规则意图识别
   subagent.go      sub-agent 路由决策
@@ -158,6 +158,9 @@ internal/app/toolapp/
 
 internal/app/runtimeworkflow/
   service.go       workflow.list_runs / workflow.submit_run dry-run app service
+
+internal/app/modelruntime/
+  service.go       model.download_hf / model.verify_hf / model.smoke_locateanything 的参数规范化、路径安全、脚本执行和 smoke 解析
 
 internal/infrastructure/runtimerepo/
   json_store.go    JSON RuntimeStore 适配器，默认持久化 session/trace 到 data_lake/runtime
@@ -181,7 +184,7 @@ internal/api/httpapi/
     GET  /api/runtime/traces
 ```
 
-当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，低风险控制意图先走 Go 本地 fast-path，高置信度固定流程走 Go 本地语义 fast-path，其他消息再调用 Planner 输出直接回复或 ToolCall，并由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。Go 计算出的 `go_intent` 会通过 Python request metadata 传给 `workers/python/agent_runtime`，避免 Python worker 重复粗分类；Python/Mimo 只做二级语义规划和参数细化。Data Intake / Vision 这类带附件的请求有 mandatory tool guard：Mimo/Python planner 必须输出精确单工具计划 `intake.plan` 或 `vlm.inspect`，否则 Go `SessionRunner` 会保留 Go 侧 sub-agent delegation 并回退本地 `RulePlanner`，避免模型临时扩展工具链或破坏必要的数据治理路径。Data Intake 的 quarantine、静态 scan、dry-run plan、pending approval workflow 已经外迁到 `internal/app/intakeapp`，runtime 只调用 intake app 并把 `workflow_id`、`plan_id`、scan 结果摘要和审批边界写入 trace metadata；服务启动时通过 `internal/infrastructure/intakerepo.JSONRepository` 把计划和 workflow 持久化到 `data_lake/runtime/intake`。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。QQ/NapCat 已支持 HTTP webhook/test-message/outbound 和可选 OneBot WebSocket reader。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和真实账号群聊 @Bot 实测。
+当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，低风险控制意图先走 Go 本地 fast-path，高置信度固定流程走 Go 本地语义 fast-path，其他消息再调用 Planner 输出直接回复或 ToolCall，并由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。Go 计算出的 `go_intent` 会通过 Python request metadata 传给 `workers/python/agent_runtime`，避免 Python worker 重复粗分类；Python/Mimo 只做二级语义规划和参数细化。Data Intake / Vision 这类带附件的请求有 mandatory tool guard：Mimo/Python planner 必须输出精确单工具计划 `intake.plan` 或 `vlm.inspect`，否则 Go `SessionRunner` 会保留 Go 侧 sub-agent delegation 并回退本地 `RulePlanner`，避免模型临时扩展工具链或破坏必要的数据治理路径。Data Intake 的 quarantine、静态 scan、dry-run plan、pending approval workflow 已经外迁到 `internal/app/intakeapp`，runtime 只调用 intake app 并把 `workflow_id`、`plan_id`、scan 结果摘要和审批边界写入 trace metadata；HuggingFace 下载、校验和 LocateAnything smoke 的参数规范化、目录边界、脚本调用和结果解析已经外迁到 `internal/app/modelruntime`，runtime 只保留审批开关、异步 `ModelJob` 生命周期、cancel/resume 和 trace 适配。服务启动时通过 `internal/infrastructure/intakerepo.JSONRepository` 把计划和 workflow 持久化到 `data_lake/runtime/intake`。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。QQ/NapCat 已支持 HTTP webhook/test-message/outbound 和可选 OneBot WebSocket reader。下一步再加入 approval queue、model task worker、正式 workflow/task repository 和真实账号群聊 @Bot 实测。
 
 低延迟策略参考 ccb / Hermes / OpenClaw 的工程做法：明确命令不等待模型，项目身份不让模型自由发挥，长任务不阻塞入口，普通 chat 用流式首包改善体感，复杂任务才进入结构化 planner。当前 fast-path 覆盖 `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-help`、runtime self-description、已知 LocateAnything 下载和 ShanghaiTech smoke 固定工具链；这些请求即使启用了 `AGENT_RUNTIME_USE_MIMO=true` 也不会等待 Python/Mimo。
 
@@ -207,7 +210,7 @@ HuggingFace 模型安装不由 Codex 直接执行；Codex 只维护 prompt、ski
 工具 preflight 有两层：
 
 - `internal/app/toolapp`：默认检查工具注册、参数 schema、risk level 和通用高风险审批开关 `AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL=true`。
-- `agentruntime.GoToolExecutor`：保留与具体工具强相关的执行前检查，例如 `workflow.submit_run` 必须是 dry-run，`model.download_hf` 必须留在 `data_lake/models/artifacts/huggingface`。
+- `agentruntime.GoToolExecutor`：保留 runtime 侧审批、异步 job 生命周期和 handler 注册；`workflow.submit_run` 的 dry-run 规则由 `runtimeworkflow` 负责，模型目录边界由 `modelruntime` 负责。
 
 Mimo 路由规则：
 - `mimo-v2.5-pro`：文本意图识别、任务规划、tool-call JSON、workflow reasoning。
@@ -223,9 +226,9 @@ Mimo 路由规则：
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner`；控制命令启用本地 `RulePlanner` 快速计划 | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Schema / Preflight | `internal/app/toolapp` 支持 tool registry、allowed params、risk、approval gate | 接入持久 tool registry 和人工审批队列 |
 | Tool Runner | `internal/app/toolapp.Runner` 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截 | 增加 handler registry 持久化和审批队列联动 |
-| Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow app 调用、intake app 调用、vision 调用、llm.plan、model MVP handler | 将 `model.*` 外迁到 task/model worker，将 workflow app 接到 workflow/task repository |
+| Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow app 调用、intake app 调用、vision 调用、llm.plan、modelruntime adapter | 将 model job 生命周期迁移到 task/model worker，将 workflow app 接到 workflow/task repository |
 | Runtime Workflow | `internal/app/runtimeworkflow` 管理 `workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则、RunRequest 构造和回复格式 | 后续替换 agent app 内存队列，接入持久 task repository、日志和 artifacts |
-| Model Install | `model.download_hf` / `model.verify_hf` 限制在 data_lake；已知 LocateAnything 固定流程可由 Go 本地语义 fast-path 生成计划，未知模型仍交给 Mimo planner；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
+| Model Runtime | `internal/app/modelruntime` 管理 `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数默认值、路径白名单、Python 脚本调用、超时和 smoke JSON 解析；已知 LocateAnything 固定流程可由 Go 本地语义 fast-path 生成计划；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、统一 task repository、逐文件进度、实时日志和断点续传 UI |
 | Data Intake Workflow | `internal/app/intakeapp` 生成 quarantine、静态 scan、`intake.plan` / `vlm.inspect` dry-run 计划和 pending approval workflow；`internal/infrastructure/intakerepo.JSONRepository` 默认持久化到 `data_lake/runtime/intake`；ShanghaiTech 数据附件会在 trace metadata 中记录 `workflow_id`、`plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 将 JSON MVP 推进到真实文件隔离区、深度 scan、审批队列和正式 dataset registry 写入 |
 | Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |

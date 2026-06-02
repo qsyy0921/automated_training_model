@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/modelruntime"
 	"github.com/qsyy0921/automated_training_model/internal/app/runtimeworkflow"
 	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
@@ -258,7 +259,7 @@ func TestToolPreflightRejectsUnknownParamsBeforeExecution(t *testing.T) {
 }
 
 func TestModelDownloadDefaultPolicyAllowsExecution(t *testing.T) {
-	if modelDownloadRequiresApproval(ToolCall{Params: map[string]string{}}) {
+	if modelruntime.NewService().DownloadRequiresApproval(map[string]string{}) {
 		t.Fatal("default runtime policy should grant model download permission")
 	}
 }
