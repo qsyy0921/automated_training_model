@@ -46,6 +46,12 @@ type chatResponse struct {
 	} `json:"error,omitempty"`
 }
 
+type runtimeSendResponse struct {
+	Reply struct {
+		Text string `json:"text"`
+	} `json:"reply"`
+}
+
 type plannedAction struct {
 	Action     string            `json:"action"`
 	Message    string            `json:"message,omitempty"`
@@ -127,17 +133,19 @@ func dispatch(cfg Config, args []string) error {
 
 func runAgentAssistant(cfg Config, args []string) error {
 	if len(args) == 0 {
-		return runLLMAgent(cfg, false)
+		return runRuntimeChat(cfg)
 	}
 	switch args[0] {
 	case "ask":
-		return runAsk(strings.Join(args[1:], " "))
+		return sendRuntimeText(cfg, strings.Join(args[1:], " "), true)
 	case "run":
 		return runAgentWorkflow(cfg, args[1:])
 	case "auto":
 		return runLLMAgent(cfg, true)
+	case "llm":
+		return runLLMAgent(cfg, false)
 	default:
-		return runLLMAgentWithPrompt(cfg, false, strings.Join(args, " "))
+		return sendRuntimeText(cfg, strings.Join(args, " "), true)
 	}
 }
 
@@ -194,6 +202,12 @@ func runRuntime(cfg Config, args []string) error {
 		}
 		return sendRuntimeMessage(cfg, text)
 	}
+	if args[0] == "chat" || args[0] == "agent" {
+		if len(args) > 1 {
+			return sendRuntimeText(cfg, strings.Join(args[1:], " "), true)
+		}
+		return runRuntimeChat(cfg)
+	}
 	return fmt.Errorf("unknown runtime command: %s", args[0])
 }
 
@@ -212,6 +226,129 @@ func sendRuntimeMessage(cfg Config, text string) error {
 		"text":      text,
 	}
 	return postJSON(cfg.addr+"/api/channels/qq/test-message", body)
+}
+
+func sendRuntimeText(cfg Config, text string, plain bool) error {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return errors.New("empty runtime message")
+	}
+	resp, err := postRuntimeMessage(cfg, text)
+	if err != nil {
+		return err
+	}
+	if plain {
+		fmt.Println(resp.Reply.Text)
+		return nil
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(resp)
+}
+
+func postRuntimeMessage(cfg Config, text string) (runtimeSendResponse, error) {
+	body := map[string]any{
+		"id":         fmt.Sprintf("cli_runtime_%d", time.Now().UnixNano()),
+		"channel":    "qq",
+		"account_id": "default",
+		"peer": map[string]any{
+			"channel":    "qq",
+			"account_id": "default",
+			"kind":       "direct",
+			"id":         "cli-runtime",
+		},
+		"sender_id": "cli-runtime",
+		"text":      text,
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return runtimeSendResponse{}, err
+	}
+	resp, err := http.Post(cfg.addr+"/api/channels/qq/test-message", "application/json", bytes.NewReader(raw))
+	if err != nil {
+		return runtimeSendResponse{}, err
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return runtimeSendResponse{}, err
+	}
+	if resp.StatusCode >= 400 {
+		return runtimeSendResponse{}, fmt.Errorf("%s: %s", resp.Status, string(bodyBytes))
+	}
+	var parsed runtimeSendResponse
+	if err := json.Unmarshal(bodyBytes, &parsed); err != nil {
+		return runtimeSendResponse{}, fmt.Errorf("parse runtime reply: %w\n%s", err, string(bodyBytes))
+	}
+	return parsed, nil
+}
+
+func runRuntimeChat(cfg Config) error {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Automated Training Agent CLI")
+	fmt.Println("connected:", cfg.addr)
+	fmt.Println("type /help for commands, /exit to quit")
+	for {
+		fmt.Print("atm> ")
+		line, err := reader.ReadString('\n')
+		if errors.Is(err, io.EOF) && line == "" {
+			return nil
+		}
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		input := strings.TrimSpace(line)
+		if input == "" {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			continue
+		}
+		if input == "/exit" || input == "exit" || input == "/quit" || input == "quit" {
+			return nil
+		}
+		if handled, err := handleRuntimeChatCommand(cfg, input); handled {
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "error:", err)
+			}
+			continue
+		}
+		reply, err := postRuntimeMessage(cfg, input)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			continue
+		}
+		fmt.Println(reply.Reply.Text)
+	}
+}
+
+func handleRuntimeChatCommand(cfg Config, input string) (bool, error) {
+	command := strings.ToLower(strings.TrimSpace(input))
+	switch command {
+	case "/help", "help":
+		fmt.Println(`commands:
+  /status    show runtime status
+  /sessions  show runtime sessions
+  /traces    show recent traces
+  /jobs      show model jobs
+  /ping      send /bot-ping through runtime
+  /exit      quit
+
+Any other text is sent to the Agent Runtime.`)
+		return true, nil
+	case "/status":
+		return true, getJSON(cfg.addr+"/api/runtime/status")
+	case "/sessions":
+		return true, getJSON(cfg.addr+"/api/runtime/sessions")
+	case "/traces":
+		return true, getJSON(cfg.addr+"/api/runtime/traces")
+	case "/jobs":
+		return true, getJSON(cfg.addr+"/api/runtime/model-jobs")
+	case "/ping", "ping", "/bot-ping":
+		return true, sendRuntimeText(cfg, "/bot-ping", true)
+	default:
+		return false, nil
+	}
 }
 
 func runDesktop(cfg Config, args []string) error {
@@ -705,6 +842,8 @@ func looksSecretLike(value string) bool {
 
 func usage() {
 	fmt.Println(`labelctl commands:
+  agent                         start Claude Code style Agent Runtime CLI
+  agent <message>               send one message to Agent Runtime
   health
   videos
   providers
@@ -713,13 +852,13 @@ func usage() {
   workflows
   runs
   audit
-  runtime [status|sessions|traces|send <message>]
+  runtime [status|sessions|traces|send <message>|chat]
   desktop [status]
   channels
   channel qq status
   channel qq test [/bot-ping]
   governance all|enforcement|data|release|runtime
-  agent [ask <prompt> | run [-workflow data-to-deployment-lifecycle] | auto | <prompt>]
+  agent [ask <prompt> | run [-workflow data-to-deployment-lifecycle] | auto | llm | <prompt>]
   ask <prompt>
   video <scene>
 

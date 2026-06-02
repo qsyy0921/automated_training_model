@@ -6,6 +6,7 @@
 ## 近期必须做
 
 - [ ] 补齐 CLI 命令组：`dataset`、`models`、`deploy`、`logs`、`doctor`。
+- [ ] 将 `labelctl agent` 从文本 REPL 继续升级为更接近 Claude Code 的 TUI：流式输出、工具调用进度、审批确认、会话恢复、快捷键和历史记录。
 - [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
@@ -21,7 +22,8 @@
 - [x] 将 Agent Runtime session/trace 从纯内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime`，smoke 覆盖重启恢复。
 - [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。
 - [x] 新增 `internal/app/toolapp`，固化 tool schema、参数白名单、risk level 和 approval/preflight gate。
-- [ ] 将 `GoToolExecutor` 的具体执行实现继续迁移到 `internal/app/toolapp` runner 分发，保留 `agentruntime` 只做 session/planner/trace 编排。
+- [x] 将 `GoToolExecutor` 的执行循环迁移到 `internal/app/toolapp.Runner`，由 runner 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截。
+- [ ] 将 `GoToolExecutor` 的具体工具 handler 继续迁移到独立 app/worker：`intake.plan` 到 `intakeapp`，`model.*` 到模型任务/worker，`workflow.*` 到 workflow/task repository。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐下载进度、日志、取消和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。

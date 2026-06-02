@@ -21,7 +21,7 @@ type GoToolExecutor struct {
 	agents         AgentControlPlane
 	now            func() time.Time
 	modelJobs      ModelJobStore
-	toolCatalog    toolapp.Catalog
+	toolRunner     *toolapp.Runner[ToolExecutionRequest]
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
 }
 
@@ -30,12 +30,13 @@ func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolEx
 		now = time.Now
 	}
 	executor := &GoToolExecutor{
-		agents:      agents,
-		now:         now,
-		modelJobs:   NewModelJobStore(now),
-		toolCatalog: toolapp.DefaultCatalog(),
+		agents:    agents,
+		now:       now,
+		modelJobs: NewModelJobStore(now),
 	}
 	executor.runHFModelTool = executor.runHFModelScript
+	executor.toolRunner = toolapp.NewRunner[ToolExecutionRequest](toolapp.DefaultCatalog(), toolPreflightPolicyFromEnv)
+	executor.registerToolHandlers()
 	return executor
 }
 
@@ -48,92 +49,64 @@ func NewGoToolExecutorWithModelJobs(agents AgentControlPlane, now func() time.Ti
 }
 
 func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) (ToolExecutionResult, error) {
-	if len(req.ToolCalls) == 0 {
-		return ToolExecutionResult{}, nil
-	}
-	results := make([]string, 0, len(req.ToolCalls))
-	status := "ok"
-	metadata := map[string]string{}
-	for _, call := range req.ToolCalls {
-		preflight := e.preflight(call)
-		if !preflight.Allowed {
-			return ToolExecutionResult{
-				ReplyText: preflight.Message,
-				Status:    preflight.Status,
-				Metadata:  preflight.Metadata,
-			}, nil
-		}
-		result, err := e.executeOne(ctx, req, call)
-		if err != nil {
-			return ToolExecutionResult{}, err
-		}
-		if result.Status != "" {
-			status = result.Status
-		}
-		if result.ReplyText != "" {
-			results = append(results, result.ReplyText)
-		}
-		for key, value := range result.Metadata {
-			metadata[key] = value
-		}
-	}
-	if len(metadata) == 0 {
-		metadata = nil
-	}
-	return ToolExecutionResult{ReplyText: strings.Join(results, "\n"), Status: status, Metadata: metadata}, nil
+	return e.toolRunner.Execute(ctx, req, req.ToolCalls)
 }
 
-func (e *GoToolExecutor) preflight(call ToolCall) toolapp.PreflightResult {
-	policy := toolapp.PreflightPolicy{
+func toolPreflightPolicyFromEnv() toolapp.PreflightPolicy {
+	return toolapp.PreflightPolicy{
 		RequireExplicitApprovalForHighRisk: strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL")), "true"),
 	}
-	return toolapp.Preflight(e.toolCatalog, policy, call)
 }
 
-func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
-	switch call.ToolID {
-	case "runtime.health":
+func (e *GoToolExecutor) registerToolHandlers() {
+	e.toolRunner.Register("runtime.health", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return ToolExecutionResult{ReplyText: "pong", Status: "ok"}, nil
-	case "runtime.identify_actor":
+	})
+	e.toolRunner.Register("runtime.identify_actor", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return ToolExecutionResult{
 			ReplyText: fmt.Sprintf("channel=%s account=%s peer=%s:%s sender=%s", req.Message.Channel, req.Message.AccountID, req.Message.Peer.Kind, req.Message.Peer.ID, req.Message.SenderID),
 			Status:    "ok",
 		}, nil
-	case "runtime.status":
+	})
+	e.toolRunner.Register("runtime.status", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return ToolExecutionResult{
 			ReplyText: fmt.Sprintf("Agent Gateway online. channel=%s account=%s runtime=ready agent_loop=python-agent-runtime text_model=mimo-v2.5-pro vision_model=mimo-v2.5 time=%s", req.Message.Channel, req.Message.AccountID, e.now().Format(time.RFC3339)),
 			Status:    "ok",
 		}, nil
-	case "workflow.list_runs":
+	})
+	e.toolRunner.Register("workflow.list_runs", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.listRuns(ctx)
-	case "workflow.submit_run":
+	})
+	e.toolRunner.Register("workflow.submit_run", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.submitWorkflowRun(ctx, req, call)
-	case "intake.quarantine":
+	})
+	e.toolRunner.Register("intake.quarantine", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return ToolExecutionResult{
 			ReplyText: fmt.Sprintf("已生成数据接入隔离计划：attachments=%d session=%s", len(req.Message.Attachments), req.Session.Key),
 			Status:    "planned",
 		}, nil
-	case "intake.plan":
+	})
+	e.toolRunner.Register("intake.plan", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.planDataIntake(req, call)
-	case "vlm.inspect":
+	})
+	e.toolRunner.Register("vlm.inspect", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.planVisionInspection(req, call)
-	case "llm.plan":
+	})
+	e.toolRunner.Register("llm.plan", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return ToolExecutionResult{
 			ReplyText: fmt.Sprintf("已进入 planner-agent 会话：%s；可通过 AGENT_RUNTIME_PLANNER=python 启用 Python/Mimo planner。", req.Session.Key),
 			Status:    "planned",
 		}, nil
-	case "model.download_hf":
+	})
+	e.toolRunner.Register("model.download_hf", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.downloadHFModel(ctx, call)
-	case "model.verify_hf":
+	})
+	e.toolRunner.Register("model.verify_hf", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.verifyHFModel(ctx, call)
-	case "model.smoke_locateanything":
+	})
+	e.toolRunner.Register("model.smoke_locateanything", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.smokeLocateAnythingModel(ctx, call)
-	default:
-		return ToolExecutionResult{
-			ReplyText: fmt.Sprintf("工具 %s 尚未接入。", call.ToolID),
-			Status:    "unsupported_tool",
-		}, nil
-	}
+	})
 }
 
 func (e *GoToolExecutor) planDataIntake(req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {

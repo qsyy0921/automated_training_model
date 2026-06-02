@@ -18,7 +18,11 @@ def run_runtime(request: RuntimeRequest) -> RuntimeResult:
 
     if mimo_enabled() and intent.kind in {"chat", "data_intake"}:
         try:
-            return plan_with_mimo(request, intent, delegations[0])
+            result = plan_with_mimo(request, intent, delegations[0])
+            guarded = _guard_if_incomplete(request, intent, delegations, result)
+            if guarded is not None:
+                return guarded
+            return result
         except Exception as exc:
             guarded = _guarded_plan(request, intent, delegations)
             if guarded is not None:
@@ -87,6 +91,20 @@ def run_runtime(request: RuntimeRequest) -> RuntimeResult:
         reply_text="未知命令或暂不支持的意图。发送 /bot-help 查看可用命令。",
         delegations=delegations,
     )
+
+
+def _guard_if_incomplete(request: RuntimeRequest, intent, delegations: list[dict[str, object]], result: RuntimeResult) -> RuntimeResult | None:
+    kinds = {str(item.get("kind") or "") for item in result.plan if isinstance(item, dict)}
+    delegation = delegations[0] if delegations else {}
+    if intent.kind == "data_intake":
+        required = {"intake.quarantine", "intake.plan"}
+        if str(delegation.get("tool_id") or "") == "vlm.inspect":
+            required.add("vlm.inspect")
+        if not required.issubset(kinds):
+            return _guarded_plan(request, intent, delegations)
+    if intent.kind == "chat" and not kinds:
+        return _guarded_plan(request, intent, delegations)
+    return None
 
 
 def _guarded_plan(request: RuntimeRequest, intent, delegations: list[dict[str, object]]) -> RuntimeResult | None:

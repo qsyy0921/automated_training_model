@@ -140,13 +140,14 @@ internal/app/agentruntime/
   session.go       SessionRunner，负责 session key、规划调用、工具执行和 trace 记录
   planner.go       默认规则 Planner，可离线运行并输出 ToolCall 计划
   python_planner.go 可选 Python Planner 适配器，通过 AGENT_RUNTIME_PLANNER=python 启用
-  tools.go         Go ToolExecutor，执行 runtime、workflow、intake、vision、llm.plan 最小工具；执行前调用 toolapp preflight
+  tools.go         Go ToolExecutor，注册 runtime、workflow、intake、vision、llm.plan、model MVP handler
   store.go         RuntimeStore 端口和内存开发实现，支撑 /api/runtime/sessions 和 /api/runtime/traces
   intent.go        规则意图识别
   subagent.go      sub-agent 路由决策
 
 internal/app/toolapp/
   schema.go        Tool schema、risk level、allowed params、approval/preflight gate
+  runner.go        Tool runner，负责 preflight、handler dispatch、结果合并和未注册 handler 拦截
 
 internal/infrastructure/runtimerepo/
   json_store.go    JSON RuntimeStore 适配器，默认持久化 session/trace 到 data_lake/runtime
@@ -170,7 +171,7 @@ internal/api/httpapi/
     GET  /api/runtime/traces
 ```
 
-当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 ToolExecutor 执行。执行前先经过 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。下一步再加入真实 LLM planner schema、approval queue、工具执行器迁移和长期运行的 OneBot WebSocket reader。
+当前实现已经是可运行的最小完整 runtime：通道消息进入后会归一化为 `channel.InboundMessage`，进入 `SessionRunner`，生成 session key，调用 Planner 输出直接回复或 ToolCall，再由 `toolapp.Runner` 执行。Runner 先调用 `toolapp.Preflight`，检查工具是否注册、参数是否在 schema 内、高风险工具是否需要审批，然后分发到 `GoToolExecutor` 注册的 MVP handler。session、trace、model job 写入 `RuntimeStore` / `ModelJobStore`，服务启动时默认持久化到 `data_lake/runtime`；测试脚本会使用 `tmp/runtime-smoke-*` 做重启恢复验证。下一步再加入真实 LLM planner schema、approval queue、具体工具 handler 外迁和长期运行的 OneBot WebSocket reader。
 
 默认模式不依赖外部模型：
 
@@ -209,7 +210,8 @@ Mimo 路由规则：
 | Intent | Go `ClassifyIntent` 规则层 | Python/Mimo planner 做二级语义识别 |
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Schema / Preflight | `internal/app/toolapp` 支持 tool registry、allowed params、risk、approval gate | 接入持久 tool registry 和人工审批队列 |
-| Tool Executor | `GoToolExecutor` 支持 runtime、workflow、intake、vision、llm.plan 最小工具，执行前经过 `toolapp.Preflight` | 将具体执行实现迁移到 `internal/app/toolapp`，增加 tool runner 分发 |
+| Tool Runner | `internal/app/toolapp.Runner` 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截 | 增加 handler registry 持久化和审批队列联动 |
+| Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow、intake、vision、llm.plan、model MVP handler | 将具体 handler 外迁到 `intakeapp`、task/model worker 和 workflow/task repository |
 | Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
 | Data Intake Plan | 附件消息会产生 `intake.plan` 或 `vlm.inspect` tool trace；ShanghaiTech 数据附件会在 trace metadata 中记录 `plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 迁移到 `intakeapp` 持久化计划、quarantine、scan、approve/register workflow |
 | Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |

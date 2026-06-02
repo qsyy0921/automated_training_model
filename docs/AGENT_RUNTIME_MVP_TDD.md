@@ -32,14 +32,17 @@ Integration / Smoke Tests
 | Sub-agent | `internal/app/agentruntime/subagent_test.go` | 确定性命令不委托、文本/视觉/数据附件委托 |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
 | Tool schema/preflight | `internal/app/toolapp/schema_test.go` | 注册工具、参数白名单、高风险审批、未注册工具拦截 |
+| Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error |
 | Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted 标记 |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope |
+| CLI agent | `labelctl agent` smoke | 交互式 `/status`、`/ping` 和自然语言消息进入同一 Runtime |
 
 命令：
 
 ```powershell
-F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe test ./...
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go test ./...
 ```
 
 ## 4. Python Runtime 测试
@@ -127,7 +130,8 @@ npm run build
 ## 9. 提交前测试清单
 
 ```powershell
-F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe test ./...
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go test ./...
 python -m compileall workers\python\agent_runtime
 cd F:\automated_training_model\web
 npm run build
@@ -143,7 +147,7 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 ## 10. 当前测试缺口
 
 - ModelJob 进度日志、取消和自动 resume 测试。
-- ToolExecutor 具体执行实现迁移到 `internal/app/toolapp` 后的 runner 分发测试。
+- 具体工具 handler 外迁到 `intakeapp`、task/model worker 和 workflow repository 后的集成测试。
 - QQ OneBot WebSocket reader 长连接测试。
 - ShanghaiTech original 真实推理 smoke。
 - Python worker heartbeat/log/retry/artifact 测试。

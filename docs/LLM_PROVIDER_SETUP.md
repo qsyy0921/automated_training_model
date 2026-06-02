@@ -60,9 +60,11 @@ Model routing policy:
 ## CLI
 
 ```powershell
-F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe run .\cmd\labelctl llm ask "list available agent workflows"
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go run .\cmd\labelctl llm ask "list available agent workflows"
 
-F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe run .\cmd\labelctl llm agent
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go run .\cmd\labelctl llm agent
 ```
 
 ## Provider Contract

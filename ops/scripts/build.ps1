@@ -1,10 +1,8 @@
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\utf8.ps1" -Quiet
+. "$PSScriptRoot\resolve-go.ps1"
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$go = "F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe"
-if (!(Test-Path $go)) {
-  $go = "go"
-}
+$go = Resolve-Go
 Push-Location $root
 try {
   & $go test ./...

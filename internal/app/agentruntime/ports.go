@@ -44,8 +44,4 @@ type ToolExecutionRequest struct {
 	ToolCalls  []ToolCall             `json:"tool_calls"`
 }
 
-type ToolExecutionResult struct {
-	ReplyText string            `json:"reply_text,omitempty"`
-	Status    string            `json:"status,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
-}
+type ToolExecutionResult = toolapp.ExecutionResult

@@ -1,6 +1,6 @@
 param(
   [string]$Addr = "127.0.0.1:7910",
-  [string]$Go = "F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe",
+  [string]$Go = "",
   [string]$MergeRoot = "F:\keyan\token_compression\data\shanghai\new_tracking\merge",
   [string]$FrameRoot = "F:\keyan\token_compression\data\shanghai\data\testing\frames",
   [string]$MaskRoot = "F:\keyan\token_compression\data\shanghai\data\testframemask",
@@ -12,6 +12,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\utf8.ps1" -Quiet
+. "$PSScriptRoot\resolve-go.ps1"
+. "$PSScriptRoot\ensure-smoke-media-fixture.ps1"
 
 function Assert-True {
   param(
@@ -48,9 +50,12 @@ function Invoke-JSON {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
-if (-not (Test-Path -LiteralPath $Go)) {
-  $Go = "go"
-}
+$Go = Resolve-Go -Candidate $Go
+$mediaRoots = Ensure-SmokeMediaFixture -RepoRoot $repoRoot -MergeRoot $MergeRoot -FrameRoot $FrameRoot -MaskRoot $MaskRoot -AnnotationRoot $AnnotationRoot
+$MergeRoot = $mediaRoots.MergeRoot
+$FrameRoot = $mediaRoots.FrameRoot
+$MaskRoot = $mediaRoots.MaskRoot
+$AnnotationRoot = $mediaRoots.AnnotationRoot
 Assert-True (Test-Path -LiteralPath $ShanghaiTechRoot) "ShanghaiTech root does not exist: $ShanghaiTechRoot"
 
 if ($UseMimoPlanner) {

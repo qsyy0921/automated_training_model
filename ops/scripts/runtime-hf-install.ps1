@@ -1,6 +1,6 @@
 param(
   [string]$Addr = "127.0.0.1:7920",
-  [string]$Go = "F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe",
+  [string]$Go = "",
   [string]$ConfigPath = "C:\Users\10495\Desktop\mimo.txt",
   [string]$RepoId = "nvidia/LocateAnything-3B",
   [string]$Proxy = "http://127.0.0.1:7890",
@@ -15,6 +15,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\utf8.ps1" -Quiet
+. "$PSScriptRoot\resolve-go.ps1"
+. "$PSScriptRoot\ensure-smoke-media-fixture.ps1"
 
 function Assert-True {
   param([bool]$Condition, [string]$Message)
@@ -47,9 +49,12 @@ if ($StartDownload -and -not $WaitForCompletion) {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
-if (-not (Test-Path -LiteralPath $Go)) {
-  $Go = "go"
-}
+$Go = Resolve-Go -Candidate $Go
+$mediaRoots = Ensure-SmokeMediaFixture -RepoRoot $repoRoot -MergeRoot $MergeRoot -FrameRoot $FrameRoot -MaskRoot $MaskRoot -AnnotationRoot $AnnotationRoot
+$MergeRoot = $mediaRoots.MergeRoot
+$FrameRoot = $mediaRoots.FrameRoot
+$MaskRoot = $mediaRoots.MaskRoot
+$AnnotationRoot = $mediaRoots.AnnotationRoot
 Assert-True (Test-Path -LiteralPath $ConfigPath) "Mimo config does not exist: $ConfigPath"
 
 . "$PSScriptRoot\load-mimo-env.ps1" -ConfigPath $ConfigPath -Quiet

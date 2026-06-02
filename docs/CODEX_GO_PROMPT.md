@@ -117,7 +117,8 @@ web/assets/css/                design tokens、布局、组件样式
 
 ```powershell
 . .\ops\scripts\utf8.ps1
-F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe test ./...
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go test ./...
 ```
 
 6. 如涉及服务功能，启动本地服务并做 API smoke test。

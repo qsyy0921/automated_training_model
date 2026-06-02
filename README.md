@@ -61,7 +61,7 @@ Model & Data Training Platform
 - 模型注册元数据持久化到 `data_lake/models/models.json`，模型权重和 checkpoint 不进入 Git。
 - Agent Runtime session/trace 默认持久化到 `data_lake/runtime`，Web/CLI/桌面端/QQ 共用同一份运行态审计记录。
 - Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前未完成的下载任务会恢复为 `interrupted`，重新提交后可利用 HuggingFace cache 继续。
-- Tool schema / preflight 已拆到 `internal/app/toolapp`：未注册工具、未知参数和高风险审批缺失会在执行前被拦截。
+- Tool schema / preflight / runner 已拆到 `internal/app/toolapp`：未注册工具、未知参数、高风险审批缺失和缺失 handler 会在具体执行前被拦截。
 
 ## Agent 生命周期
 
@@ -84,17 +84,31 @@ collect
 CLI 是主入口：
 
 ```powershell
-go run .\cmd\labelctl agent run -workflow data-to-deployment-lifecycle -dataset workspace-dataset -dry-run=true
-go run .\cmd\labelctl runtime status
-go run .\cmd\labelctl runtime sessions
-go run .\cmd\labelctl runtime traces
-go run .\cmd\labelctl runtime model-jobs
-go run .\cmd\labelctl channel qq test /bot-ping
-go run .\cmd\labelctl skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
-go run .\cmd\agentdesktop
-go run .\cmd\labelctl governance all
-go run .\cmd\labelctl workflows
-go run .\cmd\labelctl runs
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go build -o .\bin\labelctl.exe .\cmd\labelctl
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 agent
+```
+
+进入交互式 Agent CLI 后，可以像 Claude Code 一样连续输入：
+
+```text
+atm> /status
+atm> /ping
+atm> 请帮我规划 ShanghaiTech 数据接入
+atm> /traces
+atm> /exit
+```
+
+也可以使用一次性命令：
+
+```powershell
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 agent "请帮我规划 ShanghaiTech 数据接入"
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime status
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime sessions
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime traces
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime model-jobs
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
 ```
 
 ### 四入口 Runtime 闭环
@@ -232,7 +246,8 @@ npm run build
 
 ```powershell
 cd F:\automated_training_model
-F:\keyan\token_compression\third_party\go1.26.3\go\bin\go.exe run .\cmd\labelserver `
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go run .\cmd\labelserver `
   -addr 127.0.0.1:7870 `
   -merge-root F:\keyan\token_compression\data\shanghai\new_tracking\merge `
   -frame-root F:\keyan\token_compression\data\shanghai\data\testing\frames `
@@ -286,4 +301,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化和 tool schema/preflight 边界；下一阶段重点是 durable queue、ToolExecutor runner 迁移、model job 进度日志/取消/自动 resume、真实 Python worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化和 tool schema/preflight/runner 边界；下一阶段重点是 durable queue、具体工具 handler 外迁、model job 进度日志/取消/自动 resume、真实 Python worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

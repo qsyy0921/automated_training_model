@@ -9,7 +9,7 @@
 
 | 入口 | 当前状态 | 说明 |
 | --- | --- | --- |
-| CLI | ready | `labelctl runtime/channel/agent-run/governance`。 |
+| CLI | ready | `labelctl agent` 交互式 Agent Runtime CLI；兼容 `runtime/channel/agent-run/governance` 一次性命令。 |
 | Web | ready | 默认进入 Agent Overview，视频审核是二级工作台。 |
 | Desktop | scaffolded | `cmd/agentdesktop` 和 `/api/desktop/status`，后续可替换为 Wails/Tauri。 |
 | QQ | adapter-ready | NapCat/OneBot webhook 和 test-message API。 |
@@ -19,16 +19,16 @@
 启动服务后：
 
 ```powershell
-go run .\cmd\labelctl runtime status
-go run .\cmd\labelctl runtime sessions
-go run .\cmd\labelctl runtime traces
-go run .\cmd\labelctl runtime model-jobs
-go run .\cmd\labelctl desktop status
-go run .\cmd\labelctl channels
-go run .\cmd\labelctl channel qq status
-go run .\cmd\labelctl channel qq test /bot-ping
-go run .\cmd\labelctl skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
-go run .\cmd\agentdesktop
+$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+& $go build -o .\bin\labelctl.exe .\cmd\labelctl
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 agent
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 agent "请帮我规划 ShanghaiTech 数据接入"
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime status
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime sessions
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime traces
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime model-jobs
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 desktop status
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 ```
 
 也可以直接运行一键 smoke test。默认不会主动回发真实 QQ；如果要使用当前 shell 里的 NapCat outbound 配置，增加 `-UseConfiguredQQOutbound`。
@@ -41,7 +41,7 @@ go run .\cmd\agentdesktop
 
 `smoke-runtime-mvp.ps1` 是当前推荐的 Runtime MVP 验收脚本。它额外覆盖：
 
-- CLI `runtime send /bot-ping`。
+- CLI `agent` 交互式入口和 `runtime send /bot-ping`。
 - Web/Gateway 可查询 runtime status、sessions、traces、model-jobs。
 - 桌面端复用 `/api/desktop/status`。
 - QQ test-message 和 OneBot webhook 都进入同一个 Agent Runtime。
