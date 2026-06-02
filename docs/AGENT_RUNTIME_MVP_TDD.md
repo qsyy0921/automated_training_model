@@ -35,7 +35,7 @@ Integration / Smoke Tests
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
 | Tool schema/preflight | `internal/app/toolapp/schema_test.go` | 注册工具、参数白名单、高风险审批、未注册工具拦截 |
 | Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error |
-| Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted 标记 |
+| Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go`、`internal/infrastructure/intakerepo/json_repository_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted 标记、intake plan JSON 恢复 |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope |
 | CLI agent | `internal/cli/labelctl/runtime_chat_test.go`、`labelctl agent` smoke | PowerShell BOM 输入归一化、trace metadata 渲染、交互式 `/status`、`/doctor`、`/ping` 和自然语言消息进入同一 Runtime |
@@ -117,7 +117,7 @@ npm run build
 | 脚本 | 目的 |
 | --- | --- |
 | `smoke-agent-entrypoints.ps1` | 原有四入口、OneBot envelope、desktop、skill draft |
-| `smoke-runtime-mvp.ps1` | Runtime MVP：sub-agent、model-jobs、ShanghaiTech data intake trace、session/trace 重启恢复 |
+| `smoke-runtime-mvp.ps1` | Runtime MVP：sub-agent、model-jobs、ShanghaiTech data intake trace、intake plan JSON 写入、session/trace 重启恢复 |
 | `smoke-mimo-api.ps1` | Mimo API 可用性 |
 | `smoke-mimo-planner.ps1` | Mimo planner 输出受控 tool-call |
 | `runtime-hf-install.ps1` | Runtime + Mimo 触发 HF 安装预检；显式 `-StartDownload -WaitForCompletion` 才真实下载并等待 job 完成 |

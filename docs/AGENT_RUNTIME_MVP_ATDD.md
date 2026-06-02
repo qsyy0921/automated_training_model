@@ -71,7 +71,9 @@ Then sub-agent 为 `data-intake-agent`，tool trace 包含 `intake.plan`，metad
 - `dry_run=true`
 - `approval=human_review_before_data_lake_write`
 
-证据：`smoke-runtime-mvp.ps1` 中数据附件断言。
+And `runtime-root\intake\intake_plans.json` 包含 `dataset_name=shanghaitech-original` 的 dry-run plan。
+
+证据：`smoke-runtime-mvp.ps1` 中数据附件断言和 intake repository 文件断言。
 
 ### ATDD-006 Mimo 文本规划可用
 

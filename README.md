@@ -62,7 +62,7 @@ Model & Data Training Platform
 - Agent Runtime session/trace 默认持久化到 `data_lake/runtime`，Web/CLI/桌面端/QQ 共用同一份运行态审计记录。
 - Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前未完成的下载任务会恢复为 `interrupted`，重新提交后可利用 HuggingFace cache 继续。
 - Tool schema / preflight / runner 已拆到 `internal/app/toolapp`：未注册工具、未知参数、高风险审批缺失和缺失 handler 会在具体执行前被拦截。
-- Data Intake Plan 的 dry-run 构造已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，并把 `plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata。
+- Data Intake Plan 的 dry-run 构造已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，并把 `plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划默认持久化到 `data_lake/runtime/intake/intake_plans.json`。
 - Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
 
 ## Agent 生命周期
@@ -345,4 +345,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化、tool schema/preflight/runner 边界、intake dry-run planner 外迁、Mimo fast chat、常驻 Python planner worker 和 CLI fast chat token streaming；下一阶段重点是 tool progress streaming、durable queue、`model.*`/`workflow.*` handler 外迁、model job 进度日志/取消/自动 resume、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化、intake plan JSON 持久化、tool schema/preflight/runner 边界、intake dry-run planner 外迁、Mimo fast chat、常驻 Python planner worker 和 CLI fast chat token streaming；下一阶段重点是 tool progress streaming、durable queue、`model.*`/`workflow.*` handler 外迁、model job 进度日志/取消/自动 resume、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

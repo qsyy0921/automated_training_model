@@ -198,6 +198,10 @@ try {
   Assert-True ($dataTrace.Count -eq 1) "trace missing intake.plan tool"
   Assert-True ($dataTrace[0].metadata.dataset_name -eq "shanghaitech-original") "intake.plan trace missing ShanghaiTech dataset metadata"
   Assert-True ($dataTrace[0].metadata.source_uri -eq $ShanghaiTechRoot) "intake.plan trace missing ShanghaiTech source uri"
+  $intakePlanPath = Join-Path $RuntimeRoot "intake\intake_plans.json"
+  Assert-True (Test-Path -LiteralPath $intakePlanPath) "intake plan repository was not written: $intakePlanPath"
+  $intakePlans = Get-Content -LiteralPath $intakePlanPath -Raw | ConvertFrom-Json
+  Assert-True (@($intakePlans | Where-Object { $_.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "intake repository missing ShanghaiTech plan"
 
   Stop-LabelServer -Process $server -ListenAddr $Addr
   $server = Start-Process -FilePath $Go -ArgumentList $serverArgs -WorkingDirectory $repoRoot -RedirectStandardOutput $out -RedirectStandardError $err -WindowStyle Hidden -PassThru
@@ -216,6 +220,8 @@ try {
   $restoredTraces = Invoke-JSON -Url "$baseURL/api/runtime/traces?limit=30"
   Assert-True (@($restoredSessions.sessions).Count -ge 4) "runtime sessions did not persist across restart"
   Assert-True (@($restoredTraces.traces | Where-Object { $_.tool_ids -contains "intake.plan" }).Count -ge 1) "runtime traces did not persist across restart"
+  $restoredIntakePlans = Get-Content -LiteralPath $intakePlanPath -Raw | ConvertFrom-Json
+  Assert-True (@($restoredIntakePlans | Where-Object { $_.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "intake plans did not persist across restart"
 
   Write-Host "smoke-runtime-mvp passed"
 } finally {

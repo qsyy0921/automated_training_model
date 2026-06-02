@@ -51,6 +51,14 @@ func NewGoToolExecutorWithModelJobs(agents AgentControlPlane, now func() time.Ti
 	return executor
 }
 
+func NewGoToolExecutorWithStores(agents AgentControlPlane, now func() time.Time, modelJobs ModelJobStore, intakeRepo intakeapp.Repository) *GoToolExecutor {
+	executor := NewGoToolExecutorWithModelJobs(agents, now, modelJobs)
+	if intakeRepo != nil {
+		executor.intake = intakeapp.NewService(intakeRepo, nil, intakeapp.NewDryRunPlanner(executor.now))
+	}
+	return executor
+}
+
 func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) (ToolExecutionResult, error) {
 	return e.toolRunner.Execute(ctx, req, req.ToolCalls)
 }

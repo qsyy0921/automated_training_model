@@ -61,7 +61,7 @@ Workers and Providers
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
 | Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截 | 不绑定 channel/session/runtime store |
 | ToolExecutor | `tools.go` | 注册 MVP 工具 handler、model job、workflow dry-run；`intake.plan` / `vlm.inspect` 只调用 `intakeapp` | 后续把 `model.*` 外迁到 task/model worker，把 `workflow.*` 外迁到 workflow repository |
-| Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo` | sessions、traces、model jobs | session/trace 和 model jobs 默认 JSON 持久化；后续迁移到 task repository |
+| Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans | session/trace、model jobs 和 intake plans 默认 JSON 持久化；后续迁移到 task repository / intake repository |
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
@@ -148,7 +148,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 
 - ShanghaiTech original 真实推理。
 - model job 进度日志、取消和自动 resume。
-- Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 dry-run plan 构造已迁移到 `internal/app/intakeapp`。具体 `model.*`、`workflow.*` handler 仍需继续外迁到 task/model worker 和 workflow repository。
+- Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 dry-run plan 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json`。具体 `model.*`、`workflow.*` handler 仍需继续外迁到 task/model worker 和 workflow repository。
 - QQ OneBot WebSocket 长连接 reader。
 - CLI / Gateway 的复杂 planner 分步流式、实时 tool progress streaming、审批确认和会话恢复。
 - Python worker heartbeat、logs、retries、artifacts。

@@ -10,7 +10,7 @@
 - [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
-- [ ] 将 `internal/app/intakeapp` 从 dry-run plan 生成推进到持久化 intake workflow：Channel 附件 quarantine、scan、Data Intake Plan、approve/register。
+- [ ] 将 `internal/app/intakeapp` 从 JSON dry-run plan repository 推进到完整 intake workflow：Channel 附件 quarantine、scan、approve/register。
 - [x] 将 Agent Runtime 的 LLM planner、fast chat、tool-call plan 迁移到 `workers/python/agent_runtime`，Go 只保留 Gateway/runtime shim 和受控 ToolExecutor。
 - [x] 按 `REFERENCE_AGENT_RUNTIME_ALIGNMENT.md` 拆出 `SessionRunner`、`PlannerPort`、`ToolExecutorPort`，避免 `agentruntime.Service` 继续膨胀。
 - [ ] 将 `skill-miner-agent` 从 draft-only 契约扩展为可人工审批的 skill 草稿生成器。
@@ -23,6 +23,7 @@
 - [x] 通过 Agent Runtime + Mimo planner 异步执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [x] 将 Agent Runtime session/trace 从纯内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime`，smoke 覆盖重启恢复。
 - [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。
+- [x] 将 Data Intake Plan 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/intake/intake_plans.json`，smoke 覆盖 ShanghaiTech plan 写入和重启后保留。
 - [x] 新增 `internal/app/toolapp`，固化 tool schema、参数白名单、risk level 和 approval/preflight gate。
 - [x] 将 `GoToolExecutor` 的执行循环迁移到 `internal/app/toolapp.Runner`，由 runner 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截。
 - [ ] 将 `GoToolExecutor` 的具体工具 handler 继续迁移到独立 app/worker：`model.*` 到模型任务/worker，`workflow.*` 到 workflow/task repository，`vlm.inspect` 后续接入真实 VLM worker。

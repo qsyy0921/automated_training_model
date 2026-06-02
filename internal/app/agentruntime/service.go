@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/qsyy0921/automated_training_model/internal/app/intakeapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
 	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
@@ -32,6 +33,11 @@ func NewServiceWithStore(agents AgentControlPlane, store RuntimeStore) *Service 
 func NewServiceWithStores(agents AgentControlPlane, runtimeStore RuntimeStore, modelJobs ModelJobStore) *Service {
 	now := time.Now
 	return NewServiceWithRunner(NewDefaultSessionRunnerWithStore(PlannerFromEnv(), NewGoToolExecutorWithModelJobs(agents, now, modelJobs), runtimeStore, now))
+}
+
+func NewServiceWithRuntimeStores(agents AgentControlPlane, runtimeStore RuntimeStore, modelJobs ModelJobStore, intakeRepo intakeapp.Repository) *Service {
+	now := time.Now
+	return NewServiceWithRunner(NewDefaultSessionRunnerWithStore(PlannerFromEnv(), NewGoToolExecutorWithStores(agents, now, modelJobs, intakeRepo), runtimeStore, now))
 }
 
 func NewServiceWithPorts(planner PlannerPort, tools ToolExecutorPort, now func() time.Time) *Service {

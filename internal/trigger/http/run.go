@@ -21,6 +21,7 @@ import (
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/config"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/datasetrepo"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/datasetruntime"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/intakerepo"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/jsonannotation"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/mergecsv"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/modelgateway"
@@ -60,7 +61,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	agentRuntimeSvc := agentruntime.NewServiceWithStores(agentSvc, runtimeStore, modelJobStore)
+	intakeRepo, err := intakerepo.NewJSONRepository(filepath.Join(cfg.RuntimeRoot, "intake"))
+	if err != nil {
+		return err
+	}
+	agentRuntimeSvc := agentruntime.NewServiceWithRuntimeStores(agentSvc, runtimeStore, modelJobStore, intakeRepo)
 	providerSvc := providerapp.NewProviderService(providerrepo.NewMemoryRepository(), secrets.NewEnvStore())
 	workspaceSvc := workspaceapp.NewRuntimeService(
 		datasetSvc,
