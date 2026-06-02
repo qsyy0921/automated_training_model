@@ -64,3 +64,19 @@ func TestClassifyLocateAnythingShanghaiTechTest(t *testing.T) {
 		t.Fatalf("unexpected dataset: %s", intent.DatasetID)
 	}
 }
+
+func TestClassifyDataIntakePlanningFastPath(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "请帮我规划 ShanghaiTech 数据接入"})
+	if intent.Kind != IntentDataIntake {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.ToolID != "intake.plan" {
+		t.Fatalf("unexpected tool: %s", intent.ToolID)
+	}
+	if intent.DatasetID != "shanghaitech-original" {
+		t.Fatalf("unexpected dataset: %s", intent.DatasetID)
+	}
+	if intent.Metadata["local_semantic_fast_path"] != "true" {
+		t.Fatalf("expected local semantic marker, got %+v", intent.Metadata)
+	}
+}

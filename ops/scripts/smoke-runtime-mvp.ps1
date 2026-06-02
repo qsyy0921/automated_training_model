@@ -143,6 +143,17 @@ try {
     Assert-True ($chat.reply.text -match "planner-agent") "free text did not route to planner-agent"
   }
 
+  $textIntakeBody = @{
+    id = "smoke-text-intake-1"
+    channel = "qq"
+    account_id = "default"
+    peer = @{ channel = "qq"; account_id = "default"; kind = "direct"; id = "smoke-text-intake" }
+    sender_id = "smoke-text-intake"
+    text = "请帮我规划 ShanghaiTech 数据接入"
+  }
+  $textIntake = Invoke-JSON -Method "POST" -Url "$baseURL/api/channels/qq/test-message" -Body $textIntakeBody -TimeoutSec $plannerTimeoutSec
+  Assert-True (-not [string]::IsNullOrWhiteSpace($textIntake.reply.text)) "text data intake did not return a reply"
+
   $visionBody = @{
     id = "smoke-vision-1"
     channel = "qq"
@@ -189,16 +200,22 @@ try {
 
   $sessions = Invoke-JSON -Url "$baseURL/api/runtime/sessions"
   $traces = Invoke-JSON -Url "$baseURL/api/runtime/traces?limit=30"
-  Assert-True (@($sessions.sessions).Count -ge 4) "expected at least four runtime sessions"
+  Assert-True (@($sessions.sessions).Count -ge 5) "expected at least five runtime sessions"
   Assert-True (@($traces.traces | Where-Object { $_.agent_id -eq "planner-agent" }).Count -ge 1) "trace missing planner-agent"
   Assert-True (@($traces.traces | Where-Object { $_.agent_id -eq "vision-agent" }).Count -ge 1) "trace missing vision-agent"
   Assert-True (@($traces.traces | Where-Object { $_.agent_id -eq "data-intake-agent" }).Count -ge 1) "trace missing data-intake-agent"
   Assert-True (@($traces.traces | Where-Object { $_.tool_ids -contains "vlm.inspect" }).Count -ge 1) "trace missing vlm.inspect tool"
-  $dataTrace = @($traces.traces | Where-Object { $_.tool_ids -contains "intake.plan" } | Select-Object -First 1)
-  Assert-True ($dataTrace.Count -eq 1) "trace missing intake.plan tool"
-  Assert-True ($dataTrace[0].metadata.dataset_name -eq "shanghaitech-original") "intake.plan trace missing ShanghaiTech dataset metadata"
-  Assert-True ($dataTrace[0].metadata.source_uri -eq $ShanghaiTechRoot) "intake.plan trace missing ShanghaiTech source uri"
-  Assert-True (-not [string]::IsNullOrWhiteSpace($dataTrace[0].metadata.workflow_id)) "intake.plan trace missing workflow_id"
+  $textDataTrace = @($traces.traces | Where-Object { $_.message_id -eq "smoke-text-intake-1" } | Select-Object -First 1)
+  Assert-True ($textDataTrace.Count -eq 1) "trace missing text data intake message"
+  Assert-True ($textDataTrace[0].tool_ids -contains "intake.plan") "text data intake trace missing intake.plan tool"
+  Assert-True ($textDataTrace[0].metadata.dataset_name -eq "shanghaitech-original") "text data intake trace missing ShanghaiTech dataset metadata"
+  Assert-True ($textDataTrace[0].metadata.source_uri -eq "message://qq/smoke-text-intake-1") "text data intake trace missing synthetic message source"
+  $dataTrace = @($traces.traces | Where-Object { $_.message_id -eq "smoke-data-1" } | Select-Object -First 1)
+  Assert-True ($dataTrace.Count -eq 1) "trace missing attachment intake message"
+  Assert-True ($dataTrace[0].tool_ids -contains "intake.plan") "attachment intake trace missing intake.plan tool"
+  Assert-True ($dataTrace[0].metadata.dataset_name -eq "shanghaitech-original") "attachment intake trace missing ShanghaiTech dataset metadata"
+  Assert-True ($dataTrace[0].metadata.source_uri -eq $ShanghaiTechRoot) "attachment intake trace missing ShanghaiTech source uri"
+  Assert-True (-not [string]::IsNullOrWhiteSpace($dataTrace[0].metadata.workflow_id)) "attachment intake trace missing workflow_id"
   $intakePlanPath = Join-Path $RuntimeRoot "intake\intake_plans.json"
   Assert-True (Test-Path -LiteralPath $intakePlanPath) "intake plan repository was not written: $intakePlanPath"
   $intakePlans = Get-Content -LiteralPath $intakePlanPath -Raw | ConvertFrom-Json
@@ -225,7 +242,7 @@ try {
   Assert-True $ready "labelserver did not restart for runtime persistence check"
   $restoredSessions = Invoke-JSON -Url "$baseURL/api/runtime/sessions"
   $restoredTraces = Invoke-JSON -Url "$baseURL/api/runtime/traces?limit=30"
-  Assert-True (@($restoredSessions.sessions).Count -ge 4) "runtime sessions did not persist across restart"
+  Assert-True (@($restoredSessions.sessions).Count -ge 5) "runtime sessions did not persist across restart"
   Assert-True (@($restoredTraces.traces | Where-Object { $_.tool_ids -contains "intake.plan" }).Count -ge 1) "runtime traces did not persist across restart"
   $restoredIntakePlans = Get-Content -LiteralPath $intakePlanPath -Raw | ConvertFrom-Json
   Assert-True (@($restoredIntakePlans | Where-Object { $_.dataset_name -eq "shanghaitech-original" }).Count -ge 1) "intake plans did not persist across restart"

@@ -98,6 +98,40 @@ func TestAttachmentMessageDoesNotWriteData(t *testing.T) {
 	}
 }
 
+func TestTextDataIntakePlanningUsesFastPathAndTrace(t *testing.T) {
+	svc := NewService(&fakeAgentPlane{})
+	out, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "请帮我规划 ShanghaiTech 数据接入",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Text == "" {
+		t.Fatal("expected intake planning reply")
+	}
+	traces := svc.ListTraces(10)
+	if len(traces) != 1 {
+		t.Fatalf("expected one trace, got %d", len(traces))
+	}
+	if traces[0].AgentID != "data-intake-agent" {
+		t.Fatalf("expected data-intake-agent trace, got %s", traces[0].AgentID)
+	}
+	if len(traces[0].ToolIDs) != 1 || traces[0].ToolIDs[0] != "intake.plan" {
+		t.Fatalf("expected intake.plan tool trace, got %+v", traces[0].ToolIDs)
+	}
+	if traces[0].Metadata["dataset_name"] != "shanghaitech-original" {
+		t.Fatalf("expected shanghaitech dataset metadata, got %+v", traces[0].Metadata)
+	}
+	if traces[0].Metadata["source_uri"] != "message://qq/msg1" {
+		t.Fatalf("expected synthetic text source metadata, got %+v", traces[0].Metadata)
+	}
+}
+
 func TestImageAttachmentRoutesToVisionTool(t *testing.T) {
 	svc := NewService(&fakeAgentPlane{})
 	out, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{

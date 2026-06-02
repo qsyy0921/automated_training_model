@@ -24,7 +24,7 @@
 - [x] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
 - [x] 默认启用常驻 `python -m agent_runtime.worker`，避免每轮 Mimo planner 都冷启动 Python；CLI 等待期间显示 `planner-agent working...` 耗时。
 - [x] 为普通 fast chat 接入 `/api/runtime/stream-message` NDJSON token streaming：CLI 收到 Mimo `delta` 后立即刷屏，反向代理不支持 SSE 时退回单 delta。
-- [x] 增加 Go 本地语义 fast-path：runtime self-description、已知 LocateAnything 下载和 ShanghaiTech smoke 固定流程不等待 Mimo；`AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可关闭并回到 Mimo planner。
+- [x] 增加 Go 本地语义 fast-path：runtime self-description、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 下载和 ShanghaiTech smoke 固定流程不等待 Mimo；`AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可关闭并回到 Mimo planner。
 - [x] 通过 Agent Runtime + Mimo planner 异步执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [x] 将 Agent Runtime session/trace 从纯内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime`，smoke 覆盖重启恢复。
 - [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。

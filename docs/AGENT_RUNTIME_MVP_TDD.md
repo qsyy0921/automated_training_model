@@ -30,11 +30,13 @@ Integration / Smoke Tests
 | 模块 | 文件 | 当前覆盖 |
 | --- | --- | --- |
 | Intent | `internal/app/agentruntime/intent_test.go` | `/bot-*`、附件识别、普通文本、runtime self-description、LocateAnything 安装/测试高置信度意图 |
+| Runtime Router | `internal/app/agentruntime/router_test.go` | CCB/Hermes 式混合路由：local control、local semantic、external planner；可用 env 关闭本地语义 fast-path |
 | Sub-agent | `internal/app/agentruntime/subagent_test.go` | 确定性命令不委托、文本/视觉/数据附件委托、模型固定流程委托 `model-agent` |
 | Planner selection | `internal/app/agentruntime/python_planner_test.go` | `AGENT_RUNTIME_USE_MIMO=true` 自动选择 PythonPlanner，`AGENT_RUNTIME_PLANNER=rule` 显式覆盖 |
 | Python worker transport | `internal/app/agentruntime/python_planner_test.go` | 默认启用常驻 Python worker，`AGENT_RUNTIME_PYTHON_WORKER=false` 回退 spawn，并在 runtime status 暴露 transport |
 | Local control fast-path | `internal/app/agentruntime/session_test.go` | `/bot-ping`、runtime self-description 等控制/身份问题即使配置外部 planner，也由 Go 本地规则规划，不调用 Python/Mimo |
 | Local semantic fast-path | `internal/app/agentruntime/session_test.go` | 已知 LocateAnything 安装/ShanghaiTech 测试固定流程由 Go 直接生成受控工具链，可用 `AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 关闭 |
+| Data intake fast-path | `internal/app/agentruntime/service_test.go` | `规划 ShanghaiTech 数据接入` 直接进入 `data-intake-agent` + `intake.plan`，trace 记录 dataset/workflow metadata |
 | Mandatory tool guard | `internal/app/agentruntime/session_test.go` | data-intake / vision 附件场景下，外部 Mimo planner 缺少必需 tool-call 或扩展额外工具链时回退本地计划并保留 sub-agent delegation |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
 | Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、取消请求、`canceled/resumable` 状态、手动 resume child job |
@@ -44,6 +46,7 @@ Integration / Smoke Tests
 | Model runtime app | `internal/app/modelruntime/service_test.go` | HuggingFace 默认参数、目录逃逸拦截、LocateAnything smoke 默认路径、下载审批开关、smoke JSON 解析 |
 | Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go`、`internal/infrastructure/intakerepo/json_repository_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted/resumable 标记、intake plan/workflow JSON 恢复 |
 | Intake workflow | `internal/app/intakeapp/workflow_test.go` | quarantine、静态 scan、pending approval、reject unsafe metadata、approve 后 register |
+| Text-only intake | `internal/app/intakeapp/workflow_test.go` | 纯文本远程数据接入指令生成 synthetic text source attachment，仍走 scan 和 pending approval |
 | Gateway middleware | `internal/infrastructure/middleware/middleware_test.go` | loopback 默认放行、非 loopback 无 token 拒绝、Bearer token 放行、强制 loopback token、health public |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope；fake OneBot WebSocket reader 读取 message event 并回写 `send_msg` |
@@ -164,7 +167,7 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 - ModelJob 逐文件字节级进度、实时日志流和自动 resume 测试。
 - `modelruntime` 接入统一 task/model worker 和 workflow repository 后的集成测试。
 - QQ OneBot WebSocket reader 长连接测试。
-- Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。
+- Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。
 - Gateway auth 集成 smoke：非 loopback 模拟、CLI `-token`、桌面端 `-token` 和前端 token profile。
 - ShanghaiTech original 真实推理 smoke。
 - Python worker heartbeat/log/retry/artifact 测试。

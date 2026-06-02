@@ -59,6 +59,32 @@ func TestPrepareWorkflowRejectsUnsafeAttachmentMetadata(t *testing.T) {
 	}
 }
 
+func TestPrepareWorkflowAcceptsTextOnlyIntakeRequest(t *testing.T) {
+	svc := NewService(NewMemoryRepository(), NewStaticScanner(), NewDryRunPlanner(func() time.Time { return time.Unix(1, 0) }))
+	workflow, err := svc.PrepareWorkflowFromMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		SenderID:  "10001",
+		Text:      "请帮我规划 ShanghaiTech 数据接入",
+	}, PlanOptions{Mode: PlanModeData})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workflow.Status != WorkflowPendingApproval {
+		t.Fatalf("expected pending approval, got %+v", workflow)
+	}
+	if workflow.Plan.DatasetName != "shanghaitech-original" {
+		t.Fatalf("expected ShanghaiTech dataset, got %+v", workflow.Plan)
+	}
+	if len(workflow.Attachments) != 1 || workflow.Attachments[0].MediaType != "text/plain" {
+		t.Fatalf("expected synthetic text source attachment, got %+v", workflow.Attachments)
+	}
+	if len(workflow.ScanReports) != 1 || !workflow.ScanReports[0].Accepted {
+		t.Fatalf("expected accepted text source scan, got %+v", workflow.ScanReports)
+	}
+}
+
 func TestApproveAndRegisterWorkflow(t *testing.T) {
 	svc := NewService(NewMemoryRepository(), NewStaticScanner(), NewDryRunPlanner(nil))
 	workflow, err := svc.PrepareWorkflowFromMessage(context.Background(), channel.InboundMessage{

@@ -190,6 +190,11 @@ func intakePlanMetadata(plan channel.DataIntakePlan, msg channel.InboundMessage)
 
 func intakeWorkflowMetadata(workflow intakeapp.IntakeWorkflow, msg channel.InboundMessage) map[string]string {
 	metadata := intakePlanMetadata(workflow.Plan, msg)
+	if metadata["source_uri"] == "" {
+		if source := firstAttachmentSource(workflow.Attachments); source != "" {
+			metadata["source_uri"] = source
+		}
+	}
 	workflowJSON, _ := json.Marshal(workflow)
 	accepted := 0
 	rejected := 0

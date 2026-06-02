@@ -140,6 +140,33 @@ func TestKnownModelInstallUsesLocalSemanticPlan(t *testing.T) {
 	}
 }
 
+func TestKnownDataIntakePlanningUsesLocalSemanticPlan(t *testing.T) {
+	planner := &fakePlanner{}
+	tools := &fakeTools{}
+	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
+
+	_, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "请帮我规划 ShanghaiTech 数据接入",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planner.got.Message.ID != "" {
+		t.Fatalf("known data intake planning should use local semantic plan, got %+v", planner.got)
+	}
+	if tools.got.Delegation.AgentID != "data-intake-agent" {
+		t.Fatalf("expected data-intake-agent delegation, got %+v", tools.got.Delegation)
+	}
+	if len(tools.got.ToolCalls) != 1 || tools.got.ToolCalls[0].ToolID != "intake.plan" {
+		t.Fatalf("unexpected data intake tool calls: %+v", tools.got.ToolCalls)
+	}
+}
+
 func TestControlIntentUsesLocalFastPath(t *testing.T) {
 	planner := &fakePlanner{}
 	tools := &fakeTools{}

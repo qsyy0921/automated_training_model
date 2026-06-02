@@ -49,7 +49,7 @@ func (s *StaticScanner) Scan(ctx context.Context, attachment channel.Attachment)
 
 func (s *Service) PrepareWorkflowFromMessage(ctx context.Context, msg channel.InboundMessage, opts PlanOptions) (IntakeWorkflow, error) {
 	if len(msg.Attachments) == 0 {
-		return IntakeWorkflow{}, fmt.Errorf("at least one attachment is required")
+		msg.Attachments = []channel.Attachment{textSourceAttachment(msg)}
 	}
 	now := time.Now()
 	attachments := make([]channel.Attachment, 0, len(msg.Attachments))
@@ -99,6 +99,21 @@ func (s *Service) PrepareWorkflowFromMessage(ctx context.Context, msg channel.In
 		UpdatedAt:        now,
 	}
 	return s.repo.SaveWorkflow(ctx, workflow)
+}
+
+func textSourceAttachment(msg channel.InboundMessage) channel.Attachment {
+	id := strings.TrimSpace(msg.ID)
+	if id == "" {
+		id = "message"
+	}
+	return channel.Attachment{
+		ID:        id + "-text-source",
+		Name:      "text-intake-request.txt",
+		MediaType: "text/plain",
+		SourceURI: fmt.Sprintf("message://%s/%s", msg.Channel, id),
+		Status:    channel.AttachmentReceived,
+		CreatedAt: time.Now(),
+	}
 }
 
 func (s *Service) ListWorkflows(ctx context.Context, limit int) ([]IntakeWorkflow, error) {

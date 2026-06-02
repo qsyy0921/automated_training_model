@@ -57,7 +57,8 @@ Workers and Providers
 | --- | --- | --- | --- |
 | Channel Adapter | `internal/api/httpapi/channel_handlers.go`、`internal/infrastructure/qqbot` | OneBot/test-message 归一化、outbound envelope | 不能写 Data Lake、不能调模型、不能绕过 runtime |
 | Runtime Service | `internal/app/agentruntime/service.go` | 入口门面 | 不堆业务分支 |
-| Session Runner | `session.go` | session key、本地控制 fast-path、本地语义 fast-path、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
+| Session Runner | `session.go` | session key、router 选择、planner 调用、tool 调用、trace 写入 | 不直接下载模型或写数据 |
+| Runtime Router | `router.go` | 参考 CCB/Hermes 的混合路由方式，先判定 local control、local semantic、external planner 三类路径 | 不执行工具，不保存状态 |
 | PlannerPort | `planner.go`、`python_planner.go` | 规则计划和 Python/Mimo 计划 | 不执行副作用 |
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
@@ -77,6 +78,7 @@ Workers and Providers
 | `/bot-ping`、`/bot-status` 等确定性命令 | 否 | Go control plane | 低风险、离线可测 |
 | 自我介绍/能力说明 | 否 | Go control plane | 本地确定性回答，避免把项目身份问题交给模型自由发挥 |
 | 普通自然语言 | 是 | `planner-agent` | 需要意图细化和 tool-call plan |
+| 高置信度数据接入规划，例如 `规划 ShanghaiTech 数据接入` | 是 | `data-intake-agent` | Go 先生成 `intake.plan`；未知参数再交给 Mimo planner |
 | 已知模型下载/测试固定流程 | 是 | `model-agent` | Go 先生成固定工具链；未知模型仍交给 Mimo planner |
 | 图片、截图、异常帧 | 是 | `vision-agent` | 需要 `mimo-v2.5` 视觉路由 |
 | zip、manifest、目录索引、数据附件 | 是 | `data-intake-agent` | 需要 quarantine、scan、dry-run intake plan、pending approval workflow 和审批 |
@@ -98,6 +100,7 @@ Workers and Providers
 `labelctl agent` 的普通聊天和工具规划必须分离：
 
 - 自我介绍、能力说明等项目身份问题走 Go 本地 fast-path，直接返回 runtime 身份，避免模型回答成“我是 Mimo”。
+- 数据接入/入湖/manifest/本地文件夹/ShanghaiTech 这类高置信度工程意图走 Go 本地语义 fast-path，直接生成 `intake.plan` 并进入 ToolExecutor，保留审批、trace 和 workflow metadata。
 - 普通聊天、概念解释走 `Mimo fast chat`，直接请求自然语言回复，不要求模型输出 JSON。
 - 下载模型、安装依赖、数据接入、测试、训练、评估、部署、HuggingFace、ShanghaiTech、tool/skill/MCP 等复杂请求走 `Mimo planner`，输出受控 tool-call JSON，再由 Go ToolExecutor 执行。
 - 已知 `LocateAnything-3B` 下载和 `LocateAnything-3B + ShanghaiTech` smoke 属于高置信度固定流程，默认 `AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=true`，由 Go 直接生成 `model.download_hf` 或 `model.verify_hf -> model.smoke_locateanything -> workflow.submit_run(dry_run=true)`；设置 `AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可强制回到 Mimo planner。
@@ -110,7 +113,7 @@ Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 
 
 普通 fast chat 已通过 `/api/runtime/stream-message` 接入 NDJSON 事件流：Go `SessionRunner.RunStream` -> `PythonPlanner.PlanStream` -> 常驻 `python -m agent_runtime.worker` -> Mimo Anthropic-compatible SSE。CLI 收到 `delta` 事件后立即写到终端；如果反向代理不支持 SSE，Python runtime 会退回一次性 Mimo 回复并以单个 `delta` 发出，CLI 仍不需要走第二套 UI。
 
-Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 只会输出 `status`、`tool_start` 和 `final`，下一步需要把 tool progress、审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
+Go `RuntimeRouter` 会在进入 PlannerPort 前选择 `local_control`、`local_semantic` 或 `external_planner`。Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 只会输出 `status`、`tool_start` 和 `final`，下一步需要把 tool progress、审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
 
 ## 8. HuggingFace 模型下载边界
 

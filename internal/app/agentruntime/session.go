@@ -3,7 +3,6 @@ package agentruntime
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -26,6 +25,7 @@ type DefaultSessionRunner struct {
 	planner PlannerPort
 	tools   ToolExecutorPort
 	store   RuntimeStore
+	router  *RuntimeRouter
 	now     func() time.Time
 }
 
@@ -43,7 +43,7 @@ func NewDefaultSessionRunnerWithStore(planner PlannerPort, tools ToolExecutorPor
 	if store == nil {
 		store = NewInMemoryRuntimeStore(now())
 	}
-	return &DefaultSessionRunner{planner: planner, tools: tools, store: store, now: now}
+	return &DefaultSessionRunner{planner: planner, tools: tools, store: store, router: NewRuntimeRouter(), now: now}
 }
 
 func (r *DefaultSessionRunner) Run(ctx context.Context, msg channel.InboundMessage) (channel.OutboundMessage, error) {
@@ -158,10 +158,8 @@ func (r *DefaultSessionRunner) RunStream(ctx context.Context, msg channel.Inboun
 }
 
 func (r *DefaultSessionRunner) plan(ctx context.Context, req PlanRequest) (PlanResult, error) {
-	if shouldUseLocalControlPlan(req.Intent) {
-		return NewRulePlanner().Plan(ctx, req)
-	}
-	if shouldUseLocalSemanticPlan(req.Intent) {
+	route := r.router.Select(req)
+	if route.Mode == RouteLocalControl || route.Mode == RouteLocalSemantic {
 		return NewRulePlanner().Plan(ctx, req)
 	}
 	plan, err := r.planner.Plan(ctx, req)
@@ -172,15 +170,10 @@ func (r *DefaultSessionRunner) plan(ctx context.Context, req PlanRequest) (PlanR
 }
 
 func (r *DefaultSessionRunner) planStream(ctx context.Context, req PlanRequest, emit func(RuntimeStreamEvent)) (PlanResult, error) {
-	if shouldUseLocalControlPlan(req.Intent) {
+	route := r.router.Select(req)
+	if route.Mode == RouteLocalControl || route.Mode == RouteLocalSemantic {
 		if emit != nil {
-			emit(RuntimeStreamEvent{Type: "status", Intent: string(req.Intent.Kind), AgentID: req.Session.AgentID, Message: "local control fast-path"})
-		}
-		return NewRulePlanner().Plan(ctx, req)
-	}
-	if shouldUseLocalSemanticPlan(req.Intent) {
-		if emit != nil {
-			emit(RuntimeStreamEvent{Type: "status", Intent: string(req.Intent.Kind), AgentID: req.Session.AgentID, Message: "local semantic fast-path"})
+			emit(RuntimeStreamEvent{Type: "status", Intent: string(req.Intent.Kind), AgentID: req.Session.AgentID, Message: string(route.Mode) + ": " + route.Reason})
 		}
 		return NewRulePlanner().Plan(ctx, req)
 	}
@@ -213,29 +206,6 @@ func (r *DefaultSessionRunner) enforceMandatoryPlan(ctx context.Context, req Pla
 		return plan, nil
 	}
 	return NewRulePlanner().Plan(ctx, req)
-}
-
-func shouldUseLocalControlPlan(intent Intent) bool {
-	switch intent.Kind {
-	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun, IntentRuntimeAbout:
-		return true
-	case IntentUnknown:
-		return intent.Command == "/bot-help"
-	default:
-		return false
-	}
-}
-
-func shouldUseLocalSemanticPlan(intent Intent) bool {
-	if isFalseEnv(os.Getenv("AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH")) {
-		return false
-	}
-	switch intent.Kind {
-	case IntentModelInstall, IntentModelTest:
-		return true
-	default:
-		return false
-	}
 }
 
 func (r *DefaultSessionRunner) Snapshot(limit int) RuntimeSnapshot {

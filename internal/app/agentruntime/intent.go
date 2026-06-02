@@ -77,6 +77,17 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 			Confidence: 0.9,
 		}
 	}
+	if dataIntakeText(text) {
+		return Intent{
+			Kind:       IntentDataIntake,
+			RawText:    text,
+			DatasetID:  inferredDatasetID(text),
+			SkillID:    "channel-data-intake",
+			ToolID:     "intake.plan",
+			Confidence: 0.88,
+			Metadata:   map[string]string{"local_semantic_fast_path": "true"},
+		}
+	}
 	if !strings.HasPrefix(text, "/") {
 		return Intent{
 			Kind:       IntentChat,
@@ -152,6 +163,36 @@ func modelTestText(text string) bool {
 	hasDataset := strings.Contains(normalized, "shanghaitech") || strings.Contains(normalized, "上海")
 	hasAction := strings.Contains(normalized, "测试") || strings.Contains(normalized, "验证") || strings.Contains(normalized, "dry-run") || strings.Contains(normalized, "dry run") || strings.Contains(normalized, "smoke")
 	return hasModel && hasDataset && hasAction
+}
+
+func dataIntakeText(text string) bool {
+	if strings.HasPrefix(strings.TrimSpace(text), "/") {
+		return false
+	}
+	normalized := strings.ToLower(strings.ReplaceAll(text, " ", ""))
+	hasData := strings.Contains(normalized, "数据") ||
+		strings.Contains(normalized, "dataset") ||
+		strings.Contains(normalized, "data_lake") ||
+		strings.Contains(normalized, "datalake") ||
+		strings.Contains(normalized, "shanghaitech") ||
+		strings.Contains(normalized, "上海")
+	hasIntake := strings.Contains(normalized, "接入") ||
+		strings.Contains(normalized, "入湖") ||
+		strings.Contains(normalized, "注册") ||
+		strings.Contains(normalized, "导入") ||
+		strings.Contains(normalized, "上传") ||
+		strings.Contains(normalized, "规划") ||
+		strings.Contains(normalized, "manifest") ||
+		strings.Contains(normalized, "本地文件夹") ||
+		strings.Contains(normalized, "folder")
+	if hasData && hasIntake {
+		return true
+	}
+	if strings.Contains(normalized, "shanghaitech") && !strings.Contains(normalized, "locateanything") {
+		return true
+	}
+	return (strings.Contains(normalized, "manifest") || strings.Contains(normalized, "zip")) &&
+		(strings.Contains(normalized, "接入") || strings.Contains(normalized, "注册") || strings.Contains(normalized, "入湖"))
 }
 
 func inferredDatasetID(text string) string {
