@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/domain/agent"
+	"github.com/qsyy0921/automated_training_model/internal/domain/channel"
 )
 
 type GoToolExecutor struct {
@@ -86,15 +88,9 @@ func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionReques
 			Status:    "planned",
 		}, nil
 	case "intake.plan":
-		return ToolExecutionResult{
-			ReplyText: "已生成 Data Intake Plan 草案；正式入湖前仍需要人工审批。",
-			Status:    "planned",
-		}, nil
+		return e.planDataIntake(req, call)
 	case "vlm.inspect":
-		return ToolExecutionResult{
-			ReplyText: "已进入视觉检查队列：使用 mimo-v2.5 路由，当前 MVP 不会自动写入 Data Lake。",
-			Status:    "planned",
-		}, nil
+		return e.planVisionInspection(req, call)
 	case "llm.plan":
 		return ToolExecutionResult{
 			ReplyText: fmt.Sprintf("已进入 planner-agent 会话：%s；可通过 AGENT_RUNTIME_PLANNER=python 启用 Python/Mimo planner。", req.Session.Key),
@@ -110,6 +106,132 @@ func (e *GoToolExecutor) executeOne(ctx context.Context, req ToolExecutionReques
 			Status:    "unsupported_tool",
 		}, nil
 	}
+}
+
+func (e *GoToolExecutor) planDataIntake(req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
+	plan := channel.DataIntakePlan{
+		ID:              fmt.Sprintf("intake-plan-%d", e.now().UnixNano()),
+		SourceMessageID: req.Message.ID,
+		Channel:         req.Message.Channel,
+		AccountID:       req.Message.AccountID,
+		SenderID:        req.Message.SenderID,
+		Intent:          channel.IntakeIntentInspect,
+		DatasetName:     inferDatasetName(req, call),
+		ProposedActions: []channel.PlannedAction{
+			{Kind: "quarantine", Params: map[string]string{"attachment_count": strconv.Itoa(len(req.Message.Attachments))}},
+			{Kind: "scan", Params: map[string]string{"scanner": "mvp-static-preflight"}},
+			{Kind: "create_data_intake_plan", Params: map[string]string{"mode": "dry_run"}},
+		},
+		RequiredApprovals: []string{"human_review_before_data_lake_write"},
+		RiskLevel:         intakeRisk(req.Message.Attachments),
+		DryRun:            true,
+		CreatedAt:         e.now(),
+	}
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	metadata := map[string]string{
+		"plan_id":          plan.ID,
+		"dataset_name":     plan.DatasetName,
+		"attachment_count": strconv.Itoa(len(req.Message.Attachments)),
+		"risk_level":       plan.RiskLevel,
+		"dry_run":          strconv.FormatBool(plan.DryRun),
+		"approval":         strings.Join(plan.RequiredApprovals, ","),
+		"plan_json":        string(planJSON),
+	}
+	if source := firstAttachmentSource(req.Message.Attachments); source != "" {
+		metadata["source_uri"] = source
+	}
+	return ToolExecutionResult{
+		ReplyText: fmt.Sprintf("已生成 Data Intake Plan：plan=%s agent=%s dataset=%s attachments=%d risk=%s dry_run=true；正式入湖前需要人工审批。", plan.ID, req.Delegation.AgentID, plan.DatasetName, len(req.Message.Attachments), plan.RiskLevel),
+		Status:    "planned",
+		Metadata:  metadata,
+	}, nil
+}
+
+func (e *GoToolExecutor) planVisionInspection(req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
+	plan := channel.DataIntakePlan{
+		ID:              fmt.Sprintf("vision-plan-%d", e.now().UnixNano()),
+		SourceMessageID: req.Message.ID,
+		Channel:         req.Message.Channel,
+		AccountID:       req.Message.AccountID,
+		SenderID:        req.Message.SenderID,
+		Intent:          channel.IntakeIntentInspect,
+		DatasetName:     inferDatasetName(req, call),
+		ProposedActions: []channel.PlannedAction{
+			{Kind: "quarantine", Params: map[string]string{"attachment_count": strconv.Itoa(len(req.Message.Attachments))}},
+			{Kind: "vlm_inspect", Params: map[string]string{"model_route": "vision", "model": "mimo-v2.5"}},
+			{Kind: "create_data_intake_plan", Params: map[string]string{"mode": "dry_run"}},
+		},
+		RequiredApprovals: []string{"human_review_before_data_lake_write"},
+		RiskLevel:         intakeRisk(req.Message.Attachments),
+		DryRun:            true,
+		CreatedAt:         e.now(),
+	}
+	planJSON, err := json.Marshal(plan)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	metadata := map[string]string{
+		"plan_id":          plan.ID,
+		"dataset_name":     plan.DatasetName,
+		"attachment_count": strconv.Itoa(len(req.Message.Attachments)),
+		"risk_level":       plan.RiskLevel,
+		"dry_run":          strconv.FormatBool(plan.DryRun),
+		"model_route":      "vision",
+		"model":            "mimo-v2.5",
+		"approval":         strings.Join(plan.RequiredApprovals, ","),
+		"plan_json":        string(planJSON),
+	}
+	if source := firstAttachmentSource(req.Message.Attachments); source != "" {
+		metadata["source_uri"] = source
+	}
+	return ToolExecutionResult{
+		ReplyText: fmt.Sprintf("已生成视觉数据检查计划：plan=%s agent=vision-agent route=mimo-v2.5 attachments=%d；当前 MVP 只做计划和审批边界，不自动写入 Data Lake。", plan.ID, len(req.Message.Attachments)),
+		Status:    "planned",
+		Metadata:  metadata,
+	}, nil
+}
+
+func inferDatasetName(req ToolExecutionRequest, call ToolCall) string {
+	if value := strings.TrimSpace(call.Params["dataset_id"]); value != "" {
+		return value
+	}
+	if value := strings.TrimSpace(req.Intent.DatasetID); value != "" {
+		return value
+	}
+	text := strings.ToLower(req.Message.Text)
+	for _, attachment := range req.Message.Attachments {
+		text += " " + strings.ToLower(attachment.Name) + " " + strings.ToLower(attachment.SourceURI) + " " + strings.ToLower(attachment.LocalURI)
+	}
+	if strings.Contains(text, "shanghaitech") || strings.Contains(text, "上海") {
+		return "shanghaitech-original"
+	}
+	return "channel-upload-draft"
+}
+
+func intakeRisk(attachments []channel.Attachment) string {
+	for _, attachment := range attachments {
+		mediaType := strings.ToLower(strings.TrimSpace(attachment.MediaType))
+		name := strings.ToLower(strings.TrimSpace(attachment.Name))
+		if strings.Contains(mediaType, "zip") || strings.HasSuffix(name, ".zip") || strings.HasSuffix(name, ".7z") || strings.HasSuffix(name, ".rar") {
+			return "medium"
+		}
+	}
+	return "low"
+}
+
+func firstAttachmentSource(attachments []channel.Attachment) string {
+	for _, attachment := range attachments {
+		if value := strings.TrimSpace(attachment.LocalURI); value != "" {
+			return value
+		}
+		if value := strings.TrimSpace(attachment.SourceURI); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (e *GoToolExecutor) downloadHFModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {

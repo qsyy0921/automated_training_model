@@ -57,7 +57,7 @@ func (r *DefaultSessionRunner) Run(ctx context.Context, msg channel.InboundMessa
 
 	if strings.TrimSpace(msg.Text) == "" && len(msg.Attachments) == 0 {
 		reply.Text = "已收到空消息。"
-		r.record(session, msg, intent, nil, "ok", reply.Text, "")
+		r.record(session, msg, intent, nil, "ok", reply.Text, "", nil)
 		return reply, nil
 	}
 
@@ -68,12 +68,12 @@ func (r *DefaultSessionRunner) Run(ctx context.Context, msg channel.InboundMessa
 		Delegation: delegation,
 	})
 	if err != nil {
-		r.record(session, msg, intent, nil, "planning_failed", "", err.Error())
+		r.record(session, msg, intent, nil, "planning_failed", "", err.Error(), nil)
 		return channel.OutboundMessage{}, err
 	}
 	if len(plan.ToolCalls) == 0 {
 		reply.Text = plan.ReplyText
-		r.record(session, msg, plan.Intent, nil, plan.Status, reply.Text, "")
+		r.record(session, msg, plan.Intent, nil, plan.Status, reply.Text, "", nil)
 		return reply, nil
 	}
 
@@ -85,11 +85,11 @@ func (r *DefaultSessionRunner) Run(ctx context.Context, msg channel.InboundMessa
 		ToolCalls:  plan.ToolCalls,
 	})
 	if err != nil {
-		r.record(session, msg, plan.Intent, plan.ToolCalls, "tool_failed", "", err.Error())
+		r.record(session, msg, plan.Intent, plan.ToolCalls, "tool_failed", "", err.Error(), nil)
 		return channel.OutboundMessage{}, err
 	}
 	reply.Text = result.ReplyText
-	r.record(session, msg, plan.Intent, plan.ToolCalls, result.Status, reply.Text, "")
+	r.record(session, msg, plan.Intent, plan.ToolCalls, result.Status, reply.Text, "", result.Metadata)
 	return reply, nil
 }
 
@@ -112,7 +112,7 @@ func (r *DefaultSessionRunner) ListModelJobs(limit int) []ModelJob {
 	return nil
 }
 
-func (r *DefaultSessionRunner) record(session SessionContext, msg channel.InboundMessage, intent Intent, calls []ToolCall, status string, reply string, errorText string) {
+func (r *DefaultSessionRunner) record(session SessionContext, msg channel.InboundMessage, intent Intent, calls []ToolCall, status string, reply string, errorText string, metadata map[string]string) {
 	now := r.now()
 	callToolIDs := collectToolIDs(calls)
 	r.store.TouchSession(SessionState{
@@ -143,6 +143,7 @@ func (r *DefaultSessionRunner) record(session SessionContext, msg channel.Inboun
 		Status:     status,
 		ReplyText:  reply,
 		Error:      errorText,
+		Metadata:   metadata,
 		CreatedAt:  now,
 	})
 }

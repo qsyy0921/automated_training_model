@@ -131,7 +131,7 @@ export function AgentOverviewPage() {
               <div className="overviewRow" key={trace.id}>
                 <strong>{trace.intent}</strong>
                 <span>{trace.status} · {(trace.tool_ids ?? []).join(", ") || "no tool"}</span>
-                <small>{trace.reply_text || trace.error || trace.session_key}</small>
+                <small>{traceSummary(trace)}</small>
               </div>
             ))}
           </div>
@@ -199,4 +199,15 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
       {children}
     </section>
   );
+}
+
+function traceSummary(trace: { reply_text?: string; error?: string; session_key: string; metadata?: Record<string, string> }) {
+  const metadata = trace.metadata ?? {};
+  if (metadata.plan_id) {
+    const parts = [`plan=${metadata.plan_id}`];
+    if (metadata.dataset_name) parts.push(`dataset=${metadata.dataset_name}`);
+    if (metadata.source_uri) parts.push(`source=${metadata.source_uri}`);
+    return parts.join(" · ");
+  }
+  return trace.reply_text || trace.error || trace.session_key;
 }

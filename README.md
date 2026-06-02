@@ -111,7 +111,7 @@ go run .\cmd\labelctl runs
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1
 ```
 
-该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent`、ShanghaiTech 数据附件进入 `data-intake-agent`。
+该脚本会验证：runtime status、CLI send、QQ test-message、OneBot reply envelope、桌面端状态、model-jobs API、普通文本进入 `planner-agent`、图片附件进入 `vision-agent` 并产生 `vlm.inspect` trace、ShanghaiTech 数据附件进入 `data-intake-agent` 并产生 `intake.plan` trace metadata。
 
 ### 什么时候使用 Sub-Agent
 
@@ -120,7 +120,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-
 | `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` | Go control plane 直接处理，不使用 sub-agent |
 | 普通自然语言请求 | `planner-agent`，负责意图细化和 tool-call plan |
 | QQ/Web 上传图片、截图、异常帧 | `vision-agent`，走 Mimo `mimo-v2.5` 视觉路由 |
-| QQ/Web 上传 zip、manifest、目录索引或数据附件 | `data-intake-agent`，生成隔离、扫描、入湖计划 |
+| QQ/Web 上传 zip、manifest、目录索引或数据附件 | `data-intake-agent`，通过 ToolExecutor 生成 dry-run Data Intake Plan，trace metadata 记录 `plan_id`、`dataset_name`、`source_uri` 和审批边界 |
 | 训练、评估、部署等长流程 | `training-agent` / 后续 release agent，只规划并通过 ToolExecutor/Workflow 执行 |
 | 成功 trace 总结可复用 skill | `skill-miner-agent`，默认关闭，只生成草稿，人工审批后启用 |
 

@@ -160,6 +160,11 @@ try {
   Assert-True (@($traces.traces | Where-Object { $_.agent_id -eq "planner-agent" }).Count -ge 1) "trace missing planner-agent"
   Assert-True (@($traces.traces | Where-Object { $_.agent_id -eq "vision-agent" }).Count -ge 1) "trace missing vision-agent"
   Assert-True (@($traces.traces | Where-Object { $_.agent_id -eq "data-intake-agent" }).Count -ge 1) "trace missing data-intake-agent"
+  Assert-True (@($traces.traces | Where-Object { $_.tool_ids -contains "vlm.inspect" }).Count -ge 1) "trace missing vlm.inspect tool"
+  $dataTrace = @($traces.traces | Where-Object { $_.tool_ids -contains "intake.plan" } | Select-Object -First 1)
+  Assert-True ($dataTrace.Count -eq 1) "trace missing intake.plan tool"
+  Assert-True ($dataTrace[0].metadata.dataset_name -eq "shanghaitech-original") "intake.plan trace missing ShanghaiTech dataset metadata"
+  Assert-True ($dataTrace[0].metadata.source_uri -eq $ShanghaiTechRoot) "intake.plan trace missing ShanghaiTech source uri"
 
   Write-Host "smoke-runtime-mvp passed"
 } finally {

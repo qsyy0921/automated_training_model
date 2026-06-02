@@ -199,6 +199,7 @@ Mimo 路由规则：
 | Planner | 默认 `RulePlanner`，可选 `PythonPlanner` | 接入 Mimo 2.5 Pro 输出结构化 JSON plan |
 | Tool Executor | `GoToolExecutor` 支持 runtime、workflow、intake、vision、llm.plan 最小工具 | 拆到 `internal/app/toolapp`，增加 schema、permission、approval |
 | Model Install | `model.download_hf` / `model.verify_hf` 只能由 Mimo plan 触发并限制在 data_lake；`model.download_hf` 默认进入异步 `ModelJob`，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧 | 后续接入模型注册、下载任务持久化、进度日志和断点续传 UI |
+| Data Intake Plan | 附件消息会产生 `intake.plan` 或 `vlm.inspect` tool trace；ShanghaiTech 数据附件会在 trace metadata 中记录 `plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 迁移到 `intakeapp` 持久化计划、quarantine、scan、approve/register workflow |
 | Trace | 每条消息写入 `TraceEvent` | 持久化、检索、成本统计、skill mining 输入 |
 | Observability | `/api/runtime/status`、`/api/runtime/sessions`、`/api/runtime/traces` | Web/CLI/桌面端统一展示 |
 | Channel | QQ/NapCat webhook/test-message | OneBot WebSocket reader、Telegram、飞书 |
@@ -249,7 +250,7 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 | ART-002 | OneBot 群聊图片消息 | 归一化为 group peer，附件进入 `attachments`。 |
 | ART-003 | `/bot-run dry shanghaitech-original` | 创建 dry-run Agent run，params 包含 `source=qq`。 |
 | ART-004 | 普通文本 | 进入 Agent Runtime，返回当前 runtime 能力说明。 |
-| ART-005 | 附件消息 | 返回 Data Intake Plan/quarantine 提示，不直接写 Data Lake。 |
+| ART-005 | 附件消息 | 通过 ToolExecutor 生成 dry-run Data Intake Plan 或视觉检查计划，trace 包含 `intake.plan` / `vlm.inspect`，不直接写 Data Lake。 |
 | ART-006 | 后续 Telegram/飞书 | 只能新增 adapter，不能修改 Agent Runtime 核心行为。 |
 
 ## 9. 当前验证记录
@@ -262,6 +263,7 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 - Go ToolExecutor 权限边界已验证：本机开发默认允许 Agent Runtime 执行 `model.download_hf`；设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 后才会返回 `approval_required`，并要求 `approved=true`。
 - ShanghaiTech original 数据目录已验证存在：`F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original`，顶层包含 `training`、`testing`、`testframemask`。
 - ShanghaiTech 测试计划已验证：当用户要求用 ShanghaiTech original 测试 LocateAnything-3B 时，runtime 会规划 `model.verify_hf` + `workflow.submit_run(dry_run=true)`，并生成 trace；真实推理仍依赖模型权重下载、依赖安装和显存条件。
+- ShanghaiTech Channel 数据附件 smoke 已验证：`smoke-runtime-mvp.ps1` 会把 `F:\automated_training_model\data_lake\raw\datasets\shanghaitech\original` 作为附件源发送到 QQ test-message，runtime 生成 `intake.plan` trace，并在 metadata 记录 `dataset_name=shanghaitech-original` 与 `source_uri`。
 - HuggingFace downloader skill dry-run 已通过：`nvidia/LocateAnything-3B` 的下载路径限制在 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，manifest 路径为 `data_lake/catalog/models/nvidia_LocateAnything-3B.download.json`；dry-run 不创建权重目录。
 - 新增 `ops/scripts/smoke-mimo-planner.ps1`：用于验证 Mimo planner 对 LocateAnything 安装请求和 ShanghaiTech dry-run 请求输出受控 tool-call plan。
 - 中断残留的 `LocateAnything-3B` 不完整下载目录已删除；当前仓库不应提交模型权重、checkpoint、HF cache、API Key 或 provider token。

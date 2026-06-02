@@ -75,3 +75,4 @@
 - [x] 在 `AGENT_RUNTIME_SDD.md` 记录 2026-06-02 长任务问题结论、参考 OpenClaw/cc/Hermes 的对齐原则、新执行契约和 ART-007 至 ART-011 验收项。
 - [x] 新增 `ops/scripts/smoke-runtime-mvp.ps1`：自动验证 Web/Gateway、CLI、桌面端、QQ test-message/OneBot 进入同一个 Agent Runtime，并检查 `planner-agent`、`vision-agent`、`data-intake-agent` trace。
 - [x] 更新 README、`ENTRYPOINTS_TEST_SDD.md` 和 `SUB_AGENT_STRATEGY_SDD.md`，记录四入口闭环、`runtime model-jobs`、Mimo 本机配置和什么时候使用 sub-agent。
+- [x] 将附件类 `data_intake` 从纯文本回复推进为 ToolExecutor 计划：数据附件生成 `intake.plan` trace metadata，视觉附件生成 `vlm.inspect` trace metadata；ShanghaiTech original 数据源 smoke 可在 runtime trace 中看到 `dataset_name` 和 `source_uri`。

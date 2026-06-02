@@ -35,21 +35,22 @@ type SessionState struct {
 }
 
 type TraceEvent struct {
-	ID         string           `json:"id"`
-	SessionKey string           `json:"session_key"`
-	MessageID  string           `json:"message_id,omitempty"`
-	Channel    channel.Kind     `json:"channel"`
-	AccountID  string           `json:"account_id"`
-	PeerKind   channel.PeerKind `json:"peer_kind"`
-	PeerID     string           `json:"peer_id"`
-	SenderID   string           `json:"sender_id"`
-	Intent     IntentKind       `json:"intent"`
-	AgentID    string           `json:"agent_id"`
-	ToolIDs    []string         `json:"tool_ids,omitempty"`
-	Status     string           `json:"status"`
-	ReplyText  string           `json:"reply_text,omitempty"`
-	Error      string           `json:"error,omitempty"`
-	CreatedAt  time.Time        `json:"created_at"`
+	ID         string            `json:"id"`
+	SessionKey string            `json:"session_key"`
+	MessageID  string            `json:"message_id,omitempty"`
+	Channel    channel.Kind      `json:"channel"`
+	AccountID  string            `json:"account_id"`
+	PeerKind   channel.PeerKind  `json:"peer_kind"`
+	PeerID     string            `json:"peer_id"`
+	SenderID   string            `json:"sender_id"`
+	Intent     IntentKind        `json:"intent"`
+	AgentID    string            `json:"agent_id"`
+	ToolIDs    []string          `json:"tool_ids,omitempty"`
+	Status     string            `json:"status"`
+	ReplyText  string            `json:"reply_text,omitempty"`
+	Error      string            `json:"error,omitempty"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
+	CreatedAt  time.Time         `json:"created_at"`
 }
 
 type RuntimeSnapshot struct {

@@ -47,7 +47,7 @@ go run .\cmd\agentdesktop
 - QQ test-message 和 OneBot webhook 都进入同一个 Agent Runtime。
 - 普通文本进入 `planner-agent`。
 - 图片附件进入 `vision-agent`。
-- ShanghaiTech original 数据附件进入 `data-intake-agent`。
+- ShanghaiTech original 数据附件进入 `data-intake-agent`，trace 包含 `intake.plan`、`dataset_name=shanghaitech-original` 和 source uri。
 
 启用真实 QQ 回发时，先配置 NapCat OneBot HTTP API：
 
@@ -99,4 +99,4 @@ Invoke-RestMethod http://127.0.0.1:7870/api/channels/qq/onebot -Method Post -Con
 | EP-005 | `cmd/agentdesktop` | 可读取 `/api/desktop/status`。 |
 | EP-006 | `labelctl skill draft ...` | 写入 draft-only `SKILL.md`，`enabled=false`。 |
 | EP-007 | `smoke-agent-entrypoints.ps1` | 自动启动服务并验证 CLI、QQ webhook、desktop 和 skill draft。 |
-| EP-008 | `smoke-runtime-mvp.ps1` | 验证四入口同 runtime、sub-agent routing、model-jobs API 和 ShanghaiTech 数据附件计划。 |
+| EP-008 | `smoke-runtime-mvp.ps1` | 验证四入口同 runtime、sub-agent routing、model-jobs API、`vlm.inspect` trace 和带 metadata 的 ShanghaiTech `intake.plan`。 |

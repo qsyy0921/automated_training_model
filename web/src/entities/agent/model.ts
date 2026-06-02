@@ -196,6 +196,7 @@ export interface RuntimeTrace {
   status: string;
   reply_text?: string;
   error?: string;
+  metadata?: Record<string, string>;
   created_at: string;
 }
 

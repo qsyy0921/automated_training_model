@@ -77,6 +77,56 @@ func TestAttachmentMessageDoesNotWriteData(t *testing.T) {
 	if out.Text == "" {
 		t.Fatal("expected intake planning reply")
 	}
+	traces := svc.ListTraces(10)
+	if len(traces) != 1 {
+		t.Fatalf("expected one trace, got %d", len(traces))
+	}
+	if len(traces[0].ToolIDs) != 1 || traces[0].ToolIDs[0] != "intake.plan" {
+		t.Fatalf("expected intake.plan tool trace, got %+v", traces[0].ToolIDs)
+	}
+	if traces[0].Metadata["plan_id"] == "" {
+		t.Fatalf("expected plan metadata, got %+v", traces[0].Metadata)
+	}
+	if traces[0].Metadata["dry_run"] != "true" {
+		t.Fatalf("expected dry-run plan metadata, got %+v", traces[0].Metadata)
+	}
+}
+
+func TestImageAttachmentRoutesToVisionTool(t *testing.T) {
+	svc := NewService(&fakeAgentPlane{})
+	out, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindGroup, ID: "20001"},
+		SenderID:  "10001",
+		Text:      "check this frame",
+		Attachments: []channel.Attachment{{
+			ID:        "att1",
+			Name:      "frame.png",
+			MediaType: "image/png",
+			Status:    channel.AttachmentReceived,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Text == "" {
+		t.Fatal("expected vision planning reply")
+	}
+	traces := svc.ListTraces(10)
+	if len(traces) != 1 {
+		t.Fatalf("expected one trace, got %d", len(traces))
+	}
+	if len(traces[0].ToolIDs) != 1 || traces[0].ToolIDs[0] != "vlm.inspect" {
+		t.Fatalf("expected vlm.inspect tool trace, got %+v", traces[0].ToolIDs)
+	}
+	if traces[0].AgentID != "vision-agent" {
+		t.Fatalf("expected vision-agent trace, got %s", traces[0].AgentID)
+	}
+	if traces[0].Metadata["model"] != "mimo-v2.5" {
+		t.Fatalf("expected vision model metadata, got %+v", traces[0].Metadata)
+	}
 }
 
 func TestWorkflowSubmitToolRequiresDryRunPreflight(t *testing.T) {
