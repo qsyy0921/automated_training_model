@@ -45,6 +45,32 @@ func TestRunnerExecutesRegisteredHandlersAndMergesResults(t *testing.T) {
 	}
 }
 
+func TestRunnerExecuteStreamEmitsToolProgress(t *testing.T) {
+	runner := NewRunner[runnerRequest](DefaultCatalog(), nil)
+	runner.Register("runtime.health", func(ctx context.Context, req runnerRequest, call ToolCall) (ExecutionResult, error) {
+		return ExecutionResult{ReplyText: "pong", Status: "ok", Metadata: map[string]string{"session_key": req.SessionKey}}, nil
+	})
+	events := []ProgressEvent{}
+	result, err := runner.ExecuteStream(context.Background(), runnerRequest{SessionKey: "s1"}, []ToolCall{{ToolID: "runtime.health"}}, func(event ProgressEvent) {
+		events = append(events, event)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ReplyText != "pong" || result.Status != "ok" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	want := []string{"preflight_start", "preflight_ok", "tool_start", "tool_done"}
+	if len(events) != len(want) {
+		t.Fatalf("expected %d events, got %+v", len(want), events)
+	}
+	for i, event := range events {
+		if event.Type != want[i] || event.ToolID != "runtime.health" {
+			t.Fatalf("unexpected event %d: %+v", i, event)
+		}
+	}
+}
+
 func TestRunnerRunsPreflightBeforeHandler(t *testing.T) {
 	called := false
 	runner := NewRunner[runnerRequest](DefaultCatalog(), nil)

@@ -41,7 +41,8 @@ Integration / Smoke Tests
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
 | Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、取消请求、`canceled/resumable` 状态、手动 resume child job |
 | Tool schema/preflight | `internal/app/toolapp/schema_test.go` | 注册工具、参数白名单、高风险审批、未注册工具拦截 |
-| Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error |
+| Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error、ExecuteStream 输出 preflight/tool progress 事件 |
+| Runtime stream | `internal/app/agentruntime/session_test.go`、`internal/cli/labelctl/runtime_chat_test.go` | `RunStream` 能把工具进度事件带上 session 输出到 NDJSON；CLI 能解析 runtime stream event |
 | Runtime workflow app | `internal/app/runtimeworkflow/service_test.go` | `workflow.submit_run` dry-run guard、RunRequest 构造、`workflow.list_runs` 回复格式 |
 | Model runtime app | `internal/app/modelruntime/service_test.go` | HuggingFace 默认参数、目录逃逸拦截、LocateAnything smoke 默认路径、下载审批开关、smoke JSON 解析 |
 | Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go`、`internal/infrastructure/intakerepo/json_repository_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted/resumable 标记、intake plan/workflow JSON 恢复 |
@@ -151,6 +152,7 @@ npm run build
 $go = Resolve-Go
 & $go test ./...
 python -m compileall workers\python\agent_runtime
+$env:PYTHONPATH=(Resolve-Path .\workers\python).Path
 python -m unittest discover -s workers\python\agent_runtime\tests
 cd F:\automated_training_model\web
 npm run build
@@ -165,7 +167,7 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 
 ## 10. 当前测试缺口
 
-- ModelJob 逐文件字节级进度、实时日志流和自动 resume 测试。
+- ModelJob 逐文件字节级进度、实时日志流和自动 resume 测试；当前仅完成同步 tool runner progress，不覆盖后台 job log streaming。
 - `modelruntime` 接入统一 task/model worker 和 workflow repository 后的集成测试。
 - QQ OneBot WebSocket reader 长连接测试。
 - Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。

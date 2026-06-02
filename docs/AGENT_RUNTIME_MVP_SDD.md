@@ -62,7 +62,7 @@ Workers and Providers
 | PlannerPort | `planner.go`、`python_planner.go` | 规则计划和 Python/Mimo 计划 | 不执行副作用 |
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
-| Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截 | 不绑定 channel/session/runtime store |
+| Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截、输出最小工具进度事件 | 不绑定 channel/session/runtime store |
 | ToolExecutor | `tools.go` | 注册 MVP 工具 handler；`intake.plan` / `vlm.inspect` 只调用 `intakeapp`，`workflow.list_runs` / `workflow.submit_run` 只调用 `runtimeworkflow`，`model.*` 只调用 `modelruntime` 并管理异步 `ModelJob` 生命周期 | 后续把 model job 生命周期迁移到 task/model worker，把 `runtimeworkflow` 接到正式 workflow/task repository |
 | Model Runtime | `internal/app/modelruntime` | `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 参数规范化、路径白名单、脚本调用、超时和 smoke JSON 解析 | 不持有 channel/session/trace；后续接统一模型任务 worker |
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans/workflows | session/trace、model jobs、intake plans 和 intake workflows 默认 JSON 持久化；后续迁移到 task repository / intake repository |
@@ -113,7 +113,7 @@ Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 
 
 普通 fast chat 已通过 `/api/runtime/stream-message` 接入 NDJSON 事件流：Go `SessionRunner.RunStream` -> `PythonPlanner.PlanStream` -> 常驻 `python -m agent_runtime.worker` -> Mimo Anthropic-compatible SSE。CLI 收到 `delta` 事件后立即写到终端；如果反向代理不支持 SSE，Python runtime 会退回一次性 Mimo 回复并以单个 `delta` 发出，CLI 仍不需要走第二套 UI。
 
-Go `RuntimeRouter` 会在进入 PlannerPort 前选择 `local_control`、`local_semantic` 或 `external_planner`。Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 只会输出 `status`、`tool_start` 和 `final`，下一步需要把 tool progress、审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
+Go `RuntimeRouter` 会在进入 PlannerPort 前选择 `local_control`、`local_semantic` 或 `external_planner`。Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 已覆盖 `status`、`tool_start`、`tool_progress` 和 `final`；`tool_progress` 来自 `internal/app/toolapp.Runner` 的 preflight、handler start/done、blocked/error 事件，再由 `GoToolExecutor` 映射为 runtime NDJSON。下一步需要把审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
 
 ## 8. HuggingFace 模型下载边界
 
@@ -162,5 +162,5 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - model job 逐文件字节级进度、实时日志流和自动 resume。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`；`model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析已迁移到 `internal/app/modelruntime`。后续仍需把 model job 生命周期和 workflow run 接入正式 task repository。
 - QQ 真实账号群聊 @Bot 实测。
-- CLI / Gateway 的复杂 planner 分步流式、实时 tool progress streaming、审批确认和会话恢复。
+- CLI / Gateway 的复杂 planner 分步流式、审批确认、model job 日志流和会话恢复；最小 tool progress streaming 已完成。
 - Python worker heartbeat、logs、retries、artifacts。

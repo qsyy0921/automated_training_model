@@ -158,6 +158,7 @@ type runtimeStreamEvent struct {
 	Intent    string   `json:"intent,omitempty"`
 	AgentID   string   `json:"agent_id,omitempty"`
 	ToolIDs   []string `json:"tool_ids,omitempty"`
+	ToolID    string   `json:"tool_id,omitempty"`
 	Session   string   `json:"session,omitempty"`
 	ElapsedMS int64    `json:"elapsed_ms,omitempty"`
 }
@@ -396,6 +397,12 @@ func (c *runtimeChat) postRuntimeMessageStream(input string, started time.Time) 
 			statusRendered = true
 			message := valueOr(event.Message, "runtime working")
 			fmt.Fprintf(c.out, "\r%s", c.color(fmt.Sprintf("%s %.1fs", message, time.Since(started).Seconds()), "dim"))
+		case "tool_progress":
+			if statusRendered && !startedPanel {
+				fmt.Fprint(c.out, "\r\x1b[2K")
+			}
+			statusRendered = false
+			fmt.Fprintf(c.out, "\n%s\n", c.color(toolProgressLine(event), "dim"))
 		case "delta":
 			if event.Delta == "" {
 				continue
@@ -500,6 +507,16 @@ func mergeRuntimeStreamFinal(base runtimeStreamEvent, next runtimeStreamEvent) r
 		base.ElapsedMS = next.ElapsedMS
 	}
 	return base
+}
+
+func toolProgressLine(event runtimeStreamEvent) string {
+	message := valueOr(event.Message, "tool progress")
+	tool := event.ToolID
+	if tool == "" {
+		tool = joinOr(event.ToolIDs, "-")
+	}
+	status := valueOr(event.Status, "running")
+	return fmt.Sprintf("  • tool=%s status=%s %s", tool, status, message)
 }
 
 func cliStreamDisabled() bool {

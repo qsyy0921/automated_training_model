@@ -56,6 +56,23 @@ func (f *fakeTools) Execute(ctx context.Context, req ToolExecutionRequest) (Tool
 	return ToolExecutionResult{ReplyText: "ok"}, nil
 }
 
+type streamingFakeTools struct {
+	got ToolExecutionRequest
+}
+
+func (f *streamingFakeTools) Execute(ctx context.Context, req ToolExecutionRequest) (ToolExecutionResult, error) {
+	f.got = req
+	return ToolExecutionResult{ReplyText: "ok", Status: "ok"}, nil
+}
+
+func (f *streamingFakeTools) ExecuteStream(ctx context.Context, req ToolExecutionRequest, emit func(RuntimeStreamEvent)) (ToolExecutionResult, error) {
+	f.got = req
+	if emit != nil {
+		emit(RuntimeStreamEvent{Type: "tool_progress", ToolID: "runtime.health", ToolIDs: []string{"runtime.health"}, Status: "running", Message: "tool_start: running tool handler"})
+	}
+	return ToolExecutionResult{ReplyText: "ok", Status: "ok"}, nil
+}
+
 func TestSessionRunnerPassesPlanToToolExecutor(t *testing.T) {
 	planner := &fakePlanner{}
 	tools := &fakeTools{}
@@ -83,6 +100,38 @@ func TestSessionRunnerPassesPlanToToolExecutor(t *testing.T) {
 	}
 	if tools.got.ToolCalls[0].ToolID != "runtime.health" {
 		t.Fatalf("unexpected tool call: %s", tools.got.ToolCalls[0].ToolID)
+	}
+}
+
+func TestSessionRunnerStreamsToolProgress(t *testing.T) {
+	planner := &fakePlanner{}
+	tools := &streamingFakeTools{}
+	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
+	events := []RuntimeStreamEvent{}
+	out, err := svc.HandleChannelMessageStream(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "帮我检查运行时",
+	}, func(event RuntimeStreamEvent) {
+		events = append(events, event)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Text != "ok" {
+		t.Fatalf("unexpected reply: %s", out.Text)
+	}
+	foundProgress := false
+	for _, event := range events {
+		if event.Type == "tool_progress" && event.ToolID == "runtime.health" && event.Session == "agent:planner-agent:qq:direct:10001" {
+			foundProgress = true
+		}
+	}
+	if !foundProgress {
+		t.Fatalf("expected tool_progress event with session, got %+v", events)
 	}
 }
 

@@ -180,7 +180,15 @@ Then 未注册 tool、未知参数、高风险审批缺失会先被 `internal/ap
 
 证据：`internal/app/toolapp/schema_test.go`、`internal/app/toolapp/runner_test.go` 和 `internal/app/agentruntime/service_test.go`。
 
-### ATDD-014 Git 安全边界
+### ATDD-014 Runtime tool progress streaming
+
+Given `/api/runtime/stream-message` 接收一个会触发 tool-call 的请求
+When `SessionRunner.RunStream` 调用 `GoToolExecutor.ExecuteStream`
+Then 在 `final` 事件前至少输出 `tool_progress`，并包含 tool id、status、message 和同一 session key；CLI 可以实时显示 preflight 与 handler 进度。
+
+证据：`internal/app/toolapp/runner_test.go`、`internal/app/agentruntime/session_test.go` 和 `internal/cli/labelctl/runtime_chat_test.go`。
+
+### ATDD-015 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -210,4 +218,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-011 | 已覆盖 | `smoke-runtime-mvp.ps1` |
 | ATDD-012 | 已覆盖 | `json_model_jobs_test.go` |
 | ATDD-013 | 已覆盖 | `schema_test.go` + `service_test.go` |
-| ATDD-014 | 每次提交前执行 | rg + git status |
+| ATDD-014 | 已覆盖 | `runner_test.go` + `session_test.go` + `runtime_chat_test.go` |
+| ATDD-015 | 每次提交前执行 | rg + git status |

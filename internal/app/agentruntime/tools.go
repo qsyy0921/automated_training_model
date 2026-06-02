@@ -67,6 +67,27 @@ func (e *GoToolExecutor) Execute(ctx context.Context, req ToolExecutionRequest) 
 	return e.toolRunner.Execute(ctx, req, req.ToolCalls)
 }
 
+func (e *GoToolExecutor) ExecuteStream(ctx context.Context, req ToolExecutionRequest, emit func(RuntimeStreamEvent)) (ToolExecutionResult, error) {
+	return e.toolRunner.ExecuteStream(ctx, req, req.ToolCalls, func(event toolapp.ProgressEvent) {
+		if emit == nil {
+			return
+		}
+		runtimeEvent := RuntimeStreamEvent{
+			Type:    "tool_progress",
+			Status:  event.Status,
+			Message: event.Message,
+			ToolID:  event.ToolID,
+		}
+		if event.ToolID != "" {
+			runtimeEvent.ToolIDs = []string{event.ToolID}
+		}
+		if event.Type != "" {
+			runtimeEvent.Message = strings.TrimSpace(event.Type + ": " + runtimeEvent.Message)
+		}
+		emit(runtimeEvent)
+	})
+}
+
 func toolPreflightPolicyFromEnv() toolapp.PreflightPolicy {
 	return toolapp.PreflightPolicy{
 		RequireExplicitApprovalForHighRisk: strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL")), "true"),

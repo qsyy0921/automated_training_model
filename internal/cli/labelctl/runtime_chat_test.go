@@ -18,3 +18,16 @@ func TestCompactMetadataHandlesNonStringValues(t *testing.T) {
 		t.Fatal("compactMetadata() returned empty string")
 	}
 }
+
+func TestToolProgressLinePrefersSingleToolID(t *testing.T) {
+	got := toolProgressLine(runtimeStreamEvent{
+		ToolID:  "runtime.health",
+		ToolIDs: []string{"runtime.status"},
+		Status:  "ok",
+		Message: "tool_done: tool handler completed",
+	})
+	want := "  • tool=runtime.health status=ok tool_done: tool handler completed"
+	if got != want {
+		t.Fatalf("toolProgressLine() = %q, want %q", got, want)
+	}
+}

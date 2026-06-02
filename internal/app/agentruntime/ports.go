@@ -23,6 +23,10 @@ type ToolExecutorPort interface {
 	Execute(ctx context.Context, req ToolExecutionRequest) (ToolExecutionResult, error)
 }
 
+type StreamingToolExecutorPort interface {
+	ExecuteStream(ctx context.Context, req ToolExecutionRequest, emit func(RuntimeStreamEvent)) (ToolExecutionResult, error)
+}
+
 type RuntimeStreamEvent struct {
 	Type      string   `json:"type"`
 	Delta     string   `json:"delta,omitempty"`
@@ -32,6 +36,7 @@ type RuntimeStreamEvent struct {
 	Intent    string   `json:"intent,omitempty"`
 	AgentID   string   `json:"agent_id,omitempty"`
 	ToolIDs   []string `json:"tool_ids,omitempty"`
+	ToolID    string   `json:"tool_id,omitempty"`
 	Session   string   `json:"session,omitempty"`
 	ElapsedMS int64    `json:"elapsed_ms,omitempty"`
 }

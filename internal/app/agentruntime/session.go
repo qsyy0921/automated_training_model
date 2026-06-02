@@ -139,13 +139,29 @@ func (r *DefaultSessionRunner) RunStream(ctx context.Context, msg channel.Inboun
 	}
 
 	safeEmit(RuntimeStreamEvent{Type: "tool_start", Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), Message: "executing planned tools"})
-	result, err := r.tools.Execute(ctx, ToolExecutionRequest{
+	toolReq := ToolExecutionRequest{
 		Message:    msg,
 		Session:    session,
 		Intent:     plan.Intent,
 		Delegation: plan.Delegation,
 		ToolCalls:  plan.ToolCalls,
-	})
+	}
+	var (
+		result ToolExecutionResult
+	)
+	if streamingTools, ok := r.tools.(StreamingToolExecutorPort); ok {
+		result, err = streamingTools.ExecuteStream(ctx, toolReq, func(event RuntimeStreamEvent) {
+			if event.Intent == "" {
+				event.Intent = string(plan.Intent.Kind)
+			}
+			if event.AgentID == "" {
+				event.AgentID = session.AgentID
+			}
+			safeEmit(event)
+		})
+	} else {
+		result, err = r.tools.Execute(ctx, toolReq)
+	}
 	if err != nil {
 		r.record(session, msg, plan.Intent, plan.ToolCalls, "tool_failed", "", err.Error(), nil)
 		safeEmit(RuntimeStreamEvent{Type: "error", Status: "tool_failed", Message: err.Error(), Intent: string(plan.Intent.Kind), AgentID: session.AgentID, ToolIDs: collectToolIDs(plan.ToolCalls), ElapsedMS: r.now().Sub(started).Milliseconds()})
