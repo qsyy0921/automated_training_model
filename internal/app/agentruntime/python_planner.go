@@ -27,7 +27,11 @@ type PythonPlanner struct {
 }
 
 func PlannerFromEnv() PlannerPort {
-	if !strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_PLANNER")), "python") {
+	planner := strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_PLANNER")))
+	if planner == "rule" {
+		return NewRulePlanner()
+	}
+	if planner != "python" && strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_USE_MIMO"))) != "true" {
 		return NewRulePlanner()
 	}
 	return NewPythonPlanner(PythonPlannerConfigFromEnv())

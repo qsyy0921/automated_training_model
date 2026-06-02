@@ -133,6 +133,8 @@ def _planner_prompt(request: RuntimeRequest, intent: Intent, delegation: dict[st
         "你是 automated_training_model 的 Agent Runtime planner。"
         "只输出 JSON，不要 Markdown。JSON schema: "
         '{"status":"planned|tool_planned","reply_text":"中文回复","plan":[{"kind":"tool.id","params":{"k":"v"}}]}。'
+        "如果用户只是普通聊天、解释概念、询问当前能力或要求设计思路，并且不需要调用工具，"
+        '请返回 {"status":"planned","reply_text":"你的中文回答","plan":[]}；'
         "所有 plan.params 的值必须是字符串，不能使用嵌套对象或数组；"
         "HuggingFace 模型安装请求只允许使用 model.download_hf 和 model.verify_hf，不能附加 workflow.submit_run；"
         "HuggingFace 模型下载使用 model.download_hf，参数包含 repo_id、local_dir、manifest；"

@@ -99,3 +99,5 @@
 - [x] 新增 `ops/scripts/ensure-smoke-media-fixture.ps1`，当外部 tracking CSV 路径不存在时在 ignored 的 `tmp/smoke-media` 生成最小 fixture，使入口 smoke 不再依赖旧研究目录。
 - [x] 参考 `E:\agent\ccb` 的 CLI-first 交互方式，将 `labelctl agent` REPL 拆到 `internal/cli/labelctl/runtime_chat.go`，启动时展示 gateway/session/entry points/model routes，支持结构化 `/status`、`/sessions`、`/traces`、`/jobs`、`/doctor`、`/json`、`/clear`、`/ping`，普通消息会显示 agent、intent、tool IDs、metadata 和 session key。
 - [x] 为 `labelctl agent` 补充输入归一化和单元测试，处理 Windows PowerShell 管道首行 BOM，避免 `/help` 等命令被误发到 runtime。
+- [x] 将 Mimo runtime 接入方式改为 CLI 可验证：`load-mimo-env.ps1` 自动启用 `AGENT_RUNTIME_PLANNER=python`，`PlannerFromEnv` 在 `AGENT_RUNTIME_USE_MIMO=true` 时进入 Python planner，runtime status 和 CLI `/status` / `/doctor` 显示 `planner=python mimo=true token=true`。
+- [x] 放宽 Python/Mimo 普通 chat guard：Mimo 返回自然语言 `reply_text` 且无需工具时直接返回给 CLI，不再被固定 `llm.plan` 兜底句覆盖。

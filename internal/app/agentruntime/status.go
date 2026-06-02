@@ -1,5 +1,11 @@
 package agentruntime
 
+import (
+	"os"
+	"path/filepath"
+	"strings"
+)
+
 type ProviderRoute struct {
 	ID        string `json:"id"`
 	UseCase   string `json:"use_case"`
@@ -28,6 +34,7 @@ type RuntimeStatus struct {
 	Runtime        string               `json:"runtime"`
 	ControlPlane   string               `json:"control_plane"`
 	AgentLoop      string               `json:"agent_loop"`
+	Planner        PlannerStatus        `json:"planner"`
 	Policy         string               `json:"policy"`
 	EntryPoints    []EntryPointStatus   `json:"entry_points"`
 	ProviderRoutes []ProviderRoute      `json:"provider_routes"`
@@ -35,11 +42,24 @@ type RuntimeStatus struct {
 	SkillEvolution SkillEvolutionStatus `json:"skill_evolution"`
 }
 
+type PlannerStatus struct {
+	Mode          string `json:"mode"`
+	MimoEnabled   bool   `json:"mimo_enabled"`
+	MimoFallback  string `json:"mimo_fallback"`
+	Python        string `json:"python,omitempty"`
+	PythonPath    string `json:"python_path,omitempty"`
+	TextModel     string `json:"text_model"`
+	VisionModel   string `json:"vision_model"`
+	TokenPresent  bool   `json:"token_present"`
+	EffectiveMode string `json:"effective_mode"`
+}
+
 func Status() RuntimeStatus {
 	return RuntimeStatus{
 		Runtime:      "automated-training-agent-runtime",
 		ControlPlane: "go-ddd-control-plane",
 		AgentLoop:    "python-agent-runtime",
+		Planner:      plannerStatusFromEnv(),
 		Policy:       "gateway-routed, approval-before-side-effects, channel-origin-audited",
 		EntryPoints: []EntryPointStatus{
 			{ID: "cli", Name: "CLI", Transport: "local-command", Status: "ready", Description: "labelctl runtime, agent, workflow, governance and channel commands"},
@@ -64,4 +84,66 @@ func Status() RuntimeStatus {
 			},
 		},
 	}
+}
+
+func plannerStatusFromEnv() PlannerStatus {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_PLANNER")))
+	if mode == "" {
+		mode = "auto"
+	}
+	mimoEnabled := truthy(os.Getenv("AGENT_RUNTIME_USE_MIMO"))
+	effective := "rule"
+	if mode == "python" || (mode == "auto" && mimoEnabled) {
+		effective = "python"
+	}
+	python := strings.TrimSpace(os.Getenv("AGENT_RUNTIME_PYTHON"))
+	if python == "" {
+		python = "python"
+	}
+	pythonPath := strings.TrimSpace(os.Getenv("AGENT_RUNTIME_PYTHONPATH"))
+	if pythonPath == "" {
+		pythonPath = filepath.Join("workers", "python")
+	}
+	return PlannerStatus{
+		Mode:          mode,
+		MimoEnabled:   mimoEnabled,
+		MimoFallback:  valueOrEnv("AGENT_RUNTIME_MIMO_FALLBACK", "rule"),
+		Python:        python,
+		PythonPath:    pythonPath,
+		TextModel:     firstRuntimeEnv("MIMO_DEFAULT_MODEL", "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "mimo-v2.5-pro"),
+		VisionModel:   firstRuntimeEnv("MIMO_VISION_MODEL", "VLM_MODEL", "ANTHROPIC_VISION_MODEL", "mimo-v2.5"),
+		TokenPresent:  strings.TrimSpace(os.Getenv("ANTHROPIC_AUTH_TOKEN")) != "",
+		EffectiveMode: effective,
+	}
+}
+
+func truthy(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func valueOrEnv(name string, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func firstRuntimeEnv(names ...string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	fallback := names[len(names)-1]
+	for _, name := range names[:len(names)-1] {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value != "" {
+			return value
+		}
+	}
+	return fallback
 }

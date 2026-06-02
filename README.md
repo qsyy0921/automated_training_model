@@ -262,7 +262,8 @@ npm run build
 
 ```powershell
 cd F:\automated_training_model
-$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+. .\ops\scripts\resolve-go.ps1
+$go = Resolve-Go
 & $go run .\cmd\labelserver `
   -addr 127.0.0.1:7870 `
   -merge-root F:\keyan\token_compression\data\shanghai\new_tracking\merge `
@@ -275,6 +276,29 @@ $go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
   -agent-root F:\automated_training_model\data_lake\agents `
   -runtime-root F:\automated_training_model\data_lake\runtime
 ```
+
+如果要让 `labelctl agent` 像 Claude Code 一样通过 Mimo planner 工作，先在启动 `labelserver` 的同一个 PowerShell 会话里加载 Mimo 环境：
+
+```powershell
+cd F:\automated_training_model
+. .\ops\scripts\utf8.ps1
+. .\ops\scripts\resolve-go.ps1
+. .\ops\scripts\load-mimo-env.ps1
+$go = Resolve-Go
+& $go run .\cmd\labelserver `
+  -addr 127.0.0.1:7870 `
+  -merge-root F:\automated_training_model\tmp\smoke-media\merge `
+  -frame-root F:\automated_training_model\tmp\smoke-media\frames `
+  -mask-root F:\automated_training_model\tmp\smoke-media\masks `
+  -annotation-root F:\automated_training_model\tmp\smoke-media\annotations_review `
+  -web-root F:\automated_training_model\web `
+  -data-root F:\automated_training_model\data_lake `
+  -model-root F:\automated_training_model\data_lake\models `
+  -agent-root F:\automated_training_model\data_lake\agents `
+  -runtime-root F:\automated_training_model\data_lake\runtime
+```
+
+`load-mimo-env.ps1` 会读取 `C:\Users\10495\Desktop\mimo.txt`，并自动设置 `AGENT_RUNTIME_PLANNER=python`、`AGENT_RUNTIME_USE_MIMO=true`、`AGENT_RUNTIME_PYTHONPATH=...\workers\python`。进入 CLI 后用 `/status` 或 `/doctor` 检查服务端是否显示 `planner=python mimo=true token=true`。
 
 打开：
 

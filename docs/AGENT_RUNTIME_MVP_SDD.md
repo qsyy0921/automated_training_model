@@ -82,6 +82,8 @@ Workers and Providers
 - Mimo 配置从 `C:\Users\10495\Desktop\mimo.txt` 读取，或整理为本机环境变量。
 - 文本规划默认：`mimo-v2.5-pro`。
 - 视觉理解默认：`mimo-v2.5`。
+- `ops/scripts/load-mimo-env.ps1` 会自动设置 `AGENT_RUNTIME_PLANNER=python`、`AGENT_RUNTIME_USE_MIMO=true`、`AGENT_RUNTIME_PYTHONPATH=workers/python`，确保 `labelserver` 启动后 `labelctl agent` 通过 Python/Mimo planner 工作。
+- Runtime status 暴露实际 planner 状态：`planner.mode`、`planner.effective_mode`、`planner.mimo_enabled`、`planner.token_present`。CLI `/status` 和 `/doctor` 必须显示这些字段，避免只看静态 provider route 误判为已接入。
 - API Key 只能放在服务端环境变量或本机 secret 文件中，不能进入 Git、前端 bundle、runtime trace 或 channel payload。
 - 测试脚本只能输出模型名、HTTP 状态和摘要，不能打印 token。
 

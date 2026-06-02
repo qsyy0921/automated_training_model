@@ -17,6 +17,10 @@ $allowed = @(
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "AGENT_RUNTIME_PLANNER",
+  "AGENT_RUNTIME_PYTHON",
+  "AGENT_RUNTIME_PYTHONPATH",
+  "AGENT_RUNTIME_PLANNER_TIMEOUT_SECONDS",
   "AGENT_RUNTIME_USE_MIMO",
   "AGENT_RUNTIME_MIMO_TIMEOUT_SECONDS",
   "AGENT_RUNTIME_MIMO_FALLBACK",
@@ -51,6 +55,23 @@ foreach ($line in Get-Content -LiteralPath $ConfigPath -Encoding UTF8) {
 if (-not $env:AGENT_RUNTIME_USE_MIMO) {
   $env:AGENT_RUNTIME_USE_MIMO = "true"
   $loaded.Add("AGENT_RUNTIME_USE_MIMO") | Out-Null
+}
+if (-not $env:AGENT_RUNTIME_PLANNER) {
+  $env:AGENT_RUNTIME_PLANNER = "python"
+  $loaded.Add("AGENT_RUNTIME_PLANNER") | Out-Null
+}
+if (-not $env:AGENT_RUNTIME_PYTHON) {
+  $env:AGENT_RUNTIME_PYTHON = "python"
+  $loaded.Add("AGENT_RUNTIME_PYTHON") | Out-Null
+}
+if (-not $env:AGENT_RUNTIME_PYTHONPATH) {
+  $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+  $env:AGENT_RUNTIME_PYTHONPATH = Join-Path $repoRoot "workers\python"
+  $loaded.Add("AGENT_RUNTIME_PYTHONPATH") | Out-Null
+}
+if (-not $env:AGENT_RUNTIME_PLANNER_TIMEOUT_SECONDS) {
+  $env:AGENT_RUNTIME_PLANNER_TIMEOUT_SECONDS = "180"
+  $loaded.Add("AGENT_RUNTIME_PLANNER_TIMEOUT_SECONDS") | Out-Null
 }
 if (-not $env:AGENT_RUNTIME_MIMO_FALLBACK) {
   $env:AGENT_RUNTIME_MIMO_FALLBACK = "rule"

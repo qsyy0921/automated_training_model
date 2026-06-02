@@ -34,6 +34,16 @@ $go = Resolve-Go
 
 `labelctl agent` 当前是结构化 Agent shell，参考 `ccb` / Claude Code 的可观察交互方式，启动时展示 gateway、session、entry points 和模型路由；交互命令支持 `/status`、`/sessions`、`/traces`、`/jobs`、`/doctor`、`/json`、`/clear`、`/ping`、`/exit`。其中 `/traces` 会按 agent/tool tree 摘要展示最新 trace，`/doctor` 会检查 gateway、runtime 和本机 LLM/Mimo 环境变量。
 
+Mimo 模式验收：
+
+```powershell
+. .\ops\scripts\load-mimo-env.ps1
+# 在同一个 PowerShell 会话中启动 labelserver 后：
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 agent "请用一句话说明你是不是正在通过 Mimo planner 工作。不要调用工具。"
+```
+
+预期：`/status` 显示 `planner=python mimo=true token=true`，自然语言回复不是固定规则兜底句。
+
 也可以直接运行一键 smoke test。默认不会主动回发真实 QQ；如果要使用当前 shell 里的 NapCat outbound 配置，增加 `-UseConfiguredQQOutbound`。
 
 ```powershell

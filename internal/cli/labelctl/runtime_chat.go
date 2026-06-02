@@ -27,10 +27,11 @@ type runtimeChat struct {
 
 type runtimeStatusPayload struct {
 	Runtime struct {
-		Name         string `json:"runtime"`
-		ControlPlane string `json:"control_plane"`
-		AgentLoop    string `json:"agent_loop"`
-		Policy       string `json:"policy"`
+		Name         string               `json:"runtime"`
+		ControlPlane string               `json:"control_plane"`
+		AgentLoop    string               `json:"agent_loop"`
+		Planner      runtimePlannerStatus `json:"planner"`
+		Policy       string               `json:"policy"`
 		EntryPoints  []struct {
 			ID        string `json:"id"`
 			Name      string `json:"name"`
@@ -53,6 +54,18 @@ type runtimeStatusPayload struct {
 		} `json:"sub_agents"`
 	} `json:"runtime"`
 	Snapshot runtimeSnapshot `json:"snapshot"`
+}
+
+type runtimePlannerStatus struct {
+	Mode          string `json:"mode"`
+	MimoEnabled   bool   `json:"mimo_enabled"`
+	MimoFallback  string `json:"mimo_fallback"`
+	Python        string `json:"python"`
+	PythonPath    string `json:"python_path"`
+	TextModel     string `json:"text_model"`
+	VisionModel   string `json:"vision_model"`
+	TokenPresent  bool   `json:"token_present"`
+	EffectiveMode string `json:"effective_mode"`
 }
 
 type runtimeSnapshot struct {
@@ -186,7 +199,7 @@ func (c *runtimeChat) printStartupSnapshot() error {
 	if err := getJSONValue(c.cfg.addr+"/api/runtime/status", &status); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.out, "runtime: %s  sessions=%d traces=%d\n", valueOr(status.Runtime.Name, "unknown"), status.Snapshot.SessionCount, status.Snapshot.TraceCount)
+	fmt.Fprintf(c.out, "runtime: %s  planner=%s mimo=%t token=%t sessions=%d traces=%d\n", valueOr(status.Runtime.Name, "unknown"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, status.Runtime.Planner.TokenPresent, status.Snapshot.SessionCount, status.Snapshot.TraceCount)
 	fmt.Fprintln(c.out, c.color("entry points", "bold"))
 	for _, ep := range status.Runtime.EntryPoints {
 		fmt.Fprintf(c.out, "  %-8s %-14s %-14s %s\n", ep.ID, ep.Status, ep.Transport, ep.Endpoint)
@@ -266,6 +279,9 @@ func (c *runtimeChat) printStatus() error {
 	fmt.Fprintf(c.out, "  name: %s\n", valueOr(status.Runtime.Name, "unknown"))
 	fmt.Fprintf(c.out, "  control: %s\n", valueOr(status.Runtime.ControlPlane, "unknown"))
 	fmt.Fprintf(c.out, "  loop: %s\n", valueOr(status.Runtime.AgentLoop, "unknown"))
+	fmt.Fprintf(c.out, "  planner: mode=%s effective=%s mimo=%t fallback=%s token=%t\n", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent)
+	fmt.Fprintf(c.out, "  planner python: %s\n", valueOr(status.Runtime.Planner.Python, "-"))
+	fmt.Fprintf(c.out, "  planner pythonpath: %s\n", valueOr(status.Runtime.Planner.PythonPath, "-"))
 	fmt.Fprintf(c.out, "  policy: %s\n", valueOr(status.Runtime.Policy, "unknown"))
 	fmt.Fprintf(c.out, "  sessions=%d traces=%d updated=%s\n", status.Snapshot.SessionCount, status.Snapshot.TraceCount, compactTime(status.Snapshot.UpdatedAt))
 
@@ -346,6 +362,11 @@ func (c *runtimeChat) printDoctor() error {
 		fmt.Fprintf(c.out, "  runtime: failed (%v)\n", err)
 	} else {
 		fmt.Fprintln(c.out, "  runtime: ok")
+	}
+	var status runtimeStatusPayload
+	if err := getJSONValue(c.cfg.addr+"/api/runtime/status", &status); err == nil {
+		fmt.Fprintf(c.out, "  planner: mode=%s effective=%s mimo=%t fallback=%s token=%t\n", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent)
+		fmt.Fprintf(c.out, "  planner pythonpath: %s\n", valueOr(status.Runtime.Planner.PythonPath, "-"))
 	}
 	fmt.Fprintf(c.out, "  LLM_BASE_URL: %s\n", presentOrMissing("LLM_BASE_URL"))
 	fmt.Fprintf(c.out, "  LLM_MODEL: %s\n", presentOrMissing("LLM_MODEL"))

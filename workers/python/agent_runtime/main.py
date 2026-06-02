@@ -102,7 +102,7 @@ def _guard_if_incomplete(request: RuntimeRequest, intent, delegations: list[dict
             required.add("vlm.inspect")
         if not required.issubset(kinds):
             return _guarded_plan(request, intent, delegations)
-    if intent.kind == "chat" and not kinds:
+    if intent.kind == "chat" and not kinds and not result.reply_text.strip():
         return _guarded_plan(request, intent, delegations)
     return None
 
