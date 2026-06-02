@@ -89,3 +89,5 @@
 - [x] 修复 agent repository bootstrap：旧 `data_lake/agents/workflows.json` 已有部分 workflow 时，也会补齐缺失的默认 workflow/tool/agent，不覆盖已有条目。
 - [x] 新增 `internal/infrastructure/runtimerepo.JSONRuntimeStore`，将 Agent Runtime session/trace/meta 默认持久化到 `data_lake/runtime`。
 - [x] 增强 `smoke-runtime-mvp.ps1`：使用独立 `tmp/runtime-smoke-*` store，发送四入口消息后重启 labelserver，并验证 `/api/runtime/sessions` 与 `/api/runtime/traces` 可恢复。
+- [x] 将 `ModelJobStore` 拆成 app 层端口和内存开发实现，并新增 `internal/infrastructure/runtimerepo.JSONModelJobStore`。
+- [x] Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前仍处于 `queued/running` 的任务会恢复为 `interrupted`，避免 UI/CLI 误判后台任务仍在运行。

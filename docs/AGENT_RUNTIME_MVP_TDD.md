@@ -31,7 +31,7 @@ Integration / Smoke Tests
 | Intent | `internal/app/agentruntime/intent_test.go` | `/bot-*`、附件识别、普通文本 |
 | Sub-agent | `internal/app/agentruntime/subagent_test.go` | 确定性命令不委托、文本/视觉/数据附件委托 |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
-| Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go` | session/trace JSON 持久化与重启恢复 |
+| Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted 标记 |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope |
 
@@ -141,7 +141,7 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 
 ## 10. 当前测试缺口
 
-- ModelJob 持久化测试。
+- ModelJob 进度日志、取消和自动 resume 测试。
 - `toolapp` schema/preflight/approval gate 单元测试。
 - QQ OneBot WebSocket reader 长连接测试。
 - ShanghaiTech original 真实推理 smoke。

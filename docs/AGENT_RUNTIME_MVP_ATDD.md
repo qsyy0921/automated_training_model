@@ -162,7 +162,15 @@ Then `/api/runtime/sessions` 仍至少包含四类入口产生的 session，`/ap
 
 证据：`smoke-runtime-mvp.ps1` 中重启恢复断言。
 
-### ATDD-012 Git 安全边界
+### ATDD-012 ModelJob 重启恢复
+
+Given `JSONModelJobStore` 中存在 `succeeded`、`queued` 或 `running` 模型任务
+When 服务重启并重新加载 `data_lake/runtime/model_jobs.json`
+Then 已完成任务保持原状态，未完成任务标记为 `interrupted`，提示可重新提交下载任务利用 HuggingFace cache 继续。
+
+证据：`internal/infrastructure/runtimerepo/json_model_jobs_test.go`。
+
+### ATDD-013 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -190,4 +198,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-009 | 已覆盖 | `runtime-hf-install.ps1 -StartDownload -WaitForCompletion` + `download_hf_snapshot.py --verify-only` |
 | ATDD-010 | 已覆盖 | `smoke-locateanything-model.ps1` |
 | ATDD-011 | 已覆盖 | `smoke-runtime-mvp.ps1` |
-| ATDD-012 | 每次提交前执行 | rg + git status |
+| ATDD-012 | 已覆盖 | `json_model_jobs_test.go` |
+| ATDD-013 | 每次提交前执行 | rg + git status |

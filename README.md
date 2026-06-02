@@ -60,6 +60,7 @@ Model & Data Training Platform
 - Governance control surface：强制检查点、数据治理、发布治理、运行策略、Schema、预算、租户隔离和恢复策略。
 - 模型注册元数据持久化到 `data_lake/models/models.json`，模型权重和 checkpoint 不进入 Git。
 - Agent Runtime session/trace 默认持久化到 `data_lake/runtime`，Web/CLI/桌面端/QQ 共用同一份运行态审计记录。
+- Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前未完成的下载任务会恢复为 `interrupted`，重新提交后可利用 HuggingFace cache 继续。
 
 ## Agent 生命周期
 
@@ -166,7 +167,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-pla
 
 文本规划默认使用 `mimo-v2.5-pro`，视觉理解默认使用 `mimo-v2.5`。
 
-模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，状态从 `runtime model-jobs` 查询。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
+模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态持久化到 `data_lake/runtime/model_jobs.json` 并可从 `runtime model-jobs` 查询。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
 
 ## 技术栈
 
@@ -272,4 +273,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力和 Agent Runtime session/trace JSON 持久化；下一阶段重点是 durable queue、model job 持久化、真实 Python worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化和 model job JSON 持久化；下一阶段重点是 durable queue、model job 进度日志/取消/自动 resume、真实 Python worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

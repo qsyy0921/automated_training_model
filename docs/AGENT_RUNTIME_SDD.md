@@ -310,7 +310,10 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 2. Go ToolExecutor 校验 `repo_id`、`local_dir`、`manifest` 和 `data_lake` 写入边界。
 3. ToolExecutor 创建 `ModelJob`，立即返回 `queued` 和 `job_id`。
 4. 后台 goroutine 调用 `skills/huggingface-model-downloader/scripts/download_hf_snapshot.py`。
-5. Web、CLI、桌面端和 QQ 后续都通过 runtime job 状态查询进度。
+5. `JSONModelJobStore` 将任务状态写入 `data_lake/runtime/model_jobs.json`。
+6. Web、CLI、桌面端和 QQ 后续都通过 runtime job 状态查询进度。
+
+如果服务重启时存在 `queued` 或 `running` 的模型任务，JSON store 会把它们恢复为 `interrupted`，避免 UI 误判后台 goroutine 仍在执行。HuggingFace snapshot cache 本身支持断点续传；用户重新提交下载任务后可继续利用本地 cache。
 
 新增可观测入口：
 
@@ -336,13 +339,14 @@ $env:AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL="true"
 | ID | 场景 | 验收标准 |
 | --- | --- | --- |
 | ART-007 | 通过 runtime 请求下载 `nvidia/LocateAnything-3B` | 入口立即返回 `status=queued` 和 `job_id`，不等待 7GB 下载完成。 |
-| ART-008 | 查询 `/api/runtime/model-jobs` | 返回模型下载任务，状态至少包括 `queued`、`running`、`succeeded`、`failed`。 |
+| ART-008 | 查询 `/api/runtime/model-jobs` | 返回模型下载任务，状态至少包括 `queued`、`running`、`succeeded`、`failed`、`interrupted`。 |
 | ART-009 | CLI 查询 `labelctl runtime model-jobs` | 能看到与 Web/API 一致的任务列表。 |
 | ART-010 | 用户中断 CLI/Web 请求 | 已经排队的后台任务由 Runtime job store 管理，入口中断不再等同于 runtime 会话失败。 |
 | ART-011 | 设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` | `model.download_hf` 返回 `approval_required`，不会创建后台下载任务。 |
+| ART-012 | 服务重启后查询 `/api/runtime/model-jobs` | 已完成任务仍可恢复；重启前未完成任务标记为 `interrupted`。 |
 
 ### 10.5 当前边界
 
-- 当前 `ModelJobStore` 是进程内内存实现，服务重启会丢失 job 状态；后续应迁移到 SQLite/Postgres 或统一 task repository。
-- 下载脚本本身使用 HuggingFace snapshot cache 支持恢复，但 UI 进度目前只有任务状态和最终结果，尚未接入逐文件进度。
+- 当前 `ModelJobStore` 已有 JSON MVP 持久化，服务重启后不会丢失 job 记录；但未完成任务只会标记为 `interrupted`，不会自动重新拉起 goroutine。
+- 下载脚本本身使用 HuggingFace snapshot cache 支持恢复，但 UI 进度目前只有任务状态和最终结果，尚未接入逐文件进度、取消、日志流和自动 resume。
 - 后续应把 `model.download_hf`、训练、评估、部署统一迁移到 `internal/app/taskapp` 或持久化 workflow queue。

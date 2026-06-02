@@ -19,7 +19,8 @@
 - [x] 接入 Mimo 本地交互式测试 provider：`mimo-v2.5-pro` 做规划，`mimo-v2.5` 做视觉数据检查，密钥只走环境变量或 SecretRef。
 - [x] 通过 Agent Runtime + Mimo planner 异步执行 `model.download_hf`，下载并校验 `nvidia/LocateAnything-3B`；如需安全模式再打开 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true`。
 - [x] 将 Agent Runtime session/trace 从纯内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime`，smoke 覆盖重启恢复。
-- [ ] 将 `ModelJobStore` 从进程内内存迁移到统一 task repository，保留下载进度、日志、取消和恢复状态。
+- [x] 将 `ModelJobStore` 从进程内内存推进到 JSON MVP 持久化，默认写入 `data_lake/runtime/model_jobs.json`，服务重启前未完成任务恢复为 `interrupted`。
+- [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐下载进度、日志、取消和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [ ] 拆出独立 `Task Center`、`Model Registry`、`Governance` 页面。
@@ -60,6 +61,6 @@
 - [ ] 对 object query 检测模型做完整可视化误差分析。
 - [ ] 在检测 recall 稳定后重新开启 Q_track / MOTR-lite。
 - [ ] 设计 anomaly query 训练数据格式和评估协议。
-- [ ] Replace the in-memory workflow queue with Redis/NATS and persist workflow/model job state across server restarts.
+- [ ] Replace the in-memory workflow queue with Redis/NATS and persist workflow state across server restarts.
 - [ ] Wire Go workflow tasks to Python worker runners with heartbeat, logs, retries, and artifact manifests.
 - [ ] Add data/model lineage catalogs for dataset -> labels -> training run -> checkpoint -> evaluation report.

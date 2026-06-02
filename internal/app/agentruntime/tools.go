@@ -19,7 +19,7 @@ import (
 type GoToolExecutor struct {
 	agents         AgentControlPlane
 	now            func() time.Time
-	modelJobs      *ModelJobStore
+	modelJobs      ModelJobStore
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
 }
 
@@ -33,6 +33,14 @@ func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolEx
 		modelJobs: NewModelJobStore(now),
 	}
 	executor.runHFModelTool = executor.runHFModelScript
+	return executor
+}
+
+func NewGoToolExecutorWithModelJobs(agents AgentControlPlane, now func() time.Time, modelJobs ModelJobStore) *GoToolExecutor {
+	executor := NewGoToolExecutor(agents, now)
+	if modelJobs != nil {
+		executor.modelJobs = modelJobs
+	}
 	return executor
 }
 

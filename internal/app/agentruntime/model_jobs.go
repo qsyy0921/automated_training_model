@@ -25,20 +25,30 @@ type ModelJob struct {
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
-type ModelJobStore struct {
+type ModelJobStore interface {
+	Create(job ModelJob) ModelJob
+	Update(id string, mutate func(*ModelJob))
+	List(limit int) []ModelJob
+}
+
+type InMemoryModelJobStore struct {
 	mu   sync.RWMutex
 	now  func() time.Time
 	jobs map[string]ModelJob
 }
 
-func NewModelJobStore(now func() time.Time) *ModelJobStore {
+func NewModelJobStore(now func() time.Time) *InMemoryModelJobStore {
+	return NewInMemoryModelJobStore(now)
+}
+
+func NewInMemoryModelJobStore(now func() time.Time) *InMemoryModelJobStore {
 	if now == nil {
 		now = time.Now
 	}
-	return &ModelJobStore{now: now, jobs: map[string]ModelJob{}}
+	return &InMemoryModelJobStore{now: now, jobs: map[string]ModelJob{}}
 }
 
-func (s *ModelJobStore) Create(job ModelJob) ModelJob {
+func (s *InMemoryModelJobStore) Create(job ModelJob) ModelJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := s.now()
@@ -59,7 +69,7 @@ func (s *ModelJobStore) Create(job ModelJob) ModelJob {
 	return job
 }
 
-func (s *ModelJobStore) Update(id string, mutate func(*ModelJob)) {
+func (s *InMemoryModelJobStore) Update(id string, mutate func(*ModelJob)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	job, ok := s.jobs[id]
@@ -71,7 +81,7 @@ func (s *ModelJobStore) Update(id string, mutate func(*ModelJob)) {
 	s.jobs[id] = job
 }
 
-func (s *ModelJobStore) List(limit int) []ModelJob {
+func (s *InMemoryModelJobStore) List(limit int) []ModelJob {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]ModelJob, 0, len(s.jobs))

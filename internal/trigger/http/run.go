@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	httpapi "github.com/qsyy0921/automated_training_model/internal/api/httpapi"
@@ -55,7 +56,11 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	agentRuntimeSvc := agentruntime.NewServiceWithStore(agentSvc, runtimeStore)
+	modelJobStore, err := runtimerepo.NewJSONModelJobStore(filepath.Join(cfg.RuntimeRoot, "model_jobs.json"), time.Now)
+	if err != nil {
+		return err
+	}
+	agentRuntimeSvc := agentruntime.NewServiceWithStores(agentSvc, runtimeStore, modelJobStore)
 	providerSvc := providerapp.NewProviderService(providerrepo.NewMemoryRepository(), secrets.NewEnvStore())
 	workspaceSvc := workspaceapp.NewRuntimeService(
 		datasetSvc,

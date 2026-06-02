@@ -29,6 +29,11 @@ func NewServiceWithStore(agents AgentControlPlane, store RuntimeStore) *Service 
 	return NewServiceWithRunner(NewDefaultSessionRunnerWithStore(PlannerFromEnv(), NewGoToolExecutor(agents, now), store, now))
 }
 
+func NewServiceWithStores(agents AgentControlPlane, runtimeStore RuntimeStore, modelJobs ModelJobStore) *Service {
+	now := time.Now
+	return NewServiceWithRunner(NewDefaultSessionRunnerWithStore(PlannerFromEnv(), NewGoToolExecutorWithModelJobs(agents, now, modelJobs), runtimeStore, now))
+}
+
 func NewServiceWithPorts(planner PlannerPort, tools ToolExecutorPort, now func() time.Time) *Service {
 	return NewServiceWithRunner(NewDefaultSessionRunner(planner, tools, now))
 }
