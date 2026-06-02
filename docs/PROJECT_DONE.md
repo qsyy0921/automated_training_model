@@ -127,3 +127,4 @@
 - [x] Web Agent Overview 增加 model job logs 面板：点击模型任务后查询 `/api/runtime/model-jobs/{id}/logs`，在 Web/CLI/API 三个入口中统一查看同一份任务日志。
 - [x] 交互式 `labelctl agent` 增加 `/job <id>`、`/job-logs <id>` 和 `/follow-job <id>`，在 Claude Code 风格 CLI 内直接查看模型长任务详情、生命周期日志和 NDJSON 日志流，仍只通过 Gateway API。
 - [x] 增加 Agent Runtime / Gateway 统一错误信封：runtime NDJSON `error` 事件和 HTTP JSON error 都包含 `error_envelope.code/message/source/retryable`，并保留旧 `error` 字符串兼容；CLI 优先显示 envelope message。
+- [x] 新增 Python model worker 可观测执行契约：`python -m agent_worker.main --health` 可返回 heartbeat/capabilities，dry-run job 结果包含 heartbeat、ordered logs、artifact 引用、attempt/max_attempts 和 retryable，缺少 `task_id` 的 job 会失败且标记 non-retryable。

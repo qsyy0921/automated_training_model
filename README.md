@@ -65,6 +65,7 @@ Model & Data Training Platform
 - Runtime / Gateway 错误响应保留兼容的 `error` 字符串，同时新增 `error_envelope`，包含 `code`、`message`、`source`、`retryable`，CLI stream 会优先显示结构化错误消息。
 - Data Intake Workflow 的 MVP 已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，完成附件 quarantine、静态 scan、dry-run plan 和 pending approval workflow，并把 `workflow_id`、`plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划和 workflow 默认持久化到 `data_lake/runtime/intake`。
 - Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令、runtime self-description、`规划 ShanghaiTech 数据接入` 和已知 LocateAnything 固定流程走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
+- Python model worker 已具备最小可观测执行契约：`python -m agent_worker.main --health` 输出 heartbeat/capabilities，dry-run job 结果包含 heartbeat、logs、artifact 引用、attempt/max_attempts 和 retryable；真实 Go task runner 接入仍在后续阶段。
 
 ## Agent 生命周期
 
@@ -298,7 +299,7 @@ internal/domain/          领域模型
 internal/infrastructure/  存储、队列、模型网关、中间件实现
 internal/trigger/         服务启动与外部触发器
 web/                      Vite + React + TypeScript 前端工程
-workers/python/           Python worker 契约与执行入口
+workers/python/           Python runtime、model worker 契约与执行入口
 skills/                   Agent skills
 docs/                     产品、SDD、架构和维护文档
 ops/                      部署、脚本、配置、迁移和工具
@@ -405,4 +406,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web Agent Overview、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、runtime/gateway `error_envelope`、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming 和最小 tool progress streaming；下一阶段重点是 approval 交互确认、durable queue、`model.*`/`workflow.*` handler 外迁、逐文件日志流、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web Agent Overview、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、runtime/gateway `error_envelope`、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming、最小 tool progress streaming 和 Python model worker heartbeat/log/artifact/retry 契约；下一阶段重点是 approval 交互确认、durable queue、Go task runner 接入 Python worker、逐文件日志流、真实模型任务 artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

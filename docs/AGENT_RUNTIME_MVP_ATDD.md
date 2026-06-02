@@ -204,7 +204,15 @@ Then 响应保留兼容的 `error` 字符串，同时提供 `error_envelope.code
 
 证据：`internal/app/agentruntime/errors_test.go`、`internal/app/agentruntime/session_test.go`、`internal/api/httpapi/runtime_handlers_test.go` 和 `internal/cli/labelctl/runtime_chat_test.go`。
 
-### ATDD-017 Git 安全边界
+### ATDD-017 Python worker 可观测执行契约
+
+Given Go task runner 未来会用 JSON envelope 启动 Python model worker
+When 执行 `python -m agent_worker.main --health` 或 dry-run job
+Then worker 输出稳定 JSON，并包含 heartbeat、ordered logs、artifact 引用、attempt/max_attempts 和 retryable；缺少 task_id 的 job 应失败且标记 non-retryable。
+
+证据：`workers/python/agent_worker/tests/test_worker_contracts.py`。
+
+### ATDD-018 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -237,4 +245,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-014 | 已覆盖 | `service_test.go` + `runtime_handlers_test.go` + `domain_commands_test.go` |
 | ATDD-015 | 已覆盖 | `runner_test.go` + `session_test.go` + `runtime_chat_test.go` |
 | ATDD-016 | 已覆盖 | `errors_test.go` + `session_test.go` + `runtime_handlers_test.go` + `runtime_chat_test.go` |
-| ATDD-017 | 每次提交前执行 | rg + git status |
+| ATDD-017 | 已覆盖 | `test_worker_contracts.py` |
+| ATDD-018 | 每次提交前执行 | rg + git status |

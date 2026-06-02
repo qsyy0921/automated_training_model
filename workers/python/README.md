@@ -11,7 +11,16 @@ and report materialization.
 The current worker is intentionally small. It accepts a JSON job envelope and
 prints a JSON result, so it can later be launched by a local process runner,
 Docker worker, NATS consumer, or Kubernetes job without changing the Go domain
-model.
+model. The result contract already includes heartbeat, logs, artifacts and
+retry metadata, even though real task scheduling is still owned by the Go
+control plane.
+
+Health / heartbeat:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path .\workers\python).Path
+python -m agent_worker.main --health
+```
 
 Example:
 
@@ -28,6 +37,13 @@ $job = @{
 Set-Content -Path tmp\agent-job.json -Value $job -Encoding UTF8
 python -m agent_worker.main --job-file tmp\agent-job.json
 ```
+
+Dry-run results include:
+
+- `heartbeat`: worker status and timestamp.
+- `logs`: ordered worker lifecycle messages.
+- `artifacts`: dry-run artifact references, not large files.
+- `retryable`, `attempt`, `max_attempts`: retry contract for the future Go task runner.
 
 Agent Runtime prototype:
 

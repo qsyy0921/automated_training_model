@@ -63,12 +63,13 @@ $go = Resolve-Go
 & $go test ./...
 ```
 
-## 4. Python Runtime 测试
+## 4. Python Runtime / Worker 测试
 
 | 模块 | 当前测试 |
 | --- | --- |
-| Python 语法和 import | `python -m compileall workers\python\agent_runtime` |
+| Python 语法和 import | `python -m compileall workers\python` |
 | Fast chat / Go intent metadata 分流 | `python -m unittest discover -s workers\python\agent_runtime\tests` |
+| Model worker envelope / heartbeat / logs / artifacts / retry metadata | `python -m unittest discover -s workers\python\agent_worker\tests` |
 | Mimo API | `ops/scripts/smoke-mimo-api.ps1` |
 | Mimo planner / guard plan | `ops/scripts/smoke-mimo-planner.ps1` |
 
@@ -153,8 +154,9 @@ npm run build
 . .\ops\scripts\resolve-go.ps1
 $go = Resolve-Go
 & $go test ./...
-python -m compileall workers\python\agent_runtime
+python -m compileall workers\python
 $env:PYTHONPATH=(Resolve-Path .\workers\python).Path
+python -m unittest discover -s workers\python\agent_worker\tests
 python -m unittest discover -s workers\python\agent_runtime\tests
 cd F:\automated_training_model\web
 npm run build
@@ -175,4 +177,4 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 - Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。
 - Gateway auth 集成 smoke：非 loopback 模拟、CLI `-token`、桌面端 `-token` 和前端 token profile。
 - ShanghaiTech original 真实推理 smoke。
-- Python worker heartbeat/log/retry/artifact 测试。
+- Python worker 到 Go task repository 的真实调度集成测试；当前只覆盖 worker 自身 envelope、health、heartbeat、logs、artifact 和 retry metadata。

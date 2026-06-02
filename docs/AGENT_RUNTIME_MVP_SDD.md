@@ -71,6 +71,7 @@ Workers and Providers
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Web Agent Overview | `web/src/pages/agent-overview/AgentOverviewPage.tsx` | 展示 runtime status、sessions、traces、model jobs、model job logs、intake workflows 和 QQ test-message 入口 | 不直接写 Data Lake，不绕过 Gateway API |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
+| Python Model Worker | `workers/python/agent_worker` | 模型/数据任务的 worker envelope、`--health`、heartbeat、logs、artifact 引用、attempt/max_attempts/retryable 契约 | 不拥有 Go task lifecycle；不直接写 runtime session/trace；真实调度仍由后续 task runner 接入 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
 ## 6. Sub-agent 使用规则
@@ -153,7 +154,8 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | 证据 | 命令 |
 | --- | --- |
 | Go 单元/集成测试 | `go test ./...` |
-| Python runtime 编译 | `python -m compileall workers\python\agent_runtime` |
+| Python runtime/worker 编译 | `python -m compileall workers\python` |
+| Python model worker 契约 | `python -m unittest discover -s workers\python\agent_worker\tests` |
 | Web 构建 | `npm run build` |
 | 四入口 smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-agent-entrypoints.ps1` |
 | Runtime MVP smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1` |
@@ -168,8 +170,8 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
-- model job 逐文件字节级进度、真实 worker stdout/stderr 日志流和自动 resume；当前只完成生命周期日志查询和最小 NDJSON stream。
+- model job 逐文件字节级进度、真实 worker stdout/stderr 日志流和自动 resume；当前已完成生命周期日志查询、最小 NDJSON stream，以及 Python worker heartbeat/log/artifact/retry 输出契约，但 Go task runner 尚未把真实 worker stdout/stderr 接入 ModelJobStore。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`；`model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析已迁移到 `internal/app/modelruntime`。后续仍需把 model job 生命周期和 workflow run 接入正式 task repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、审批确认、model job 日志流和会话恢复；最小 tool progress streaming 已完成。
-- Python worker heartbeat、logs、retries、artifacts。
+- Python worker 已有 heartbeat、logs、retries、artifacts 的最小 dry-run/health 契约；后续仍需接入 Go task repository、真实模型执行、artifact manifest 和失败重试调度。

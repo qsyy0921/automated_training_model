@@ -37,6 +37,7 @@
 - [ ] 将 `GoToolExecutor` 剩余具体工具 handler 继续迁移到独立 app/worker：`modelruntime` 后续接统一 task/model worker，`runtimeworkflow` 后续接正式 workflow/task repository，`vlm.inspect` 后续接入真实 VLM worker。
 - [x] 将 `intake.plan` / `vlm.inspect` 的 dry-run Data Intake Plan 构造外迁到 `internal/app/intakeapp`，runtime 只负责 tool handler 调用和 trace metadata。
 - [x] 为 JSON MVP model jobs 补齐阶段进度、生命周期日志、取消请求和手动 resume child job；CLI/Gateway 可查询详情、日志、取消和恢复。
+- [x] 新增 Python model worker 可观测执行契约：`--health`、heartbeat、ordered logs、artifact 引用、attempt/max_attempts 和 retryable，先覆盖 dry-run 与参数错误。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、真实 worker stdout/stderr 日志流、取消幂等性和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [x] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
@@ -81,5 +82,5 @@
 - [ ] 在检测 recall 稳定后重新开启 Q_track / MOTR-lite。
 - [ ] 设计 anomaly query 训练数据格式和评估协议。
 - [ ] Replace the in-memory workflow queue with Redis/NATS and persist workflow state across server restarts.
-- [ ] Wire Go workflow tasks to Python worker runners with heartbeat, logs, retries, and artifact manifests.
+- [ ] Wire Go workflow tasks to Python worker runners；worker heartbeat/logs/retries/artifact 输出契约已完成，仍需 Go task runner、stdout/stderr stream、artifact manifest 持久化和失败重试调度。
 - [ ] Add data/model lineage catalogs for dataset -> labels -> training run -> checkpoint -> evaluation report.
