@@ -128,6 +128,7 @@ atm:03 planner-agent> /exit
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime traces
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime model-jobs
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job <job_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job-logs <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime cancel-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime resume-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 dataset list
@@ -254,7 +255,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-pla
 
 文本规划默认使用 `mimo-v2.5-pro`，视觉理解默认使用 `mimo-v2.5`。普通聊天默认走 fast chat，`AGENT_RUNTIME_FAST_CHAT=false` 可关闭；已知 LocateAnything 固定流程默认走 Go 本地语义 fast-path，`AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可强制回到 Mimo planner；`AGENT_RUNTIME_PYTHON_WORKER=false` 可把 Python planner 从常驻 worker 回退到单次 spawn 模式。
 
-模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态、进度、日志、取消标记和恢复关系持久化到 `data_lake/runtime/model_jobs.json`。可通过 `runtime model-jobs` 查看列表，`runtime job <job_id>` 查看详情，`runtime cancel-job <job_id>` 请求取消，`runtime resume-job <job_id>` 基于 HuggingFace cache 新建恢复任务。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
+模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态、进度、日志、取消标记和恢复关系持久化到 `data_lake/runtime/model_jobs.json`。可通过 `runtime model-jobs` 查看列表，`runtime job <job_id>` 查看详情，`runtime job-logs <job_id>` 查看生命周期日志，`runtime cancel-job <job_id>` 请求取消，`runtime resume-job <job_id>` 基于 HuggingFace cache 新建恢复任务。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
 
 默认本机开发模式允许高风险工具进入受控执行；需要统一收紧时设置：
 
@@ -397,4 +398,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming 和最小 tool progress streaming；下一阶段重点是 approval 交互确认、durable queue、`model.*`/`workflow.*` handler 外迁、逐文件日志流、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web 控制台、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming 和最小 tool progress streaming；下一阶段重点是 approval 交互确认、durable queue、`model.*`/`workflow.*` handler 外迁、逐文件日志流、真实 Python model worker runner、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

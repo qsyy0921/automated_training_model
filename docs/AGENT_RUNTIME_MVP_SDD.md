@@ -28,7 +28,7 @@ MVP 必须覆盖：
 
 - 完整训练、评估、压缩、发布和线上监控闭环已经真实运行。
 - QQ 真实账号群聊 @Bot 尚未完成端到端实测；当前仓库测试先覆盖 webhook/test-message/fake WebSocket，OneBot WebSocket reader 已有组件测试。
-- `ModelJobStore` 已具备 JSON MVP 持久化、阶段进度、生命周期日志、取消请求和手动 resume；尚未具备逐文件字节级进度、实时日志流和自动后台恢复。
+- `ModelJobStore` 已具备 JSON MVP 持久化、阶段进度、生命周期日志、日志查询/最小 NDJSON stream、取消请求和手动 resume；尚未具备逐文件字节级进度、真实 worker stdout/stderr 日志流和自动后台恢复。
 - LocateAnything-3B 已完成真实 ShanghaiTech 推理；当前只完成下载、verify-only 和模型加载 smoke。
 - skill 自进化默认关闭；当前支持手动生成草稿、列出草稿、写入 approve/reject 人工审批记录，但仍不会自动启用。
 
@@ -138,6 +138,8 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - `--dry-run`：读取远端清单，记录 `remote_file_count` 和 `remote_total_bytes`，不下载权重。
 - 默认下载：调用 `huggingface_hub.snapshot_download`，支持 resume。
 - `--verify-only`：对比远端文件清单和本地文件大小，缺失或大小不一致时失败。
+- `GET /api/runtime/model-jobs/{job_id}/logs`：读取已持久化的模型任务生命周期日志。
+- `GET /api/runtime/model-jobs/{job_id}/logs/stream`：以 NDJSON 输出已有日志和终态事件，为后续真实 worker 日志流保留兼容入口。
 
 ## 9. 当前可验收证据
 
@@ -159,7 +161,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
-- model job 逐文件字节级进度、实时日志流和自动 resume。
+- model job 逐文件字节级进度、真实 worker stdout/stderr 日志流和自动 resume；当前只完成生命周期日志查询和最小 NDJSON stream。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`；`model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析已迁移到 `internal/app/modelruntime`。后续仍需把 model job 生命周期和 workflow run 接入正式 task repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、审批确认、model job 日志流和会话恢复；最小 tool progress streaming 已完成。

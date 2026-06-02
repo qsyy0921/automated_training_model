@@ -435,3 +435,18 @@ func TestModelJobCancelAndResume(t *testing.T) {
 	}
 	_, _ = executor.CancelModelJob(resumed.ID)
 }
+
+func TestRecentModelJobLogsAndTerminalStatus(t *testing.T) {
+	job := ModelJob{ID: "job1", Status: "succeeded", Logs: []ModelJobLog{
+		{At: time.Unix(1, 0), Level: "info", Message: "one"},
+		{At: time.Unix(2, 0), Level: "info", Message: "two"},
+		{At: time.Unix(3, 0), Level: "info", Message: "three"},
+	}}
+	logs := RecentModelJobLogs(job, 2)
+	if len(logs) != 2 || logs[0].Message != "two" || logs[1].Message != "three" {
+		t.Fatalf("unexpected recent logs: %+v", logs)
+	}
+	if !IsTerminalModelJobStatus("succeeded") || !IsTerminalModelJobStatus("interrupted") || IsTerminalModelJobStatus("running") {
+		t.Fatal("unexpected terminal status classification")
+	}
+}

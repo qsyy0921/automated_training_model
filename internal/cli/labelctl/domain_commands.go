@@ -103,6 +103,11 @@ func runModels(cfg Config, args []string) error {
 			return errors.New("usage: labelctl models job <job_id>")
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]))
+	case "job-logs":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl models job-logs <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/logs")
 	case "cancel-job":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl models cancel-job <job_id>")
@@ -179,6 +184,11 @@ func runLogs(cfg Config, args []string) error {
 		return getJSON(cfg.addr + "/api/agent-runs")
 	case "jobs":
 		return getJSON(cfg.addr + "/api/runtime/model-jobs")
+	case "job", "job-logs":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl logs job <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/logs")
 	case "intake":
 		return getJSON(cfg.addr + "/api/runtime/intake/workflows")
 	default:

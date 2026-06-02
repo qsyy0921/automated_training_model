@@ -39,7 +39,7 @@ Integration / Smoke Tests
 | Data intake fast-path | `internal/app/agentruntime/service_test.go` | `规划 ShanghaiTech 数据接入` 直接进入 `data-intake-agent` + `intake.plan`，trace 记录 dataset/workflow metadata |
 | Mandatory tool guard | `internal/app/agentruntime/session_test.go` | data-intake / vision 附件场景下，外部 Mimo planner 缺少必需 tool-call 或扩展额外工具链时回退本地计划并保留 sub-agent delegation |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
-| Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、取消请求、`canceled/resumable` 状态、手动 resume child job |
+| Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、取消请求、`canceled/resumable` 状态、手动 resume child job、生命周期日志裁剪和终态判断 |
 | Tool schema/preflight | `internal/app/toolapp/schema_test.go` | 注册工具、参数白名单、高风险审批、未注册工具拦截 |
 | Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error、ExecuteStream 输出 preflight/tool progress 事件 |
 | Runtime stream | `internal/app/agentruntime/session_test.go`、`internal/cli/labelctl/runtime_chat_test.go` | `RunStream` 能把工具进度事件带上 session 输出到 NDJSON；CLI 能解析 runtime stream event |
@@ -49,9 +49,10 @@ Integration / Smoke Tests
 | Intake workflow | `internal/app/intakeapp/workflow_test.go` | quarantine、静态 scan、pending approval、reject unsafe metadata、approve 后 register |
 | Text-only intake | `internal/app/intakeapp/workflow_test.go` | 纯文本远程数据接入指令生成 synthetic text source attachment，仍走 scan 和 pending approval |
 | Gateway middleware | `internal/infrastructure/middleware/middleware_test.go` | loopback 默认放行、非 loopback 无 token 拒绝、Bearer token 放行、强制 loopback token、health public |
+| Runtime HTTP API | `internal/api/httpapi/runtime_handlers_test.go` | model job logs JSON 和 NDJSON stream 入口 |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope；fake OneBot WebSocket reader 读取 message event 并回写 `send_msg` |
-| CLI agent | `internal/cli/labelctl/runtime_chat_test.go`、`internal/cli/labelctl/domain_commands_test.go`、`labelctl agent` smoke | PowerShell BOM 输入归一化、trace metadata 渲染、交互式 `/status`、`/doctor`、`/ping` 和自然语言消息进入同一 Runtime；dataset/models/deploy/logs/doctor 领域命令组路由到正确 Gateway API 并携带 token |
+| CLI agent | `internal/cli/labelctl/runtime_chat_test.go`、`internal/cli/labelctl/domain_commands_test.go`、`labelctl agent` smoke | PowerShell BOM 输入归一化、trace metadata 渲染、交互式 `/status`、`/doctor`、`/ping` 和自然语言消息进入同一 Runtime；dataset/models/deploy/logs/doctor 领域命令组路由到正确 Gateway API 并携带 token；`runtime/models/logs job-logs` 路由到 model job logs API |
 | Skill drafts | `internal/app/skillapp/service_test.go`、`internal/cli/labelctl/skill_commands_test.go` | 草稿创建、列表、approve/reject 人工审批记录、secret-like 内容拦截；审批不自动启用 skill |
 
 命令：
@@ -167,7 +168,7 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 
 ## 10. 当前测试缺口
 
-- ModelJob 逐文件字节级进度、实时日志流和自动 resume 测试；当前仅完成同步 tool runner progress，不覆盖后台 job log streaming。
+- ModelJob 逐文件字节级进度、真实 worker stdout/stderr 日志流和自动 resume 测试；当前已覆盖生命周期日志查询和最小 NDJSON stream，不覆盖逐文件 worker 输出。
 - `modelruntime` 接入统一 task/model worker 和 workflow repository 后的集成测试。
 - QQ OneBot WebSocket reader 长连接测试。
 - Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。

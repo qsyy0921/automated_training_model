@@ -35,8 +35,8 @@
 - [x] 将 `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析外迁到 `internal/app/modelruntime`，`GoToolExecutor` 只保留注册、审批、异步 job 生命周期和结果适配。
 - [ ] 将 `GoToolExecutor` 剩余具体工具 handler 继续迁移到独立 app/worker：`modelruntime` 后续接统一 task/model worker，`runtimeworkflow` 后续接正式 workflow/task repository，`vlm.inspect` 后续接入真实 VLM worker。
 - [x] 将 `intake.plan` / `vlm.inspect` 的 dry-run Data Intake Plan 构造外迁到 `internal/app/intakeapp`，runtime 只负责 tool handler 调用和 trace metadata。
-- [x] 为 JSON MVP model jobs 补齐阶段进度、生命周期日志、取消请求和手动 resume child job；CLI/Gateway 可查询详情、取消和恢复。
-- [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、实时日志流、取消幂等性和自动 resume 状态。
+- [x] 为 JSON MVP model jobs 补齐阶段进度、生命周期日志、取消请求和手动 resume child job；CLI/Gateway 可查询详情、日志、取消和恢复。
+- [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、真实 worker stdout/stderr 日志流、取消幂等性和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [ ] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [ ] 拆出独立 `Task Center`、`Model Registry`、`Governance` 页面。

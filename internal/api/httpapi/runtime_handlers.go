@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/agentruntime"
 	"github.com/qsyy0921/automated_training_model/internal/infrastructure/middleware"
@@ -96,7 +97,19 @@ func (s *Server) runtimeIntakeWorkflowAction(w http.ResponseWriter, r *http.Requ
 
 func (s *Server) runtimeModelJobDetail(w http.ResponseWriter, r *http.Request) {
 	id, action := runtimeModelJobPath(r)
-	if id == "" || action != "" {
+	if id == "" {
+		writeError(w, http.StatusNotFound, errors.New("model job not found"))
+		return
+	}
+	switch action {
+	case "":
+	case "logs":
+		s.runtimeModelJobLogs(w, r, id)
+		return
+	case "logs/stream":
+		s.runtimeModelJobLogStream(w, r, id)
+		return
+	default:
 		writeError(w, http.StatusNotFound, errors.New("model job not found"))
 		return
 	}
@@ -106,6 +119,80 @@ func (s *Server) runtimeModelJobDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"job": job})
+}
+
+func (s *Server) runtimeModelJobLogs(w http.ResponseWriter, r *http.Request, id string) {
+	job, ok := s.runtime.GetModelJob(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, errors.New("model job not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"job_id":           job.ID,
+		"status":           job.Status,
+		"progress_percent": job.ProgressPercent,
+		"logs":             agentruntime.RecentModelJobLogs(job, runtimeTraceLimit(r)),
+	})
+}
+
+func (s *Server) runtimeModelJobLogStream(w http.ResponseWriter, r *http.Request, id string) {
+	job, ok := s.runtime.GetModelJob(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, errors.New("model job not found"))
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	flusher, _ := w.(http.Flusher)
+	emit := func(event map[string]any) {
+		_ = enc.Encode(event)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	for _, log := range agentruntime.RecentModelJobLogs(job, runtimeTraceLimit(r)) {
+		emit(map[string]any{"type": "log", "job_id": id, "log": log})
+	}
+	if agentruntime.IsTerminalModelJobStatus(job.Status) {
+		emit(map[string]any{"type": "final", "job_id": id, "status": job.Status, "progress_percent": job.ProgressPercent, "message": job.Message})
+		return
+	}
+	timeout := time.NewTimer(runtimeStreamTimeout(r))
+	defer timeout.Stop()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	lastCount := len(job.Logs)
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-timeout.C:
+			latest, ok := s.runtime.GetModelJob(id)
+			if ok {
+				emit(map[string]any{"type": "final", "job_id": id, "status": latest.Status, "progress_percent": latest.ProgressPercent, "message": "stream timeout"})
+			}
+			return
+		case <-ticker.C:
+			latest, ok := s.runtime.GetModelJob(id)
+			if !ok {
+				emit(map[string]any{"type": "error", "job_id": id, "message": "model job not found"})
+				return
+			}
+			if len(latest.Logs) > lastCount {
+				for _, log := range latest.Logs[lastCount:] {
+					emit(map[string]any{"type": "log", "job_id": id, "log": log})
+				}
+				lastCount = len(latest.Logs)
+			}
+			if agentruntime.IsTerminalModelJobStatus(latest.Status) {
+				emit(map[string]any{"type": "final", "job_id": id, "status": latest.Status, "progress_percent": latest.ProgressPercent, "message": latest.Message})
+				return
+			}
+		}
+	}
 }
 
 func (s *Server) runtimeModelJobAction(w http.ResponseWriter, r *http.Request) {
@@ -158,7 +245,7 @@ func runtimeModelJobPath(r *http.Request) (string, string) {
 	if len(parts) == 1 {
 		return parts[0], ""
 	}
-	return parts[0], parts[1]
+	return parts[0], strings.Join(parts[1:], "/")
 }
 
 func runtimeIntakeWorkflowPath(r *http.Request) (string, string) {
@@ -171,6 +258,21 @@ func runtimeIntakeWorkflowPath(r *http.Request) (string, string) {
 		return parts[0], ""
 	}
 	return parts[0], parts[1]
+}
+
+func runtimeStreamTimeout(r *http.Request) time.Duration {
+	raw := r.URL.Query().Get("timeout_ms")
+	if raw == "" {
+		return 30 * time.Second
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return 30 * time.Second
+	}
+	if value > 60000 {
+		value = 60000
+	}
+	return time.Duration(value) * time.Millisecond
 }
 
 func runtimeTraceLimit(r *http.Request) int {

@@ -240,6 +240,18 @@ func runRuntime(cfg Config, args []string) error {
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]))
 	}
+	if args[0] == "job-logs" || args[0] == "logs-job" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime job-logs <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/logs")
+	}
+	if args[0] == "job-logs-stream" || args[0] == "follow-job" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime job-logs-stream <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/logs/stream")
+	}
 	if args[0] == "cancel-job" {
 		if len(args) < 2 {
 			return errors.New("usage: labelctl runtime cancel-job <job_id>")
@@ -914,9 +926,9 @@ func usage() {
   health
   videos
   dataset [list|register-folder|register-manifest|activate]
-  models [list|get <id>|register|jobs|job <id>|cancel-job <id>|resume-job <id>]
+  models [list|get <id>|register|jobs|job <id>|job-logs <id>|cancel-job <id>|resume-job <id>]
   deploy [submit|task <id>|cancel-task <id>]
-  logs [traces|audit|runs|jobs|intake]
+  logs [traces|audit|runs|jobs|job <id>|intake]
   doctor
   providers
   secrets
@@ -924,7 +936,7 @@ func usage() {
   workflows
   runs
   audit
-  runtime [status|sessions|traces|model-jobs|job <id>|cancel-job <id>|resume-job <id>|intake|intake-workflow <id>|approve-intake <id>|register-intake <id>|send <message>|chat]
+  runtime [status|sessions|traces|model-jobs|job <id>|job-logs <id>|cancel-job <id>|resume-job <id>|intake|intake-workflow <id>|approve-intake <id>|register-intake <id>|send <message>|chat]
   desktop [status|sessions|traces|jobs|send <message>|json]
   channels
   channel qq status

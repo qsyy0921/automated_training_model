@@ -29,6 +29,7 @@ $go = Resolve-Go
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime traces
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime model-jobs
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job <job_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job-logs <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime cancel-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime resume-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime intake
@@ -82,7 +83,7 @@ Mimo 模式验收：
 `smoke-runtime-mvp.ps1` 是当前推荐的 Runtime MVP 验收脚本。它额外覆盖：
 
 - CLI `agent` 交互式入口和 `runtime send /bot-ping`。
-- Web/Gateway 可查询 runtime status、sessions、traces、model-jobs 和 intake workflows，并支持查询单个 model job、请求取消、手动 resume、审批/注册 intake workflow。
+- Web/Gateway 可查询 runtime status、sessions、traces、model-jobs 和 intake workflows，并支持查询单个 model job、model job logs、请求取消、手动 resume、审批/注册 intake workflow。
 - 桌面端复用 `/api/desktop/status`、`/api/runtime/sessions`、`/api/runtime/traces`、`/api/runtime/model-jobs` 和 QQ test-message runtime path。
 - QQ test-message 和 OneBot webhook 都进入同一个 Agent Runtime。
 - 普通文本进入 `planner-agent`。

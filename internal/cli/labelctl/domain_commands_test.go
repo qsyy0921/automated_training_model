@@ -79,15 +79,29 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if desktopText != "/bot-ping" {
 		t.Fatalf("unexpected desktop text: %q", desktopText)
 	}
+	if err := runRuntime(cfg, []string{"job-logs", "job1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runModels(cfg, []string{"job-logs", "job1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runLogs(cfg, []string{"job", "job1"}); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, key := range []string{
 		"POST /api/datasets/register-folder",
 		"POST /api/models/register",
 		"POST /api/deployments",
 		"POST /api/channels/qq/test-message",
+		"GET /api/runtime/model-jobs/job1/logs",
 	} {
-		if seen[key] != 1 {
-			t.Fatalf("expected %s once, got %d", key, seen[key])
+		want := 1
+		if key == "GET /api/runtime/model-jobs/job1/logs" {
+			want = 3
+		}
+		if seen[key] != want {
+			t.Fatalf("expected %s %d times, got %d", key, want, seen[key])
 		}
 	}
 }

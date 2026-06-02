@@ -151,6 +151,27 @@ func appendModelJobLog(logs []ModelJobLog, at time.Time, level string, message s
 	return logs
 }
 
+func RecentModelJobLogs(job ModelJob, limit int) []ModelJobLog {
+	if len(job.Logs) == 0 {
+		return nil
+	}
+	limit = normalizeModelJobLimit(limit)
+	start := len(job.Logs) - limit
+	if start < 0 {
+		start = 0
+	}
+	return append([]ModelJobLog(nil), job.Logs[start:]...)
+}
+
+func IsTerminalModelJobStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "succeeded", "failed", "canceled", "interrupted":
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizeModelJobLimit(limit int) int {
 	if limit <= 0 {
 		return defaultModelJobLimit
