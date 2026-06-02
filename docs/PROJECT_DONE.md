@@ -102,3 +102,5 @@
 - [x] 将 Mimo runtime 接入方式改为 CLI 可验证：`load-mimo-env.ps1` 自动启用 `AGENT_RUNTIME_PLANNER=python`，`PlannerFromEnv` 在 `AGENT_RUNTIME_USE_MIMO=true` 时进入 Python planner，runtime status 和 CLI `/status` / `/doctor` 显示 `planner=python mimo=true token=true`。
 - [x] 放宽 Python/Mimo 普通 chat guard：Mimo 返回自然语言 `reply_text` 且无需工具时直接返回给 CLI，不再被固定 `llm.plan` 兜底句覆盖。
 - [x] 将 `labelctl agent` 视觉输出继续向 `ccb` / Hermes 对齐：顶部 runtime 面板、entry point 面板、双行 prompt、用户/Agent 消息面板、trace tree 面板、doctor 面板和状态颜色已落地。
+- [x] 为 Python/Mimo runtime 增加 `fast chat` 分流：普通寒暄、身份说明和概念解释直接走自然语言回复；下载、安装、数据接入、测试、训练、评估、部署、HuggingFace、ShanghaiTech、tool/skill/MCP 等请求仍走受控 JSON planner。
+- [x] 将 Go `PythonPlanner` 改为默认复用常驻 `python -m agent_runtime.worker`，通过 JSONL stdin/stdout 请求 Python/Mimo runtime；`AGENT_RUNTIME_PYTHON_WORKER=false` 可回退到旧的单次 spawn 模式，runtime status/CLI 显示 planner transport。

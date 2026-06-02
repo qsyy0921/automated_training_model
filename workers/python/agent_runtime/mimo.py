@@ -36,7 +36,7 @@ def plan_with_mimo(request: RuntimeRequest, intent: Intent, delegation: dict[str
     prompt = _planner_prompt(request, intent, delegation)
     body = {
         "model": model,
-        "max_tokens": 1200,
+        "max_tokens": _int_env("AGENT_RUNTIME_MIMO_PLAN_MAX_TOKENS", 800),
         "temperature": 0.1,
         "messages": [{"role": "user", "content": prompt}],
     }
@@ -49,6 +49,34 @@ def plan_with_mimo(request: RuntimeRequest, intent: Intent, delegation: dict[str
         intent=intent,
         reply_text=str(parsed.get("reply_text") or text or "Mimo planner 已完成规划。"),
         plan=list(parsed.get("plan") or []),
+        delegations=[delegation],
+    )
+
+
+def chat_with_mimo(request: RuntimeRequest, intent: Intent, delegation: dict[str, Any]) -> RuntimeResult:
+    base_url = _anthropic_base_url()
+    token = os.getenv("ANTHROPIC_AUTH_TOKEN", "").strip()
+    model = _select_model(request, delegation)
+    if not base_url or not token:
+        raise RuntimeError("Mimo Anthropic-compatible environment is not configured")
+
+    prompt = _chat_prompt(request)
+    body = {
+        "model": model,
+        "max_tokens": _int_env("AGENT_RUNTIME_MIMO_CHAT_MAX_TOKENS", 180),
+        "temperature": 0.2,
+        "system": _chat_system_prompt(),
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    raw = _post_json(base_url, token, body)
+    text = _extract_anthropic_text(raw)
+    if not text:
+        raise ValueError("Mimo chat returned an empty response")
+    return RuntimeResult(
+        status="planned",
+        intent=intent,
+        reply_text=text,
+        plan=[],
         delegations=[delegation],
     )
 
@@ -149,6 +177,19 @@ def _planner_prompt(request: RuntimeRequest, intent: Intent, delegation: dict[st
     )
 
 
+def _chat_prompt(request: RuntimeRequest) -> str:
+    return request.text.strip()
+
+
+def _chat_system_prompt() -> str:
+    return (
+        "你是 automated_training_model Agent，本地 Agent Runtime 通过 Mimo 模型驱动的 CLI 助手。"
+        "用户问你是谁时，回答你的项目身份，不要只说自己是 Mimo。"
+        "用中文简洁回答，不输出 JSON，不编造工具执行结果。"
+        "涉及下载、安装、数据接入、训练、评估、部署或文件操作时，只说明会进入规划和工具执行流程。"
+    )
+
+
 def _post_json(url: str, token: str, body: dict[str, Any]) -> dict[str, Any]:
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=raw, method="POST")
@@ -215,6 +256,17 @@ def _extract_json_or_repair(base_url: str, token: str, model: str, text: str) ->
             return _extract_json(repaired)
         except Exception as repair_error:
             raise ValueError(f"Mimo planner did not return valid JSON: {first_error}; repair failed: {repair_error}") from repair_error
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 def _validate_plan_contract(request: RuntimeRequest, parsed: dict[str, Any]) -> None:

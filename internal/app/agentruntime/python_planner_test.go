@@ -19,3 +19,24 @@ func TestPlannerFromEnvRuleOverrideWins(t *testing.T) {
 		t.Fatal("PlannerFromEnv() did not honor AGENT_RUNTIME_PLANNER=rule")
 	}
 }
+
+func TestPythonPlannerConfigUsesWorkerByDefault(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_PYTHON_WORKER", "")
+
+	cfg := PythonPlannerConfigFromEnv()
+	if !cfg.Worker {
+		t.Fatal("PythonPlannerConfigFromEnv() did not enable worker transport by default")
+	}
+}
+
+func TestPythonPlannerConfigCanDisableWorker(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_PYTHON_WORKER", "false")
+
+	cfg := PythonPlannerConfigFromEnv()
+	if cfg.Worker {
+		t.Fatal("PythonPlannerConfigFromEnv() did not honor AGENT_RUNTIME_PYTHON_WORKER=false")
+	}
+	if got := plannerStatusFromEnv().Transport; got != "python-spawn" {
+		t.Fatalf("planner transport = %q, want python-spawn", got)
+	}
+}

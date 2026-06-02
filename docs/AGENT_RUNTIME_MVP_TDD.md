@@ -31,6 +31,7 @@ Integration / Smoke Tests
 | Intent | `internal/app/agentruntime/intent_test.go` | `/bot-*`、附件识别、普通文本 |
 | Sub-agent | `internal/app/agentruntime/subagent_test.go` | 确定性命令不委托、文本/视觉/数据附件委托 |
 | Planner selection | `internal/app/agentruntime/python_planner_test.go` | `AGENT_RUNTIME_USE_MIMO=true` 自动选择 PythonPlanner，`AGENT_RUNTIME_PLANNER=rule` 显式覆盖 |
+| Python worker transport | `internal/app/agentruntime/python_planner_test.go` | 默认启用常驻 Python worker，`AGENT_RUNTIME_PYTHON_WORKER=false` 回退 spawn，并在 runtime status 暴露 transport |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
 | Tool schema/preflight | `internal/app/toolapp/schema_test.go` | 注册工具、参数白名单、高风险审批、未注册工具拦截 |
 | Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error |
@@ -52,6 +53,7 @@ $go = Resolve-Go
 | 模块 | 当前测试 |
 | --- | --- |
 | Python 语法和 import | `python -m compileall workers\python\agent_runtime` |
+| Fast chat 分流 | `python -m unittest discover -s workers\python\agent_runtime\tests` |
 | Mimo API | `ops/scripts/smoke-mimo-api.ps1` |
 | Mimo planner / guard plan | `ops/scripts/smoke-mimo-planner.ps1` |
 
@@ -136,6 +138,7 @@ npm run build
 $go = Resolve-Go
 & $go test ./...
 python -m compileall workers\python\agent_runtime
+python -m unittest discover -s workers\python\agent_runtime\tests
 cd F:\automated_training_model\web
 npm run build
 cd F:\automated_training_model

@@ -63,7 +63,7 @@ Workers and Providers
 | ToolExecutor | `tools.go` | 注册 MVP 工具 handler、model job、workflow dry-run | 后续把具体 handler 外迁到 `intakeapp`、task/model worker、workflow repository |
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo` | sessions、traces、model jobs | session/trace 和 model jobs 默认 JSON 持久化；后续迁移到 task repository |
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
-| Python Runtime | `workers/python/agent_runtime` | Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
+| Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
 ## 6. Sub-agent 使用规则
@@ -86,6 +86,19 @@ Workers and Providers
 - Runtime status 暴露实际 planner 状态：`planner.mode`、`planner.effective_mode`、`planner.mimo_enabled`、`planner.token_present`。CLI `/status` 和 `/doctor` 必须显示这些字段，避免只看静态 provider route 误判为已接入。
 - API Key 只能放在服务端环境变量或本机 secret 文件中，不能进入 Git、前端 bundle、runtime trace 或 channel payload。
 - 测试脚本只能输出模型名、HTTP 状态和摘要，不能打印 token。
+
+## 7.1 CLI 延迟策略
+
+`labelctl agent` 的普通聊天和工具规划必须分离：
+
+- 普通聊天、身份说明、概念解释走 `Mimo fast chat`，直接请求自然语言回复，不要求模型输出 JSON。
+- 下载模型、安装依赖、数据接入、测试、训练、评估、部署、HuggingFace、ShanghaiTech、tool/skill/MCP 等请求走 `Mimo planner`，输出受控 tool-call JSON，再由 Go ToolExecutor 执行。
+- `AGENT_RUNTIME_FAST_CHAT=false` 可关闭 fast chat，强制普通聊天也走 planner。
+- `AGENT_RUNTIME_MIMO_CHAT_MAX_TOKENS` 控制普通聊天输出上限，默认 180；`AGENT_RUNTIME_MIMO_PLAN_MAX_TOKENS` 控制 planner 输出上限，默认 800。
+
+Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 stdin/stdout JSONL 发送请求，避免每轮 `exec python -m agent_runtime.main` 的冷启动。设置 `AGENT_RUNTIME_PYTHON_WORKER=false` 可回退到旧的单次 spawn 模式。
+
+当前优化已减少 planner prompt / JSON repair / validation 和 Python 子进程冷启动成本。要达到 `ccb` / Claude Code 的完整体感速度，后续还需要流式输出和会话级提示词缓存；否则每轮仍需要等待 Mimo HTTP 请求完整返回。
 
 ## 8. HuggingFace 模型下载边界
 

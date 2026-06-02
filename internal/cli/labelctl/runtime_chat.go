@@ -62,6 +62,7 @@ type runtimePlannerStatus struct {
 	MimoFallback  string `json:"mimo_fallback"`
 	Python        string `json:"python"`
 	PythonPath    string `json:"python_path"`
+	Transport     string `json:"transport"`
 	TextModel     string `json:"text_model"`
 	VisionModel   string `json:"vision_model"`
 	TokenPresent  bool   `json:"token_present"`
@@ -202,7 +203,7 @@ func (c *runtimeChat) printStartupSnapshot() error {
 	}
 	lines := []string{
 		fmt.Sprintf("Runtime   %s", valueOr(status.Runtime.Name, "unknown")),
-		fmt.Sprintf("Planner   %s  mimo=%t  token=%t  fallback=%s", valueOr(status.Runtime.Planner.EffectiveMode, "-"), status.Runtime.Planner.MimoEnabled, status.Runtime.Planner.TokenPresent, valueOr(status.Runtime.Planner.MimoFallback, "-")),
+		fmt.Sprintf("Planner   %s  transport=%s  mimo=%t  token=%t  fallback=%s", valueOr(status.Runtime.Planner.EffectiveMode, "-"), valueOr(status.Runtime.Planner.Transport, "-"), status.Runtime.Planner.MimoEnabled, status.Runtime.Planner.TokenPresent, valueOr(status.Runtime.Planner.MimoFallback, "-")),
 		fmt.Sprintf("State     sessions=%d  traces=%d  updated=%s", status.Snapshot.SessionCount, status.Snapshot.TraceCount, compactTime(status.Snapshot.UpdatedAt)),
 		"",
 		"Entry Points",

@@ -48,6 +48,7 @@ type PlannerStatus struct {
 	MimoFallback  string `json:"mimo_fallback"`
 	Python        string `json:"python,omitempty"`
 	PythonPath    string `json:"python_path,omitempty"`
+	Transport     string `json:"transport"`
 	TextModel     string `json:"text_model"`
 	VisionModel   string `json:"vision_model"`
 	TokenPresent  bool   `json:"token_present"`
@@ -110,10 +111,27 @@ func plannerStatusFromEnv() PlannerStatus {
 		MimoFallback:  valueOrEnv("AGENT_RUNTIME_MIMO_FALLBACK", "rule"),
 		Python:        python,
 		PythonPath:    pythonPath,
+		Transport:     pythonPlannerTransport(),
 		TextModel:     firstRuntimeEnv("MIMO_DEFAULT_MODEL", "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "mimo-v2.5-pro"),
 		VisionModel:   firstRuntimeEnv("MIMO_VISION_MODEL", "VLM_MODEL", "ANTHROPIC_VISION_MODEL", "mimo-v2.5"),
 		TokenPresent:  strings.TrimSpace(os.Getenv("ANTHROPIC_AUTH_TOKEN")) != "",
 		EffectiveMode: effective,
+	}
+}
+
+func pythonPlannerTransport() string {
+	if isFalseEnv(os.Getenv("AGENT_RUNTIME_PYTHON_WORKER")) {
+		return "python-spawn"
+	}
+	return "python-worker"
+}
+
+func isFalseEnv(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "0", "false", "no", "off", "none":
+		return true
+	default:
+		return false
 	}
 }
 

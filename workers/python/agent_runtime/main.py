@@ -7,7 +7,7 @@ import sys
 
 from agent_runtime.contracts import RuntimeRequest, RuntimeResult
 from agent_runtime.intent import classify_intent
-from agent_runtime.mimo import mimo_enabled, plan_with_mimo
+from agent_runtime.mimo import chat_with_mimo, mimo_enabled, plan_with_mimo
 from agent_runtime.subagents import decide_sub_agent
 
 
@@ -18,7 +18,10 @@ def run_runtime(request: RuntimeRequest) -> RuntimeResult:
 
     if mimo_enabled() and intent.kind in {"chat", "data_intake"}:
         try:
-            result = plan_with_mimo(request, intent, delegations[0])
+            if intent.kind == "chat" and _should_use_fast_chat(request):
+                result = chat_with_mimo(request, intent, delegations[0])
+            else:
+                result = plan_with_mimo(request, intent, delegations[0])
             guarded = _guard_if_incomplete(request, intent, delegations, result)
             if guarded is not None:
                 return guarded
@@ -199,6 +202,51 @@ def _extract_shanghaitech_root(text: str) -> str:
 
 def _allow_mimo_fallback() -> bool:
     return os.getenv("AGENT_RUNTIME_MIMO_FALLBACK", "rule").strip().lower() not in {"0", "false", "off", "none"}
+
+
+def _should_use_fast_chat(request: RuntimeRequest) -> bool:
+    if os.getenv("AGENT_RUNTIME_FAST_CHAT", "true").strip().lower() in {"0", "false", "off", "none"}:
+        return False
+    if request.attachments:
+        return False
+    text = request.text.strip()
+    if not text or text.startswith("/"):
+        return False
+    lowered = text.lower()
+    planning_markers = (
+        "下载",
+        "安装",
+        "执行",
+        "运行",
+        "测试",
+        "接入",
+        "入湖",
+        "上传",
+        "训练",
+        "评估",
+        "部署",
+        "发布",
+        "标注",
+        "审核",
+        "删除",
+        "重构",
+        "提交",
+        "推送",
+        "workflow",
+        "dry-run",
+        "dry run",
+        "huggingface",
+        "locateanything",
+        "shanghaitech",
+        "data_lake",
+        "dataset",
+        "model.download",
+        "model.verify",
+        "tool",
+        "skill",
+        "mcp",
+    )
+    return not any(marker in lowered for marker in planning_markers)
 
 
 def main(argv: list[str] | None = None) -> int:
