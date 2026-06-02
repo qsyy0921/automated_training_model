@@ -19,7 +19,8 @@
 启动服务后：
 
 ```powershell
-$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+. .\ops\scripts\resolve-go.ps1
+$go = Resolve-Go
 & $go build -o .\bin\labelctl.exe .\cmd\labelctl
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 agent
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 agent "请帮我规划 ShanghaiTech 数据接入"
@@ -30,6 +31,8 @@ $go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 desktop status
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 ```
+
+`labelctl agent` 当前是结构化 Agent shell，参考 `ccb` / Claude Code 的可观察交互方式，启动时展示 gateway、session、entry points 和模型路由；交互命令支持 `/status`、`/sessions`、`/traces`、`/jobs`、`/doctor`、`/json`、`/clear`、`/ping`、`/exit`。其中 `/traces` 会按 agent/tool tree 摘要展示最新 trace，`/doctor` 会检查 gateway、runtime 和本机 LLM/Mimo 环境变量。
 
 也可以直接运行一键 smoke test。默认不会主动回发真实 QQ；如果要使用当前 shell 里的 NapCat outbound 配置，增加 `-UseConfiguredQQOutbound`。
 

@@ -6,7 +6,7 @@
 ## 近期必须做
 
 - [ ] 补齐 CLI 命令组：`dataset`、`models`、`deploy`、`logs`、`doctor`。
-- [ ] 将 `labelctl agent` 从文本 REPL 继续升级为更接近 Claude Code 的 TUI：流式输出、工具调用进度、审批确认、会话恢复、快捷键和历史记录。
+- [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：流式输出、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录。
 - [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。

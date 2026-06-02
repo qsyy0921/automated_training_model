@@ -36,12 +36,13 @@ Integration / Smoke Tests
 | Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted 标记 |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope |
-| CLI agent | `labelctl agent` smoke | 交互式 `/status`、`/ping` 和自然语言消息进入同一 Runtime |
+| CLI agent | `internal/cli/labelctl/runtime_chat_test.go`、`labelctl agent` smoke | PowerShell BOM 输入归一化、trace metadata 渲染、交互式 `/status`、`/doctor`、`/ping` 和自然语言消息进入同一 Runtime |
 
 命令：
 
 ```powershell
-$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+. .\ops\scripts\resolve-go.ps1
+$go = Resolve-Go
 & $go test ./...
 ```
 
@@ -130,7 +131,8 @@ npm run build
 ## 9. 提交前测试清单
 
 ```powershell
-$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+. .\ops\scripts\resolve-go.ps1
+$go = Resolve-Go
 & $go test ./...
 python -m compileall workers\python\agent_runtime
 cd F:\automated_training_model\web

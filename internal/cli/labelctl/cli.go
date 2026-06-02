@@ -284,71 +284,7 @@ func postRuntimeMessage(cfg Config, text string) (runtimeSendResponse, error) {
 }
 
 func runRuntimeChat(cfg Config) error {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Automated Training Agent CLI")
-	fmt.Println("connected:", cfg.addr)
-	fmt.Println("type /help for commands, /exit to quit")
-	for {
-		fmt.Print("atm> ")
-		line, err := reader.ReadString('\n')
-		if errors.Is(err, io.EOF) && line == "" {
-			return nil
-		}
-		if err != nil && !errors.Is(err, io.EOF) {
-			return err
-		}
-		input := strings.TrimSpace(line)
-		if input == "" {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			continue
-		}
-		if input == "/exit" || input == "exit" || input == "/quit" || input == "quit" {
-			return nil
-		}
-		if handled, err := handleRuntimeChatCommand(cfg, input); handled {
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "error:", err)
-			}
-			continue
-		}
-		reply, err := postRuntimeMessage(cfg, input)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			continue
-		}
-		fmt.Println(reply.Reply.Text)
-	}
-}
-
-func handleRuntimeChatCommand(cfg Config, input string) (bool, error) {
-	command := strings.ToLower(strings.TrimSpace(input))
-	switch command {
-	case "/help", "help":
-		fmt.Println(`commands:
-  /status    show runtime status
-  /sessions  show runtime sessions
-  /traces    show recent traces
-  /jobs      show model jobs
-  /ping      send /bot-ping through runtime
-  /exit      quit
-
-Any other text is sent to the Agent Runtime.`)
-		return true, nil
-	case "/status":
-		return true, getJSON(cfg.addr+"/api/runtime/status")
-	case "/sessions":
-		return true, getJSON(cfg.addr+"/api/runtime/sessions")
-	case "/traces":
-		return true, getJSON(cfg.addr+"/api/runtime/traces")
-	case "/jobs":
-		return true, getJSON(cfg.addr+"/api/runtime/model-jobs")
-	case "/ping", "ping", "/bot-ping":
-		return true, sendRuntimeText(cfg, "/bot-ping", true)
-	default:
-		return false, nil
-	}
+	return newRuntimeChat(cfg, os.Stdin, os.Stdout, os.Stderr).Run()
 }
 
 func runDesktop(cfg Config, args []string) error {

@@ -84,19 +84,35 @@ collect
 CLI 是主入口：
 
 ```powershell
-$go = "$env:LOCALAPPDATA\Programs\Go\bin\go.exe"
+. .\ops\scripts\resolve-go.ps1
+$go = Resolve-Go
 & $go build -o .\bin\labelctl.exe .\cmd\labelctl
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 agent
 ```
 
-进入交互式 Agent CLI 后，可以像 Claude Code 一样连续输入：
+进入交互式 Agent CLI 后，可以像 Claude Code 一样连续输入。当前 CLI 会展示 gateway、session、runtime 入口、模型路由、agent trace、tool IDs 和 doctor 信息：
 
 ```text
-atm> /status
-atm> /ping
-atm> 请帮我规划 ShanghaiTech 数据接入
-atm> /traces
-atm> /exit
+atm:01 planner-agent> /status
+atm:01 planner-agent> /ping
+atm:02 planner-agent> 请帮我规划 ShanghaiTech 数据接入
+atm:03 planner-agent> /traces
+atm:03 planner-agent> /doctor
+atm:03 planner-agent> /exit
+```
+
+内置命令：
+
+```text
+/status      runtime、模型路由、sub-agents 和计数器
+/sessions    当前 channel/session 表
+/traces      最近 agent/tool trace tree
+/jobs        模型下载和后台 job 表
+/doctor      gateway、本机 CLI、LLM/Mimo 环境变量诊断
+/json <x>    status/sessions/traces/jobs 原始 JSON
+/clear       清屏
+/ping        走同一 runtime path 发送 /bot-ping
+/exit        退出
 ```
 
 也可以使用一次性命令：
