@@ -142,6 +142,24 @@ atm:03 planner-agent> /exit
 | 桌面端 | 复用 Gateway runtime snapshot | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870` |
 | QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发；也可启用 OneBot WebSocket reader 长连接 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message`、`QQ_ONEBOT_WS_ENABLED=true` |
 
+### Gateway 远程访问保护
+
+本机开发默认允许 loopback 访问，因此 `http://127.0.0.1:7870` 不需要 token。只要请求来自非 loopback 地址，Gateway 会要求先配置并携带 token，避免把 Web/API/Runtime 暴露到局域网或公网后裸奔。
+
+```powershell
+$env:ATM_GATEWAY_TOKEN="replace_with_local_secret"
+$env:ATM_ALLOWED_ORIGINS="http://127.0.0.1:7870,http://localhost:7870,https://atm.example.com"
+```
+
+远程 CLI / 桌面端连接：
+
+```powershell
+.\bin\labelctl.exe -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN runtime status
+go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN
+```
+
+`/api/runtime/status` 会暴露 `gateway.auth` 诊断信息，只显示是否配置 token、是否允许 loopback bypass、是否配置 allowed origins，不会返回 token 明文。真实 token 只能放环境变量或本机 secret store，不能写入 Git、README、前端代码或 channel 消息。
+
 更完整的本机 smoke：
 
 ```powershell

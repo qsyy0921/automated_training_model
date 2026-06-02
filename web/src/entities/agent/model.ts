@@ -165,6 +165,16 @@ export interface RuntimeStatus {
   };
 }
 
+export interface GatewayAuthStatus {
+  token_configured: boolean;
+  remote_requires_token: boolean;
+  loopback_bypass: boolean;
+  require_token_for_loopback: boolean;
+  allow_remote_without_token: boolean;
+  allowed_origins_configured: boolean;
+  allowed_origins?: string[];
+}
+
 export interface RuntimeSession {
   key: string;
   agent_id: string;

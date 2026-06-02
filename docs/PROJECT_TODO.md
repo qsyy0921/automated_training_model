@@ -7,7 +7,8 @@
 
 - [ ] 补齐 CLI 命令组：`dataset`、`models`、`deploy`、`logs`、`doctor`。
 - [ ] 将 `labelctl agent` 从当前结构化 REPL 继续升级为更接近 Claude Code 的 TUI：复杂 planner 分步流式、实时工具调用进度、审批确认、会话恢复、快捷键和历史记录；当前 Go 控制命令 fast-path 和普通 fast chat streaming 已完成。
-- [ ] 增加 Gateway token auth、remote profile、allowed origins 和 non-loopback 访问保护。
+- [x] 增加 Gateway token auth、allowed origins 和 non-loopback 访问保护：loopback 默认开发放行，非 loopback `/api/` 必须配置并携带 token；CLI/桌面端支持 `-token`。
+- [ ] 增加持久 remote profile、短期 token/RBAC、pairing code、CSRF/origin 管理操作细化。
 - [x] 为 Web、CLI、桌面端、QQ Channel 增加远程连接 SDD 测试。
 - [x] 新增 `internal/domain/channel` 和 `internal/app/channelapp`，先固化 QQ Channel Adapter 边界。
 - [ ] 将 `internal/app/intakeapp` 从 JSON dry-run plan repository 推进到完整 intake workflow：Channel 附件 quarantine、scan、approve/register。

@@ -102,6 +102,7 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 		middleware.Recover(logger),
 		middleware.RequestID(),
 		middleware.CORS(),
+		middleware.GatewayAuthFromEnv(),
 		middleware.Logger(logger),
 	)
 }

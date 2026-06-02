@@ -13,11 +13,21 @@ import (
 
 func main() {
 	addr := flag.String("addr", "http://127.0.0.1:7870", "labelserver base URL")
+	token := flag.String("token", firstEnv("ATM_GATEWAY_TOKEN", "GATEWAY_AUTH_TOKEN"), "Gateway bearer token")
 	flag.Parse()
 
 	url := strings.TrimRight(*addr, "/") + "/api/desktop/status"
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if strings.TrimSpace(*token) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(*token))
+		req.Header.Set("X-Gateway-Token", strings.TrimSpace(*token))
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -40,4 +50,13 @@ func main() {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(value)
+}
+
+func firstEnv(names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }

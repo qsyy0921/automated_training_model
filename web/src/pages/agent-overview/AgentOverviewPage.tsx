@@ -18,6 +18,7 @@ export function AgentOverviewPage() {
   const qqTest = useMutation({ mutationFn: (text: string) => apiClient.qqTestMessage(text) });
 
   const status = runtime.data?.runtime;
+  const auth = runtime.data?.gateway?.auth;
   const recentRuns = useMemo(() => runs.data?.runs.slice(0, 5) ?? [], [runs.data?.runs]);
 
   if (view === "review") {
@@ -73,6 +74,16 @@ export function AgentOverviewPage() {
                 <small>{channel.status} · {channel.inbound_endpoint}</small>
               </div>
             ))}
+          </div>
+        </Panel>
+
+        <Panel title="Gateway Auth">
+          <div className="overviewList">
+            <div className="overviewRow">
+              <strong>{auth?.remote_requires_token ? "Remote guarded" : "Remote open"}</strong>
+              <span>token {auth?.token_configured ? "configured" : "missing"}</span>
+              <small>loopback {auth?.loopback_bypass ? "bypass" : "requires token"} · origins {(auth?.allowed_origins ?? []).join(", ") || "default"}</small>
+            </div>
           </div>
         </Panel>
 

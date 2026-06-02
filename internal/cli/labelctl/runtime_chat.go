@@ -55,6 +55,19 @@ type runtimeStatusPayload struct {
 		} `json:"sub_agents"`
 	} `json:"runtime"`
 	Snapshot runtimeSnapshot `json:"snapshot"`
+	Gateway  struct {
+		Auth gatewayAuthStatus `json:"auth"`
+	} `json:"gateway"`
+}
+
+type gatewayAuthStatus struct {
+	TokenConfigured          bool     `json:"token_configured"`
+	RemoteRequiresToken      bool     `json:"remote_requires_token"`
+	LoopbackBypass           bool     `json:"loopback_bypass"`
+	RequireTokenForLoopback  bool     `json:"require_token_for_loopback"`
+	AllowRemoteWithoutToken  bool     `json:"allow_remote_without_token"`
+	AllowedOriginsConfigured bool     `json:"allowed_origins_configured"`
+	AllowedOrigins           []string `json:"allowed_origins"`
 }
 
 type runtimePlannerStatus struct {
@@ -339,6 +352,7 @@ func (c *runtimeChat) postRuntimeMessageStream(input string, started time.Time) 
 		return runtimeSendResponse{}, 0, false, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	applyGatewayAuth(req, c.cfg.token)
 	client := &http.Client{Timeout: 180 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -520,6 +534,7 @@ func (c *runtimeChat) printStatus() error {
 		fmt.Sprintf("  loop      %s", valueOr(status.Runtime.AgentLoop, "unknown")),
 		fmt.Sprintf("  policy    %s", valueOr(status.Runtime.Policy, "unknown")),
 		fmt.Sprintf("  state     sessions=%d traces=%d updated=%s", status.Snapshot.SessionCount, status.Snapshot.TraceCount, compactTime(status.Snapshot.UpdatedAt)),
+		fmt.Sprintf("  auth      token=%t remote_requires_token=%t loopback_bypass=%t origins=%s", status.Gateway.Auth.TokenConfigured, status.Gateway.Auth.RemoteRequiresToken, status.Gateway.Auth.LoopbackBypass, joinOr(status.Gateway.Auth.AllowedOrigins, "-")),
 		"",
 		"Planner",
 		fmt.Sprintf("  mode      %s -> %s", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-")),
@@ -614,6 +629,7 @@ func (c *runtimeChat) printDoctor() error {
 	var status runtimeStatusPayload
 	if err := getJSONValue(c.cfg.addr+"/api/runtime/status", &status); err == nil {
 		lines = append(lines, fmt.Sprintf("planner   mode=%s effective=%s transport=%s mimo=%t fallback=%s token=%t", valueOr(status.Runtime.Planner.Mode, "-"), valueOr(status.Runtime.Planner.EffectiveMode, "-"), valueOr(status.Runtime.Planner.Transport, "-"), status.Runtime.Planner.MimoEnabled, valueOr(status.Runtime.Planner.MimoFallback, "-"), status.Runtime.Planner.TokenPresent))
+		lines = append(lines, fmt.Sprintf("auth      token=%t remote_requires_token=%t loopback_bypass=%t", status.Gateway.Auth.TokenConfigured, status.Gateway.Auth.RemoteRequiresToken, status.Gateway.Auth.LoopbackBypass))
 		lines = append(lines, fmt.Sprintf("python    %s", valueOr(status.Runtime.Planner.PythonPath, "-")))
 	}
 	lines = append(lines,
@@ -623,6 +639,7 @@ func (c *runtimeChat) printDoctor() error {
 		"  LLM_API_KEY           "+presentOrMissing("LLM_API_KEY"),
 		"  ANTHROPIC_BASE_URL    "+presentOrMissing("ANTHROPIC_BASE_URL"),
 		"  ANTHROPIC_AUTH_TOKEN  "+presentOrMissing("ANTHROPIC_AUTH_TOKEN"),
+		"  ATM_GATEWAY_TOKEN     "+presentOrMissing("ATM_GATEWAY_TOKEN"),
 	)
 	c.printPanel("Doctor", lines, "yellow")
 	return nil
@@ -750,7 +767,12 @@ func (c *runtimeChat) contentWidth() int {
 }
 
 func getJSONValue(url string, target any) error {
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	applyGatewayAuth(req, cliGatewayToken)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -770,7 +792,12 @@ func getJSONValue(url string, target any) error {
 
 func checkHTTP(url string) error {
 	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	applyGatewayAuth(req, cliGatewayToken)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

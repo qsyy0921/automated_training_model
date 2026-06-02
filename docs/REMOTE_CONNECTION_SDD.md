@@ -150,10 +150,28 @@ Web 端运行在 Gateway 静态服务下，或者远程 HTTPS 域名下。
 连接要求：
 
 - 同源访问时直接请求 `/api`。
-- 跨域访问时必须配置 allowed origins。
+- 跨域访问时必须配置 allowed origins。当前实现读取 `ATM_ALLOWED_ORIGINS` / `GATEWAY_ALLOWED_ORIGINS`，未配置时保留本地开发的 `*`。
 - 登录态使用短期 access token。
 - 管理操作必须带 CSRF / origin 校验。
 - Web 不保存 AppSecret、模型密钥、QQ secret。
+
+当前 Gateway MVP 已实现基础入口保护：
+
+| 配置 | 含义 |
+| --- | --- |
+| `ATM_GATEWAY_TOKEN` / `GATEWAY_AUTH_TOKEN` | Gateway bearer token，只能放环境变量或本机 secret store。 |
+| `ATM_ALLOWED_ORIGINS` / `GATEWAY_ALLOWED_ORIGINS` | 逗号分隔的允许跨域来源。 |
+| `ATM_GATEWAY_REQUIRE_TOKEN_FOR_LOOPBACK=true` | 本机 loopback 也必须带 token，默认关闭。 |
+| `ATM_ALLOW_REMOTE_NO_AUTH=true` | 开发态临时允许远程无 token，默认关闭，不建议使用。 |
+
+保护规则：
+
+- `/healthz`、`/`、`/assets/` 保持公共，便于健康检查和静态资源加载。
+- `/api/` 默认受保护。
+- loopback 请求默认可无 token，保证本机开发和 smoke 不受影响。
+- 非 loopback 请求必须配置并携带 token；未配置 token 时返回 403。
+- token 可通过 `Authorization: Bearer <token>` 或 `X-Gateway-Token` 传递。
+- `/api/runtime/status` 暴露 `gateway.auth` 诊断，但不返回 token 明文。
 
 ### 4.2 CLI
 
@@ -162,6 +180,7 @@ CLI 使用显式 Gateway 地址：
 ```powershell
 labelctl --addr http://127.0.0.1:7870 health
 labelctl --addr https://atm.example.com health
+labelctl --addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN runtime status
 ```
 
 建议配置 profile：
@@ -181,6 +200,7 @@ CLI 权限策略：
 - remote profile 默认 operator 权限。
 - destructive action 必须二次确认或进入审批。
 - `--auto` 只允许执行低风险动作和 dry-run。
+- 当前 CLI 已支持 `-token`，默认读取 `ATM_GATEWAY_TOKEN` / `GATEWAY_AUTH_TOKEN`。
 
 ### 4.3 桌面端
 
@@ -194,6 +214,7 @@ CLI 权限策略：
 - 局域网可后续做 mDNS / 手动 IP。
 - 远程模式只允许 HTTPS。
 - 桌面端只保存 token ref，不保存平台 secret。
+- 当前 `cmd/agentdesktop` 支持 `-token`，默认读取 `ATM_GATEWAY_TOKEN` / `GATEWAY_AUTH_TOKEN`。
 
 桌面端 profile 草案：
 
@@ -372,6 +393,9 @@ annotation root 文件系统写入口
 | AUTH-003 | operator token 提交发布/部署 | 进入 approval，不直接执行。 |
 | AUTH-004 | QQ 未 allowlist sender 发消息 | 不进入 Agent run，写入 denied audit。 |
 | AUTH-005 | QQ admin 命令使用 wildcard allowlist | 拒绝 admin 权限。 |
+| AUTH-006 | 非 loopback 请求 `/api/runtime/status` 且未配置 Gateway token | 403。 |
+| AUTH-007 | 非 loopback 请求带 `Authorization: Bearer <token>` | 允许访问。 |
+| AUTH-008 | loopback smoke 请求 | 默认允许；若 `ATM_GATEWAY_REQUIRE_TOKEN_FOR_LOOPBACK=true` 则必须带 token。 |
 
 ### 8.3 Channel 测试
 

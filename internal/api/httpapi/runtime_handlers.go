@@ -5,12 +5,16 @@ import (
 	"strconv"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/agentruntime"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/middleware"
 )
 
 func (s *Server) runtimeStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"runtime":  agentruntime.Status(),
 		"snapshot": s.runtime.Snapshot(runtimeTraceLimit(r)),
+		"gateway": map[string]any{
+			"auth": middleware.GatewayAuthStatusFromEnv(),
+		},
 	})
 }
 
@@ -36,6 +40,7 @@ func (s *Server) desktopStatus(w http.ResponseWriter, r *http.Request) {
 			"runtime":      status.Runtime,
 			"entry_points": status.EntryPoints,
 			"snapshot":     s.runtime.Snapshot(runtimeTraceLimit(r)),
+			"auth":         middleware.GatewayAuthStatusFromEnv(),
 		},
 	})
 }

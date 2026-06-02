@@ -159,7 +159,11 @@ func (r *DefaultSessionRunner) plan(ctx context.Context, req PlanRequest) (PlanR
 	if shouldUseLocalControlPlan(req.Intent) {
 		return NewRulePlanner().Plan(ctx, req)
 	}
-	return r.planner.Plan(ctx, req)
+	plan, err := r.planner.Plan(ctx, req)
+	if err != nil {
+		return PlanResult{}, err
+	}
+	return r.enforceMandatoryPlan(ctx, req, plan)
 }
 
 func (r *DefaultSessionRunner) planStream(ctx context.Context, req PlanRequest, emit func(RuntimeStreamEvent)) (PlanResult, error) {
@@ -169,10 +173,35 @@ func (r *DefaultSessionRunner) planStream(ctx context.Context, req PlanRequest, 
 		}
 		return NewRulePlanner().Plan(ctx, req)
 	}
+	var plan PlanResult
+	var err error
 	if streamingPlanner, ok := r.planner.(StreamingPlannerPort); ok {
-		return streamingPlanner.PlanStream(ctx, req, emit)
+		plan, err = streamingPlanner.PlanStream(ctx, req, emit)
+	} else {
+		plan, err = r.planner.Plan(ctx, req)
 	}
-	return r.planner.Plan(ctx, req)
+	if err != nil {
+		return PlanResult{}, err
+	}
+	return r.enforceMandatoryPlan(ctx, req, plan)
+}
+
+func (r *DefaultSessionRunner) enforceMandatoryPlan(ctx context.Context, req PlanRequest, plan PlanResult) (PlanResult, error) {
+	if req.Intent.Kind != IntentDataIntake {
+		return plan, nil
+	}
+	plan.Delegation = req.Delegation
+	if plan.Intent.Kind == "" {
+		plan.Intent = req.Intent
+	}
+	requiredTool := "intake.plan"
+	if req.Delegation.ToolID == "vlm.inspect" {
+		requiredTool = "vlm.inspect"
+	}
+	if isExactToolPlan(plan.ToolCalls, requiredTool) {
+		return plan, nil
+	}
+	return NewRulePlanner().Plan(ctx, req)
 }
 
 func shouldUseLocalControlPlan(intent Intent) bool {
@@ -252,6 +281,19 @@ func collectToolIDs(calls []ToolCall) []string {
 		}
 	}
 	return out
+}
+
+func hasToolCall(calls []ToolCall, toolID string) bool {
+	for _, call := range calls {
+		if call.ToolID == toolID {
+			return true
+		}
+	}
+	return false
+}
+
+func isExactToolPlan(calls []ToolCall, toolID string) bool {
+	return len(calls) == 1 && calls[0].ToolID == toolID
 }
 
 func BuildSessionContext(msg channel.InboundMessage, delegation DelegationDecision) SessionContext {

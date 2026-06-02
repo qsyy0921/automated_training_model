@@ -21,6 +21,32 @@ func (f *fakePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 	}, nil
 }
 
+type emptyPlanner struct {
+	got PlanRequest
+}
+
+func (f *emptyPlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) {
+	f.got = req
+	return PlanResult{Intent: req.Intent, Delegation: DelegationDecision{AgentID: "planner-agent"}, Status: "planned"}, nil
+}
+
+type multiToolPlanner struct {
+	got PlanRequest
+}
+
+func (f *multiToolPlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, error) {
+	f.got = req
+	return PlanResult{
+		Intent:     req.Intent,
+		Delegation: DelegationDecision{AgentID: "planner-agent"},
+		Status:     "planned",
+		ToolCalls: []ToolCall{
+			{ID: "call-1", ToolID: "vlm.inspect"},
+			{ID: "call-2", ToolID: "intake.plan", Params: map[string]string{"attachment_id": "att1"}},
+		},
+	}, nil
+}
+
 type fakeTools struct {
 	got ToolExecutionRequest
 }
@@ -84,6 +110,75 @@ func TestControlIntentUsesLocalFastPath(t *testing.T) {
 	}
 	if tools.got.ToolCalls[0].ToolID != "runtime.health" {
 		t.Fatalf("unexpected tool call: %s", tools.got.ToolCalls[0].ToolID)
+	}
+}
+
+func TestDataIntakeIntentEnforcesMandatoryLocalPlan(t *testing.T) {
+	planner := &emptyPlanner{}
+	tools := &fakeTools{}
+	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
+
+	out, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "请为 ShanghaiTech original 创建数据接入计划",
+		Attachments: []channel.Attachment{{
+			ID:        "att1",
+			Name:      "shanghaitech-original.manifest",
+			MediaType: "application/x-directory",
+			SourceURI: "F:\\automated_training_model\\data_lake\\raw\\datasets\\shanghaitech\\original",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Text != "ok" {
+		t.Fatalf("unexpected reply: %s", out.Text)
+	}
+	if planner.got.Intent.Kind != IntentDataIntake {
+		t.Fatalf("expected external planner to see data_intake, got %+v", planner.got.Intent)
+	}
+	if tools.got.Delegation.AgentID != "data-intake-agent" {
+		t.Fatalf("mandatory data intake plan should preserve data-intake-agent, got %+v", tools.got.Delegation)
+	}
+	if len(tools.got.ToolCalls) != 1 || tools.got.ToolCalls[0].ToolID != "intake.plan" {
+		t.Fatalf("expected mandatory intake.plan fallback, got %+v", tools.got.ToolCalls)
+	}
+}
+
+func TestVisionIntentRejectsPlannerExpandedToolChain(t *testing.T) {
+	planner := &multiToolPlanner{}
+	tools := &fakeTools{}
+	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
+
+	_, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindGroup, ID: "20001"},
+		SenderID:  "10001",
+		Text:      "请检查这张异常帧",
+		Attachments: []channel.Attachment{{
+			ID:        "att1",
+			Name:      "frame_001.png",
+			MediaType: "image/png",
+			Status:    channel.AttachmentReceived,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planner.got.Delegation.AgentID != "vision-agent" {
+		t.Fatalf("expected external planner to see vision delegation, got %+v", planner.got.Delegation)
+	}
+	if tools.got.Delegation.AgentID != "vision-agent" {
+		t.Fatalf("mandatory vision plan should preserve vision-agent, got %+v", tools.got.Delegation)
+	}
+	if len(tools.got.ToolCalls) != 1 || tools.got.ToolCalls[0].ToolID != "vlm.inspect" {
+		t.Fatalf("expected exact vlm.inspect fallback, got %+v", tools.got.ToolCalls)
 	}
 }
 

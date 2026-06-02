@@ -17,6 +17,7 @@ MVP 必须覆盖：
 - Sub-agent 决策：普通文本、视觉附件、数据附件分别进入不同 agent 角色。
 - ToolExecutor：所有副作用都通过工具出口，不能让 channel 或 UI 直接写数据湖、下载模型或提交训练。
 - Runtime trace：每次会话、意图、工具调用、错误、metadata 都可通过 API/CLI/Web 观察。
+- Gateway remote guard：本机 loopback 默认可开发调试，非 loopback `/api/` 访问必须配置并携带 Gateway token，allowed origins 由环境变量控制。
 - HuggingFace 下载 skill：支持 dry-run、远端清单、断点续传、verify-only 和 Git 排除边界。
 - ShanghaiTech original 数据 smoke：能识别数据源、生成 data intake plan trace，并明确真实推理阻塞点。
 
@@ -62,6 +63,7 @@ Workers and Providers
 | Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截 | 不绑定 channel/session/runtime store |
 | ToolExecutor | `tools.go` | 注册 MVP 工具 handler、model job、workflow dry-run；`intake.plan` / `vlm.inspect` 只调用 `intakeapp` | 后续把 `model.*` 外迁到 task/model worker，把 `workflow.*` 外迁到 workflow repository |
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans | session/trace、model jobs 和 intake plans 默认 JSON 持久化；后续迁移到 task repository / intake repository |
+| Gateway Middleware | `internal/infrastructure/middleware` | request id、CORS、recover、Gateway token auth、non-loopback access guard | 不读取模型密钥；不把 token 写入 status 或日志 |
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
@@ -143,12 +145,13 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | HF real download | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1 -StartDownload -WaitForCompletion` |
 | HF verify-only | `python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py --repo-id nvidia/LocateAnything-3B --local-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B --manifest data_lake\catalog\models\nvidia_LocateAnything-3B.download.json --verify-only` |
 | LocateAnything load smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1` |
+| Gateway auth 单元测试 | `go test ./internal/infrastructure/middleware` |
 
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
 - model job 进度日志、取消和自动 resume。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 dry-run plan 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json`。具体 `model.*`、`workflow.*` handler 仍需继续外迁到 task/model worker 和 workflow repository。
-- QQ OneBot WebSocket 长连接 reader。
+- QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、实时 tool progress streaming、审批确认和会话恢复。
 - Python worker heartbeat、logs、retries、artifacts。

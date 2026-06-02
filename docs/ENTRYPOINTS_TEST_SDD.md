@@ -34,6 +34,16 @@ $go = Resolve-Go
 
 `labelctl agent` 当前是结构化 Agent shell，参考 `ccb` / Claude Code 的可观察交互方式，启动时展示 gateway、session、entry points 和模型路由；交互命令支持 `/status`、`/sessions`、`/traces`、`/jobs`、`/doctor`、`/json`、`/clear`、`/ping`、`/exit`。其中 `/traces` 会按 agent/tool tree 摘要展示最新 trace，`/doctor` 会检查 gateway、runtime 和本机 LLM/Mimo 环境变量。
 
+远程 Gateway 连接需要 token：
+
+```powershell
+$env:ATM_GATEWAY_TOKEN="replace_with_local_secret"
+.\bin\labelctl.exe -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN runtime status
+go run .\cmd\agentdesktop -addr https://atm.example.com -token $env:ATM_GATEWAY_TOKEN
+```
+
+本机 loopback smoke 默认不需要 token；如果设置 `ATM_GATEWAY_REQUIRE_TOKEN_FOR_LOOPBACK=true`，CLI 和桌面端也必须带 `-token`。
+
 Mimo 模式验收：
 
 ```powershell

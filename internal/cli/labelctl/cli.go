@@ -23,8 +23,11 @@ const (
 )
 
 type Config struct {
-	addr string
+	addr  string
+	token string
 }
+
+var cliGatewayToken string
 
 type chatMessage struct {
 	Role    string `json:"role"`
@@ -66,9 +69,11 @@ type plannedAction struct {
 }
 
 func Run(args []string) error {
-	cfg := Config{}
+	cfg := Config{token: firstEnv("ATM_GATEWAY_TOKEN", "GATEWAY_AUTH_TOKEN")}
 	flag.StringVar(&cfg.addr, "addr", defaultAddr, "labelserver base URL")
+	flag.StringVar(&cfg.token, "token", cfg.token, "Gateway bearer token; defaults to ATM_GATEWAY_TOKEN or GATEWAY_AUTH_TOKEN")
 	flag.Parse()
+	cliGatewayToken = cfg.token
 	if args == nil {
 		args = flag.Args()
 	}
@@ -251,7 +256,13 @@ func postRuntimeMessage(cfg Config, text string) (runtimeSendResponse, error) {
 	if err != nil {
 		return runtimeSendResponse{}, err
 	}
-	resp, err := http.Post(cfg.addr+"/api/channels/qq/test-message", "application/json", bytes.NewReader(raw))
+	req, err := http.NewRequest(http.MethodPost, cfg.addr+"/api/channels/qq/test-message", bytes.NewReader(raw))
+	if err != nil {
+		return runtimeSendResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	applyGatewayAuth(req, cfg.token)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return runtimeSendResponse{}, err
 	}
@@ -695,7 +706,12 @@ func callLLM(ctx context.Context, messages []chatMessage, temperature float64) (
 }
 
 func getJSON(url string) error {
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	applyGatewayAuth(req, cliGatewayToken)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -708,12 +724,27 @@ func postJSON(url string, body any) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(url, "application/json", bytes.NewReader(raw))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	applyGatewayAuth(req, cliGatewayToken)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	return writeResponse(resp)
+}
+
+func applyGatewayAuth(req *http.Request, token string) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Gateway-Token", token)
 }
 
 func writeResponse(resp *http.Response) error {
@@ -817,5 +848,6 @@ LLM env:
   LLM_API_KEY   Optional bearer token when the endpoint requires auth
 
 options:
-  -addr http://127.0.0.1:7870`)
+  -addr http://127.0.0.1:7870
+  -token <gateway-token>   or set ATM_GATEWAY_TOKEN`)
 }
