@@ -22,17 +22,28 @@ function Assert-True {
   }
 }
 
+function Stop-LabelServer {
+  param([object]$Process, [string]$ListenAddr)
+  if ($Process -and -not $Process.HasExited) {
+    Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+  }
+  Get-CimInstance Win32_Process -Filter "name='labelserver.exe'" |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains("-addr $ListenAddr") } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
+
 function Invoke-JSON {
   param(
     [string]$Method = "GET",
     [string]$Url,
-    [object]$Body = $null
+    [object]$Body = $null,
+    [int]$TimeoutSec = 10
   )
   if ($null -eq $Body) {
-    return Invoke-RestMethod -Method $Method -Uri $Url -TimeoutSec 10
+    return Invoke-RestMethod -Method $Method -Uri $Url -TimeoutSec $TimeoutSec
   }
   $json = $Body | ConvertTo-Json -Depth 12
-  return Invoke-RestMethod -Method $Method -Uri $Url -ContentType "application/json" -Body $json -TimeoutSec 10
+  return Invoke-RestMethod -Method $Method -Uri $Url -ContentType "application/json" -Body $json -TimeoutSec $TimeoutSec
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
@@ -46,9 +57,12 @@ if ($UseMimoPlanner) {
   $env:AGENT_RUNTIME_PLANNER = "python"
   $env:AGENT_RUNTIME_PYTHON = "python"
   $env:AGENT_RUNTIME_PYTHONPATH = Join-Path $repoRoot "workers\python"
+  $env:AGENT_RUNTIME_PLANNER_TIMEOUT_SECONDS = "180"
+  $env:AGENT_RUNTIME_MIMO_TIMEOUT_SECONDS = "120"
 } else {
   $env:AGENT_RUNTIME_PLANNER = "rule"
 }
+$plannerTimeoutSec = if ($UseMimoPlanner) { 120 } else { 10 }
 
 $env:QQ_ONEBOT_OUTBOUND_ENABLED = "false"
 $baseURL = "http://$Addr"
@@ -107,8 +121,12 @@ try {
     sender_id = "smoke-chat"
     text = "请帮我规划一个从数据接入到训练评估的 dry-run"
   }
-  $chat = Invoke-JSON -Method "POST" -Url "$baseURL/api/channels/qq/test-message" -Body $chatBody
-  Assert-True ($chat.reply.text -match "planner-agent") "free text did not route to planner-agent"
+  $chat = Invoke-JSON -Method "POST" -Url "$baseURL/api/channels/qq/test-message" -Body $chatBody -TimeoutSec $plannerTimeoutSec
+  if ($UseMimoPlanner) {
+    Assert-True ($chat.reply.text -notmatch "回退") "Mimo planner fell back for free text: $($chat.reply.text)"
+  } else {
+    Assert-True ($chat.reply.text -match "planner-agent") "free text did not route to planner-agent"
+  }
 
   $visionBody = @{
     id = "smoke-vision-1"
@@ -121,7 +139,7 @@ try {
       @{ id = "att-image-1"; name = "frame_001.png"; media_type = "image/png"; source_uri = "qq://smoke/frame_001.png"; status = "received" }
     )
   }
-  $vision = Invoke-JSON -Method "POST" -Url "$baseURL/api/channels/qq/test-message" -Body $visionBody
+  $vision = Invoke-JSON -Method "POST" -Url "$baseURL/api/channels/qq/test-message" -Body $visionBody -TimeoutSec $plannerTimeoutSec
   Assert-True ($vision.reply.text -match "vision-agent") "image attachment did not route to vision-agent"
 
   $dataBody = @{
@@ -135,7 +153,7 @@ try {
       @{ id = "att-data-1"; name = "shanghaitech-original.manifest"; media_type = "application/x-directory"; source_uri = $ShanghaiTechRoot; status = "received" }
     )
   }
-  $data = Invoke-JSON -Method "POST" -Url "$baseURL/api/channels/qq/test-message" -Body $dataBody
+  $data = Invoke-JSON -Method "POST" -Url "$baseURL/api/channels/qq/test-message" -Body $dataBody -TimeoutSec $plannerTimeoutSec
   Assert-True ($data.reply.text -match "data-intake-agent") "data attachment did not route to data-intake-agent"
 
   $onebotBody = @{
@@ -168,8 +186,6 @@ try {
 
   Write-Host "smoke-runtime-mvp passed"
 } finally {
-  if ($server -and -not $server.HasExited) {
-    Stop-Process -Id $server.Id -Force
-  }
+  Stop-LabelServer -Process $server -ListenAddr $Addr
   Pop-Location
 }

@@ -23,6 +23,16 @@ function Assert-True {
   }
 }
 
+function Stop-LabelServer {
+  param([object]$Process, [string]$ListenAddr)
+  if ($Process -and -not $Process.HasExited) {
+    Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+  }
+  Get-CimInstance Win32_Process -Filter "name='labelserver.exe'" |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains("-addr $ListenAddr") } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
+
 function Invoke-JSON {
   param([string]$Method = "GET", [string]$Url, [object]$Body = $null, [int]$TimeoutSec = 30)
   if ($null -eq $Body) {
@@ -134,8 +144,6 @@ try {
   }
   throw "download did not finish before timeout: $TimeoutMinutes minutes"
 } finally {
-  if ($server -and -not $server.HasExited) {
-    Stop-Process -Id $server.Id -Force
-  }
+  Stop-LabelServer -Process $server -ListenAddr $Addr
   Pop-Location
 }

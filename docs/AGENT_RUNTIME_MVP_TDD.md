@@ -111,7 +111,7 @@ npm run build
 | `smoke-runtime-mvp.ps1` | Runtime MVP：sub-agent、model-jobs、ShanghaiTech data intake trace |
 | `smoke-mimo-api.ps1` | Mimo API 可用性 |
 | `smoke-mimo-planner.ps1` | Mimo planner 输出受控 tool-call |
-| `runtime-hf-install.ps1` | Runtime + Mimo 触发 HF 安装预检，显式参数才真实下载 |
+| `runtime-hf-install.ps1` | Runtime + Mimo 触发 HF 安装预检；显式 `-StartDownload -WaitForCompletion` 才真实下载并等待 job 完成 |
 
 ## 8. Red / Green / Refactor 规则
 
@@ -131,6 +131,7 @@ npm run build
 cd F:\automated_training_model
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-agent-entrypoints.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1 -UseMimoPlanner
 rg -n "tp-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|tp-c3" README.md docs internal workers web ops skills -S
 git status --short --ignored data_lake\models data_lake\catalog tmp
 ```
@@ -140,7 +141,6 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 - Runtime session/trace 持久化测试。
 - `toolapp` schema/preflight/approval gate 单元测试。
 - QQ OneBot WebSocket reader 长连接测试。
-- LocateAnything-3B 真实下载后 verify-only。
 - LocateAnything-3B 加载 smoke。
 - ShanghaiTech original 真实推理 smoke。
 - Python worker heartbeat/log/retry/artifact 测试。

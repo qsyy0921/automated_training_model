@@ -138,7 +138,7 @@ python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py `
   --verify-only
 ```
 
-当前状态：尚未完成真实下载。
+当前状态：已完成。通过 Agent Runtime + Mimo 触发 `model.download_hf`，job `model-job-1780371206860804000` 最终 `succeeded`；随后 `verify-only` 显示 `complete=true`、`missing_files=[]`、远端文件数 38、远端总字节 7,795,875,224。
 
 ### ATDD-010 Git 安全边界
 
@@ -165,5 +165,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-006 | 已覆盖 | `smoke-mimo-planner.ps1` |
 | ATDD-007 | 已覆盖 dry-run | HF dry-run |
 | ATDD-008 | 已覆盖预检 | `runtime-hf-install.ps1`，当前返回 `approval_required`，不下载权重 |
-| ATDD-009 | 未完成 | 真实下载和 verify-only |
+| ATDD-009 | 已覆盖 | `runtime-hf-install.ps1 -StartDownload -WaitForCompletion` + `download_hf_snapshot.py --verify-only` |
 | ATDD-010 | 每次提交前执行 | rg + git status |

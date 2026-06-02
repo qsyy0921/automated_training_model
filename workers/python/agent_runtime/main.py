@@ -91,6 +91,7 @@ def run_runtime(request: RuntimeRequest) -> RuntimeResult:
 
 def _guarded_plan(request: RuntimeRequest, intent, delegations: list[dict[str, object]]) -> RuntimeResult | None:
     text = request.text.lower()
+    delegation = delegations[0] if delegations else {}
     if "locateanything-3b" in text and "shanghaitech" in text and ("dry-run" in text or "dry run" in text or "测试" in text):
         data_root = _extract_shanghaitech_root(request.text)
         return RuntimeResult(
@@ -135,6 +136,26 @@ def _guarded_plan(request: RuntimeRequest, intent, delegations: list[dict[str, o
                     },
                 }
             ],
+            delegations=delegations,
+        )
+    if intent.kind == "data_intake":
+        plan = [{"kind": "intake.quarantine", "params": {"count": str(len(request.attachments))}}]
+        if str(delegation.get("tool_id") or "") == "vlm.inspect":
+            plan.append({"kind": "vlm.inspect", "params": {"model_route": str(delegation.get("model_route") or "vision")}})
+        plan.append({"kind": "intake.plan", "params": {"skill_id": intent.skill_id}})
+        return RuntimeResult(
+            status="tool_planned_with_guard",
+            intent=intent,
+            reply_text="Mimo 响应不稳定，已使用受控 guard 生成数据接入计划。",
+            plan=plan,
+            delegations=delegations,
+        )
+    if intent.kind == "chat":
+        return RuntimeResult(
+            status="tool_planned_with_guard",
+            intent=intent,
+            reply_text="Mimo 响应不稳定，已使用受控 guard 进入 planner-agent。",
+            plan=[{"kind": "llm.plan", "params": {"model_route": str(delegation.get("model_route") or "text-planning")}}],
             delegations=delegations,
         )
     return None

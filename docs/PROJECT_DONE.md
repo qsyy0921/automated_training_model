@@ -79,3 +79,8 @@
 - [x] 新增 Agent Runtime MVP 的 SDD / ATDD / TDD 文档，明确四入口、Sub-agent、Mimo、HuggingFace、ShanghaiTech、测试矩阵和未完成项。
 - [x] 增强 HuggingFace downloader dry-run / verify-only：先读取远端文件清单，记录 `remote_file_count`、`remote_total_bytes`，verify-only 可识别缺失或大小不匹配文件。
 - [x] 新增 `ops/scripts/runtime-hf-install.ps1`，用于通过 Agent Runtime + Mimo 触发 LocateAnything-3B 安装预检；默认审批模式返回 `approval_required`，不会下载权重。
+- [x] 通过 Agent Runtime + Mimo planner 真实执行 `model.download_hf`，完成 `nvidia/LocateAnything-3B` 下载；本地路径为 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，权重仍在 ignored 的 `data_lake/` 下。
+- [x] 完成 LocateAnything-3B `verify-only` 校验：远端文件数 38、远端总字节 7,795,875,224、`complete=true`、`missing_files=[]`。
+- [x] 加固 Mimo planner contract：禁止未知 tool kind（例如 `tool.id`），Mimo 不稳定时对 chat/data_intake 回退到受控 guard plan，避免 unsupported tool 进入 Go ToolExecutor。
+- [x] `smoke-runtime-mvp.ps1 -UseMimoPlanner` 已通过，覆盖 Mimo 模式下的 planner-agent、vision-agent、data-intake-agent 和 ShanghaiTech original source trace。
+- [x] 修复 runtime smoke / HF install 脚本的进程清理：测试结束后按 `-addr` 清理 `go run` 派生的 `labelserver.exe`，避免端口残留。

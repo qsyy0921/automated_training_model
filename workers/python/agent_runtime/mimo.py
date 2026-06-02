@@ -8,6 +8,18 @@ from typing import Any
 
 from agent_runtime.contracts import Intent, RuntimeRequest, RuntimeResult
 
+ALLOWED_TOOL_KINDS = {
+    "llm.plan",
+    "intake.quarantine",
+    "intake.plan",
+    "vlm.inspect",
+    "model.download_hf",
+    "model.verify_hf",
+    "workflow.submit_run",
+    "workflow.list_runs",
+    "runtime.status",
+}
+
 
 def mimo_enabled() -> bool:
     return os.getenv("AGENT_RUNTIME_USE_MIMO", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -208,6 +220,9 @@ def _validate_plan_contract(request: RuntimeRequest, parsed: dict[str, Any]) -> 
     for item in plan:
         if not isinstance(item, dict):
             raise ValueError("Mimo planner returned non-object tool call")
+        kind = str(item.get("kind") or "")
+        if kind not in ALLOWED_TOOL_KINDS:
+            raise ValueError(f"Mimo planner returned unsupported tool kind: {kind}")
         params = item.get("params") or {}
         if not isinstance(params, dict):
             raise ValueError("Mimo planner returned non-object params")

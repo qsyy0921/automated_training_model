@@ -20,6 +20,16 @@ if (-not $UseConfiguredQQOutbound) {
   $env:QQ_ONEBOT_OUTBOUND_ENABLED = "false"
 }
 
+function Stop-LabelServer {
+  param([object]$Process, [string]$ListenAddr)
+  if ($Process -and -not $Process.HasExited) {
+    Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+  }
+  Get-CimInstance Win32_Process -Filter "name='labelserver.exe'" |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains("-addr $ListenAddr") } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
+
 $baseURL = "http://$Addr"
 $tmpDir = Join-Path $repoRoot "tmp"
 New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
@@ -75,8 +85,6 @@ try {
   & $Go run .\cmd\labelctl skill draft -id smoke-agent-entrypoints -summary "CLI Web desktop and QQ entrypoint smoke workflow" -draft-root (Join-Path $tmpDir "skill_drafts")
   Write-Host "smoke-agent-entrypoints passed"
 } finally {
-  if ($server -and -not $server.HasExited) {
-    Stop-Process -Id $server.Id -Force
-  }
+  Stop-LabelServer -Process $server -ListenAddr $Addr
   Pop-Location
 }
