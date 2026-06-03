@@ -60,6 +60,155 @@ func runDataset(cfg Config, args []string) error {
 	}
 }
 
+func runAutoLabel(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "help" {
+		return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] | task <task_id> | task-logs <task_id> | cancel-task <task_id>")
+	}
+	switch args[0] {
+	case "submit":
+		fs := flag.NewFlagSet("autolabel submit", flag.ExitOnError)
+		datasetID := fs.String("dataset", "", "dataset id")
+		videoIDs := fs.String("video-ids", "", "comma-separated video ids")
+		taskTypes := fs.String("task-types", "", "comma-separated task types")
+		modelProfile := fs.String("model-profile", "", "worker model profile")
+		prompt := fs.String("prompt", "", "operator prompt")
+		requireReview := fs.Bool("require-review", false, "require human review")
+		dryRun := fs.Bool("dry-run", true, "submit as dry-run recipe only")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*datasetID) == "" || strings.TrimSpace(*taskTypes) == "" {
+			return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true]")
+		}
+		return postJSON(cfg.addr+"/api/autolabel/jobs", compactBody(map[string]any{
+			"dataset_id":     *datasetID,
+			"video_ids":      splitCSV(*videoIDs),
+			"task_types":     splitCSV(*taskTypes),
+			"model_profile":  *modelProfile,
+			"prompt":         *prompt,
+			"require_review": *requireReview,
+			"dry_run":        *dryRun,
+		}))
+	case "task", "status":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl autolabel task <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	case "task-logs":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl autolabel task-logs <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs")
+	case "cancel-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl autolabel cancel-task <task_id>")
+		}
+		return deleteJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	default:
+		return fmt.Errorf("unknown autolabel command: %s", args[0])
+	}
+}
+
+func runTraining(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "help" {
+		return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] | task <task_id> | task-logs <task_id> | cancel-task <task_id>")
+	}
+	switch args[0] {
+	case "submit":
+		fs := flag.NewFlagSet("training submit", flag.ExitOnError)
+		datasetID := fs.String("dataset", "", "dataset id")
+		annotationVersion := fs.String("annotation-version", "", "annotation version")
+		targetTask := fs.String("target-task", "", "target task")
+		modelFamily := fs.String("model-family", "", "model family")
+		baseModel := fs.String("base-model", "", "base model")
+		splitConfig := fs.String("split-config", "", "split config")
+		outputRegistry := fs.String("output-registry", "", "output registry")
+		dryRun := fs.Bool("dry-run", false, "submit as dry-run recipe only")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*datasetID) == "" || strings.TrimSpace(*targetTask) == "" || strings.TrimSpace(*modelFamily) == "" {
+			return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false]")
+		}
+		return postJSON(cfg.addr+"/api/training/runs", compactBody(map[string]any{
+			"dataset_id":         *datasetID,
+			"annotation_version": *annotationVersion,
+			"target_task":        *targetTask,
+			"model_family":       *modelFamily,
+			"base_model":         *baseModel,
+			"split_config":       *splitConfig,
+			"output_registry":    *outputRegistry,
+			"dry_run":            *dryRun,
+		}))
+	case "task", "status":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl training task <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	case "task-logs":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl training task-logs <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs")
+	case "cancel-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl training cancel-task <task_id>")
+		}
+		return deleteJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	default:
+		return fmt.Errorf("unknown training command: %s", args[0])
+	}
+}
+
+func runEvaluation(cfg Config, args []string) error {
+	if len(args) == 0 || args[0] == "help" {
+		return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] | task <task_id> | task-logs <task_id> | cancel-task <task_id>")
+	}
+	switch args[0] {
+	case "submit":
+		fs := flag.NewFlagSet("evaluation submit", flag.ExitOnError)
+		datasetID := fs.String("dataset", "", "dataset id")
+		modelID := fs.String("model", "", "model id")
+		split := fs.String("split", "", "split")
+		metrics := fs.String("metrics", "", "comma-separated metrics")
+		saveVisuals := fs.Bool("save-visuals", false, "save visuals")
+		failureMining := fs.Bool("failure-mining", false, "enable failure mining")
+		dryRun := fs.Bool("dry-run", false, "submit as dry-run recipe only")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*datasetID) == "" || strings.TrimSpace(*modelID) == "" {
+			return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false]")
+		}
+		return postJSON(cfg.addr+"/api/evaluation/runs", compactBody(map[string]any{
+			"dataset_id":     *datasetID,
+			"model_id":       *modelID,
+			"split":          *split,
+			"metrics":        splitCSV(*metrics),
+			"save_visuals":   *saveVisuals,
+			"failure_mining": *failureMining,
+			"dry_run":        *dryRun,
+		}))
+	case "task", "status":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl evaluation task <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	case "task-logs":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl evaluation task-logs <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs")
+	case "cancel-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl evaluation cancel-task <task_id>")
+		}
+		return deleteJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	default:
+		return fmt.Errorf("unknown evaluation command: %s", args[0])
+	}
+}
+
 func runModels(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "list" {
 		return getJSON(cfg.addr + "/api/models")

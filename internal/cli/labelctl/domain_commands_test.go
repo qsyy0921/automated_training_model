@@ -10,6 +10,9 @@ import (
 func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	seen := map[string]int{}
 	var datasetBody map[string]any
+	var autolabelBody map[string]any
+	var trainingBody map[string]any
+	var evaluationBody map[string]any
 	var modelBody map[string]any
 	var deployBody map[string]any
 	var desktopText string
@@ -24,6 +27,21 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeCLIJSON(t, w, map[string]any{"dataset": map[string]string{"id": "ds1"}})
+		case "POST /api/autolabel/jobs":
+			if err := json.NewDecoder(r.Body).Decode(&autolabelBody); err != nil {
+				t.Fatal(err)
+			}
+			writeCLIJSON(t, w, map[string]any{"job": map[string]string{"task_id": "task-auto"}})
+		case "POST /api/training/runs":
+			if err := json.NewDecoder(r.Body).Decode(&trainingBody); err != nil {
+				t.Fatal(err)
+			}
+			writeCLIJSON(t, w, map[string]any{"run": map[string]string{"task_id": "task-train"}})
+		case "POST /api/evaluation/runs":
+			if err := json.NewDecoder(r.Body).Decode(&evaluationBody); err != nil {
+				t.Fatal(err)
+			}
+			writeCLIJSON(t, w, map[string]any{"run": map[string]string{"task_id": "task-eval"}})
 		case "POST /api/models/register":
 			if err := json.NewDecoder(r.Body).Decode(&modelBody); err != nil {
 				t.Fatal(err)
@@ -66,6 +84,27 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		t.Fatalf("unexpected model body: %+v", modelBody)
 	}
 
+	if err := runAutoLabel(cfg, []string{"submit", "-dataset", "ds1", "-task-types", "anomaly,label", "-video-ids", "video-1,video-2", "-model-profile", "vlm-default", "-require-review"}); err != nil {
+		t.Fatal(err)
+	}
+	if autolabelBody["dataset_id"] != "ds1" || len(autolabelBody["task_types"].([]any)) != 2 || autolabelBody["dry_run"] != true {
+		t.Fatalf("unexpected autolabel body: %+v", autolabelBody)
+	}
+
+	if err := runTraining(cfg, []string{"submit", "-dataset", "ds1", "-target-task", "detection", "-model-family", "yolo11n"}); err != nil {
+		t.Fatal(err)
+	}
+	if trainingBody["dataset_id"] != "ds1" || trainingBody["target_task"] != "detection" || trainingBody["model_family"] != "yolo11n" || trainingBody["dry_run"] != false {
+		t.Fatalf("unexpected training body: %+v", trainingBody)
+	}
+
+	if err := runEvaluation(cfg, []string{"submit", "-dataset", "ds1", "-model", "model1", "-metrics", "mAP,recall"}); err != nil {
+		t.Fatal(err)
+	}
+	if evaluationBody["dataset_id"] != "ds1" || evaluationBody["model_id"] != "model1" || evaluationBody["dry_run"] != false {
+		t.Fatalf("unexpected evaluation body: %+v", evaluationBody)
+	}
+
 	if err := runDeploy(cfg, []string{"submit", "-model", "model1", "-target", "local", "-replicas", "2"}); err != nil {
 		t.Fatal(err)
 	}
@@ -91,6 +130,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 
 	for _, key := range []string{
 		"POST /api/datasets/register-folder",
+		"POST /api/autolabel/jobs",
+		"POST /api/training/runs",
+		"POST /api/evaluation/runs",
 		"POST /api/models/register",
 		"POST /api/deployments",
 		"POST /api/channels/qq/test-message",

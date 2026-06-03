@@ -278,7 +278,7 @@ Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`
 ### ATDD-023 lifecycle HTTP 任务 `dry_run=false` materialize execution bundle
 
 Given labelserver 正常启动并使用 Python worker `WorkerGateway`
-When 通过 `/api/training/runs` 提交 `dry_run=false`
+When 通过 `/api/training/runs`、`/api/evaluation/runs` 或 `/api/deployments` 提交 `dry_run=false`
 Then task 应完成且 `metadata.dry_run=false`
 And `GET /api/tasks/{id}/logs` 返回 completed heartbeat、三个 artifacts 和 `metadata.artifact_manifest`
 And artifacts 指向实际落盘的 `request.json`、`plan.json`、`result.json`

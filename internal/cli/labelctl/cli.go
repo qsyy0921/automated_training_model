@@ -109,6 +109,12 @@ func dispatch(cfg Config, args []string) error {
 		return getJSON(cfg.addr + "/api/audit-events")
 	case "dataset", "datasets":
 		return runDataset(cfg, args[1:])
+	case "autolabel":
+		return runAutoLabel(cfg, args[1:])
+	case "training", "train":
+		return runTraining(cfg, args[1:])
+	case "evaluation", "eval":
+		return runEvaluation(cfg, args[1:])
 	case "models", "model":
 		return runModels(cfg, args[1:])
 	case "deploy", "deployment":

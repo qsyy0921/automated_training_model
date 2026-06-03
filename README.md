@@ -166,7 +166,7 @@ atm:03 planner-agent> /exit
 | 入口 | 当前能力 | 验证方式 |
 | --- | --- | --- |
 | Web | Agent Overview 查看 runtime status、sessions、traces、model jobs、model job logs，并通过 QQ test-message 发送测试消息 | 打开 `http://127.0.0.1:7870/` |
-| CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务、查看/审批/注册 intake workflow，并提供 dataset/models/deploy/logs/doctor 领域命令组 | `labelctl runtime ...`、`labelctl dataset ...`、`labelctl models ...`、`labelctl deploy ...`、`labelctl logs ...`、`labelctl doctor` |
+| CLI | 查询 runtime、发送测试消息、查看/取消/恢复异步模型任务、查看/审批/注册 intake workflow，并提供 dataset/models/autolabel/training/evaluation/deploy/logs/doctor 领域命令组 | `labelctl runtime ...`、`labelctl dataset ...`、`labelctl models ...`、`labelctl autolabel ...`、`labelctl training ...`、`labelctl evaluation ...`、`labelctl deploy ...`、`labelctl logs ...`、`labelctl doctor` |
 | 桌面端 | 复用 Gateway runtime snapshot，可查看 sessions/traces/jobs，并通过同一 runtime path 发送测试消息 | `go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 status` |
 | QQ/NapCat | OneBot webhook/test-message 进入 runtime，可配置 outbound 回发；也可启用 OneBot WebSocket reader 长连接 | `/api/channels/qq/onebot`、`/api/channels/qq/test-message`、`QQ_ONEBOT_WS_ENABLED=true` |
 
@@ -224,7 +224,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locatean
 
 `smoke-deployment-dry-worker.ps1` 会通过 Runtime 发送 `/bot-deploy-dry model-1 local-dry-run python-worker 2`，验证 `deployment.run(dry_run)` 已进入 Python worker `ModelJob`，并检查 trace、worker heartbeat 和 recipe artifact。
 
-`smoke-lifecycle-execution-worker.ps1` 会直接调用 `/api/training/runs` 提交 `dry_run=false` 的 lifecycle task，验证 Go `WorkerGateway` -> Python worker 会真实落地 execution bundle、task logs、heartbeat 和 artifact manifest。
+`smoke-lifecycle-execution-worker.ps1` 会直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交 `dry_run=false` 的 lifecycle task，验证 Go `WorkerGateway` -> Python worker 会真实落地 execution bundle、task logs、heartbeat 和 artifact manifest。
 
 `smoke-locateanything-model.ps1` 会通过 Runtime 执行 `model.verify_hf`、`model.smoke_locateanything` 和 `workflow.submit_run(dry_run=true)`。当前本机已完成 LocateAnything-3B 加载 smoke：`AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 均通过；由于当前 PyTorch 是 CPU-only，真实 ShanghaiTech 推理仍未标记完成。
 
@@ -272,6 +272,9 @@ $env:LLM_MODEL="qwen2.5"
 $env:LLM_API_KEY=""
 
 go run .\cmd\labelctl agent "注册一个本地数据集并创建从数据采集到部署的 dry-run 工作流"
+go run .\cmd\labelctl training submit -dataset shanghaitech-original -target-task detection -model-family yolo11n
+go run .\cmd\labelctl evaluation submit -dataset shanghaitech-original -model model-1
+go run .\cmd\labelctl autolabel submit -dataset shanghaitech-original -task-types anomaly,label -dry-run
 ```
 
 Mimo 本机配置从 `C:\Users\10495\Desktop\mimo.txt` 读取并写入服务端环境变量，不要写入 Git、浏览器端或 channel 消息：
