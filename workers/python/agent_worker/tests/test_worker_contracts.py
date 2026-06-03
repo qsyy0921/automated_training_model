@@ -138,6 +138,122 @@ class WorkerContractTests(unittest.TestCase):
             self.assertEqual(result_payload["execution_mode"], "materialized-recipe")
             self.assertEqual(result_payload["request"]["dataset_id"], "shanghaitech-original")
 
+    @patch("agent_worker.lifecycle.run_command_with_events")
+    def test_training_run_execution_command_runs_real_recipe(self, run_mock) -> None:
+        run_mock.return_value = subprocess.CompletedProcess(
+            args=["python"],
+            returncode=0,
+            stdout="training started\ntraining finished\n",
+            stderr="",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_root = Path(tmp) / "artifacts"
+            result = self.run_job_quiet(
+                JobEnvelope(
+                    task_id="task_000014",
+                    workflow_id="data-to-deployment-lifecycle",
+                    agent_id="training-agent",
+                    tool_id="training.run",
+                    action="training.run",
+                    dry_run=False,
+                    params={
+                        "artifact_root": str(artifact_root),
+                        "request_json": json.dumps(
+                            {
+                                "dataset_id": "shanghaitech-original",
+                                "target_task": "detection",
+                                "model_family": "yolo11n",
+                                "execution_command": ["python", "-c", "print('ok')"],
+                                "execution_timeout_seconds": 30,
+                            }
+                        ),
+                    },
+                )
+            )
+
+            self.assertEqual(result["status"], "completed")
+            self.assertIn("command completed", result["message"])
+            bundle_dir = artifact_root / "training.run" / "task_000014"
+            result_payload = json.loads((bundle_dir / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual(result_payload["execution_mode"], "command-executed")
+            self.assertEqual(result_payload["returncode"], 0)
+            self.assertEqual(result_payload["execution_command"], ["python", "-c", "print('ok')"])
+
+    @patch("agent_worker.lifecycle.run_command_with_events")
+    def test_training_run_execution_command_nonzero_exit_fails(self, run_mock) -> None:
+        run_mock.return_value = subprocess.CompletedProcess(
+            args=["python"],
+            returncode=5,
+            stdout="",
+            stderr="trainer crashed",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_root = Path(tmp) / "artifacts"
+            result = self.run_job_quiet(
+                JobEnvelope(
+                    task_id="task_000015",
+                    workflow_id="data-to-deployment-lifecycle",
+                    agent_id="training-agent",
+                    tool_id="training.run",
+                    action="training.run",
+                    dry_run=False,
+                    params={
+                        "artifact_root": str(artifact_root),
+                        "request_json": json.dumps(
+                            {
+                                "dataset_id": "shanghaitech-original",
+                                "target_task": "detection",
+                                "model_family": "yolo11n",
+                                "execution_command": ["python", "-c", "raise SystemExit(5)"],
+                            }
+                        ),
+                    },
+                )
+            )
+
+            self.assertEqual(result["status"], "failed")
+            self.assertFalse(result["retryable"])
+            self.assertEqual(result["heartbeat"]["status"], "failed")
+            bundle_dir = artifact_root / "training.run" / "task_000015"
+            result_payload = json.loads((bundle_dir / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual(result_payload["execution_mode"], "command-failed")
+            self.assertEqual(result_payload["returncode"], 5)
+
+    @patch("agent_worker.lifecycle.run_command_with_events")
+    def test_training_run_execution_command_timeout_is_retryable(self, run_mock) -> None:
+        run_mock.side_effect = subprocess.TimeoutExpired(cmd=["python"], timeout=3)
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_root = Path(tmp) / "artifacts"
+            result = self.run_job_quiet(
+                JobEnvelope(
+                    task_id="task_000016",
+                    workflow_id="data-to-deployment-lifecycle",
+                    agent_id="training-agent",
+                    tool_id="training.run",
+                    action="training.run",
+                    dry_run=False,
+                    params={
+                        "artifact_root": str(artifact_root),
+                        "request_json": json.dumps(
+                            {
+                                "dataset_id": "shanghaitech-original",
+                                "target_task": "detection",
+                                "model_family": "yolo11n",
+                                "execution_command": ["python", "-c", "import time; time.sleep(10)"],
+                                "execution_timeout_seconds": 3,
+                            }
+                        ),
+                    },
+                )
+            )
+
+            self.assertEqual(result["status"], "failed")
+            self.assertTrue(result["retryable"])
+            self.assertEqual(result["heartbeat"]["status"], "failed")
+            bundle_dir = artifact_root / "training.run" / "task_000016"
+            result_payload = json.loads((bundle_dir / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual(result_payload["execution_mode"], "command-timeout")
+
     def test_missing_task_id_is_non_retryable_failure(self) -> None:
         result = self.run_job_quiet(JobEnvelope(task_id="", workflow_id="wf", agent_id="agent", tool_id="tool", action="run"))
         self.assertEqual(result["status"], "failed")

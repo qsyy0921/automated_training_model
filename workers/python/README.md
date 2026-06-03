@@ -45,6 +45,11 @@ Dry-run results include:
 - `artifacts`: dry-run artifact references, not large files.
 - `retryable`, `attempt`, `max_attempts`: retry contract for the future Go task runner.
 
+Lifecycle worker execution can now run an explicit command when a non-dry-run
+request includes `execution_command`. In that mode the worker still materializes
+`request.json`, `plan.json`, and `result.json`, but `result.json.execution_mode`
+changes to `command-executed`, `command-failed`, or `command-timeout`.
+
 Agent Runtime prototype:
 
 ```powershell

@@ -44,7 +44,7 @@ Integration / Smoke Tests
 | Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error、ExecuteStream 输出 preflight/tool progress 事件 |
 | Runtime stream | `internal/app/agentruntime/session_test.go`、`internal/app/agentruntime/errors_test.go`、`internal/cli/labelctl/runtime_chat_test.go` | `RunStream` 能把工具进度事件带上 session 输出到 NDJSON；planner/tool 失败输出 `error_envelope`；CLI 能解析 runtime stream event 和结构化错误消息 |
 | Runtime workflow app | `internal/app/runtimeworkflow/service_test.go` | `workflow.submit_run` dry-run guard、RunRequest 构造、`workflow.list_runs` 回复格式 |
-| Lifecycle task queue | `internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go`、`npm run build --prefix web` | `tasks.json` 持久化恢复、task id 连续性、training/evaluation/deployment 提交透传 gateway、worker-backed dry-run 与 `dry_run=false` execution bundle 状态流转、heartbeat/logs/stdout/artifact 回写、artifact manifest 归档、task logs / NDJSON stream、取消路径；Web Agent Overview 构建通过并消费 `/api/tasks` 与 `/api/tasks/{id}/logs` |
+| Lifecycle task queue | `internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go`、`npm run build --prefix web` | `tasks.json` 持久化恢复、task id 连续性、training/evaluation/deployment 提交透传 gateway、worker-backed dry-run 与 `dry_run=false` execution bundle / command execution 状态流转、heartbeat/logs/stdout/artifact 回写、artifact manifest 归档、task logs / NDJSON stream、取消路径；Web Agent Overview 构建通过并消费 `/api/tasks` 与 `/api/tasks/{id}/logs` |
 | Model runtime app | `internal/app/modelruntime/service_test.go` | HuggingFace 默认参数、目录逃逸拦截、LocateAnything smoke 默认路径、下载审批开关、smoke JSON 解析 |
 | Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go`、`internal/infrastructure/intakerepo/json_repository_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted/resumable 标记、intake plan/workflow JSON 恢复 |
 | Intake workflow | `internal/app/intakeapp/workflow_test.go` | quarantine、静态 scan、pending approval、reject unsafe metadata、approve 后 register |
@@ -144,7 +144,7 @@ npm run build
 | `smoke-training-dry-worker.ps1` | Runtime 发送 `/bot-train-dry`，验证 `training.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-evaluation-dry-worker.ps1` | Runtime 发送 `/bot-eval-dry`，验证 `evaluation.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-deployment-dry-worker.ps1` | Runtime 发送 `/bot-deploy-dry`，验证 `deployment.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
-| `smoke-lifecycle-execution-worker.ps1` | 直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交 `dry_run=false`，验证 lifecycle task 会落地 execution bundle、heartbeat、task logs 和 artifact manifest |
+| `smoke-lifecycle-execution-worker.ps1` | 直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交带 `execution_command` 的 `dry_run=false` 请求，验证 lifecycle task 会真实执行命令并落地 `request/plan/result`、heartbeat、task logs 和 artifact manifest |
 | `smoke-locateanything-model.ps1` | Runtime 触发 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run`，验证模型可加载但真实推理仍未完成 |
 
 ## 8. Red / Green / Refactor 规则

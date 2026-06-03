@@ -70,7 +70,8 @@ function Assert-ExecutionLogs {
     [string]$BaseUrl,
     [string]$TaskId,
     [string]$ExpectedResultKind,
-    [string]$ExpectedSummaryNeedle
+    [string]$ExpectedSummaryNeedle,
+    [string]$ExpectedExecutionMode = "command-executed"
   )
   $logs = Invoke-JSON -Url ("{0}/api/tasks/{1}/logs" -f $BaseUrl, $TaskId) -TimeoutSec 30
   Assert-True ($logs.status -eq "completed") "task logs did not complete for $TaskId"
@@ -85,7 +86,7 @@ function Assert-ExecutionLogs {
   $resultArtifact = @($logs.artifacts | Where-Object { $_.kind -eq $ExpectedResultKind } | Select-Object -First 1)
   Assert-True ($resultArtifact.Count -eq 1) "task missing result artifact of kind $ExpectedResultKind"
   $resultPayload = Get-Content -LiteralPath $resultArtifact[0].uri -Raw | ConvertFrom-Json
-  Assert-True ($resultPayload.execution_mode -eq "materialized-recipe") "unexpected execution mode: $($resultPayload.execution_mode)"
+  Assert-True ($resultPayload.execution_mode -eq $ExpectedExecutionMode) "unexpected execution mode: $($resultPayload.execution_mode)"
   Assert-True ($resultPayload.summary -match [regex]::Escape($ExpectedSummaryNeedle)) "unexpected summary: $($resultPayload.summary)"
 }
 
@@ -152,35 +153,41 @@ try {
     dataset_id = $DatasetId
     target_task = $TargetTask
     model_family = $ModelFamily
+    execution_command = @("powershell", "-NoProfile", "-Command", "Write-Output 'training worker ok'")
+    execution_timeout_seconds = 30
     dry_run = $false
   } -TimeoutSec 30
   Assert-True ($null -ne $run.run) "training execution response missing run"
   Assert-True (-not [string]::IsNullOrWhiteSpace($run.run.task_id)) "training execution task did not return task_id"
   Wait-TaskCompleted -BaseUrl $baseURL -TaskId $run.run.task_id -Deadline $deadline -Label "training execution task" | Out-Null
-  Assert-ExecutionLogs -BaseUrl $baseURL -TaskId $run.run.task_id -ExpectedResultKind "training.run.result" -ExpectedSummaryNeedle "training execution bundle materialized"
+  Assert-ExecutionLogs -BaseUrl $baseURL -TaskId $run.run.task_id -ExpectedResultKind "training.run.result" -ExpectedSummaryNeedle "training.run command completed: exit=0"
 
   $evaluation = Invoke-JSON -Method "POST" -Url "$baseURL/api/evaluation/runs" -Body @{
     dataset_id = $DatasetId
     model_id = $EvaluationModelId
     split = $EvaluationSplit
+    execution_command = @("powershell", "-NoProfile", "-Command", "Write-Output 'evaluation worker ok'")
+    execution_timeout_seconds = 30
     dry_run = $false
   } -TimeoutSec 30
   Assert-True ($null -ne $evaluation.run) "evaluation execution response missing run"
   Assert-True (-not [string]::IsNullOrWhiteSpace($evaluation.run.task_id)) "evaluation execution task did not return task_id"
   Wait-TaskCompleted -BaseUrl $baseURL -TaskId $evaluation.run.task_id -Deadline $deadline -Label "evaluation execution task" | Out-Null
-  Assert-ExecutionLogs -BaseUrl $baseURL -TaskId $evaluation.run.task_id -ExpectedResultKind "evaluation.run.result" -ExpectedSummaryNeedle "evaluation execution bundle materialized"
+  Assert-ExecutionLogs -BaseUrl $baseURL -TaskId $evaluation.run.task_id -ExpectedResultKind "evaluation.run.result" -ExpectedSummaryNeedle "evaluation.run command completed: exit=0"
 
   $deployment = Invoke-JSON -Method "POST" -Url "$baseURL/api/deployments" -Body @{
     model_id = $DeploymentModelId
     target = $DeploymentTarget
     runtime = $DeploymentRuntime
     replicas = $DeploymentReplicas
+    execution_command = @("powershell", "-NoProfile", "-Command", "Write-Output 'deployment worker ok'")
+    execution_timeout_seconds = 30
     dry_run = $false
   } -TimeoutSec 30
   Assert-True ($null -ne $deployment.deployment) "deployment execution response missing deployment"
   Assert-True (-not [string]::IsNullOrWhiteSpace($deployment.deployment.task_id)) "deployment execution task did not return task_id"
   Wait-TaskCompleted -BaseUrl $baseURL -TaskId $deployment.deployment.task_id -Deadline $deadline -Label "deployment execution task" | Out-Null
-  Assert-ExecutionLogs -BaseUrl $baseURL -TaskId $deployment.deployment.task_id -ExpectedResultKind "deployment.run.result" -ExpectedSummaryNeedle "deployment execution bundle materialized"
+  Assert-ExecutionLogs -BaseUrl $baseURL -TaskId $deployment.deployment.task_id -ExpectedResultKind "deployment.run.result" -ExpectedSummaryNeedle "deployment.run command completed: exit=0"
 
   Write-Host "smoke-lifecycle-execution-worker passed"
 } finally {

@@ -68,6 +68,30 @@ func TestSubmitTrainingUsesGateway(t *testing.T) {
 	}
 }
 
+func TestSubmitTrainingPreservesExecutionFieldsInRequestJSON(t *testing.T) {
+	gateway := &fakeGateway{}
+	svc := NewService(gateway)
+	_, err := svc.SubmitTraining(context.Background(), training.Request{
+		DatasetID:        "shanghaitech-original",
+		TargetTask:       "detection",
+		ModelFamily:      "yolo11n",
+		DryRun:           false,
+		ExecutionCommand: []string{"python", "-c", "print('ok')"},
+		ExecutionCwd:     "tmp/runtime-training",
+		ExecutionEnv:     map[string]string{"ATM_TEST": "1"},
+		ExecutionTimeout: 42,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(gateway.payload["request_json"], `"execution_command":["python","-c","print('ok')"]`) {
+		t.Fatalf("expected request_json to include execution_command, got %s", gateway.payload["request_json"])
+	}
+	if !strings.Contains(gateway.payload["request_json"], `"execution_timeout_seconds":42`) {
+		t.Fatalf("expected request_json to include execution_timeout_seconds, got %s", gateway.payload["request_json"])
+	}
+}
+
 func TestSubmitEvaluationUsesGateway(t *testing.T) {
 	gateway := &fakeGateway{}
 	svc := NewService(gateway)

@@ -275,14 +275,14 @@ Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`
 
 证据：`internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go`。
 
-### ATDD-023 lifecycle HTTP 任务 `dry_run=false` materialize execution bundle
+### ATDD-023 lifecycle HTTP 任务 `dry_run=false` command execution
 
 Given labelserver 正常启动并使用 Python worker `WorkerGateway`
 When 通过 `/api/training/runs`、`/api/evaluation/runs` 或 `/api/deployments` 提交 `dry_run=false`
 Then task 应完成且 `metadata.dry_run=false`
 And `GET /api/tasks/{id}/logs` 返回 completed heartbeat、三个 artifacts 和 `metadata.artifact_manifest`
 And artifacts 指向实际落盘的 `request.json`、`plan.json`、`result.json`
-And `result.json.execution_mode=materialized-recipe`
+And `result.json.execution_mode=command-executed`
 
 证据：`ops/scripts/smoke-lifecycle-execution-worker.ps1`、`workers/python/agent_worker/tests/test_worker_contracts.py`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/app/lifecycleapp/service_test.go`。
 

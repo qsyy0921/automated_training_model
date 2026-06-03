@@ -54,7 +54,7 @@
 
 ## 当前限制
 
-- [ ] lifecycle 任务现已通过 `workflowapp.ModelGateway` 的 `WorkerGateway` 进入 Python worker，并把 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr、retry metadata 写回 `data_lake/runtime/tasks.json`；`dry_run=true` 产出显式 `*.plan`，`dry_run=false` 会 materialize `request.json` / `plan.json` / `result.json` execution bundle，task logs API / NDJSON stream 和 artifact manifest 已补齐，但仍未接入真实 GPU 训练/评估/部署 recipe 和恢复闭环。
+- [ ] lifecycle 任务现已通过 `workflowapp.ModelGateway` 的 `WorkerGateway` 进入 Python worker，并把 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr、retry metadata 写回 `data_lake/runtime/tasks.json`；`dry_run=true` 产出显式 `*.plan`，`dry_run=false` 默认 materialize `request.json` / `plan.json` / `result.json` execution bundle，显式 `execution_command` 时会执行真实命令；task logs API / NDJSON stream 和 artifact manifest 已补齐，但仍未接入真实 GPU 训练/评估/部署 recipe 和恢复闭环。
 - [ ] Zod 只作为依赖接入，API runtime schema 尚未完整覆盖。
 - [ ] 前端仍有少量 `alert/confirm`，后续需要统一 toast/dialog。
 - [ ] 数据版本、标注版本目前只有边界设计；模型版本已有 JSON 元数据仓库，但还未接入真实训练 artifact 生命周期。
@@ -101,6 +101,7 @@
 - [x] 为 `labelctl` 补齐 lifecycle 领域命令组：新增 `labelctl autolabel submit`、`labelctl training submit`、`labelctl evaluation submit` 及对应的 `task/status/task-logs/cancel-task` 子命令，统一走 `/api/autolabel/jobs`、`/api/training/runs`、`/api/evaluation/runs` 和同一份 task store。
 - [x] 为 lifecycle task 补齐统一观测面：新增 `GET /api/tasks` 列表接口；交互式 `labelctl agent` 现支持 `/tasks`、`/task <id>`、`/task-logs <id>`、`/follow-task <id>`，一次性 CLI 也支持 `labelctl runtime tasks/task/task-logs`、`labelctl logs follow-task` 和各领域命令组的 `follow-task`。
 - [x] Web Agent Overview 对齐 lifecycle task 观测面：前端现在会轮询 `GET /api/tasks` 和 `GET /api/tasks/{id}/logs`，可直接选中 task 查看 heartbeat、artifact、artifact manifest、stdout/stderr 和最近日志，不再只有 model job 面板。
+- [x] 为 lifecycle worker 增加可选命令执行路径：`training.run` / `evaluation.run` / `deployment.run` / `autolabel.run` 在 `dry_run=false` 且请求显式提供 `execution_command` 时，会在保留 `request.json` / `plan.json` / `result.json` 落盘的同时真实执行命令；非零退出会写 `command-failed`，超时会写 `command-timeout` 并标记 retryable，默认不带 `execution_command` 的旧 execution bundle 行为保持兼容。
 - [x] 新增 `internal/app/toolapp`，将 tool schema、参数白名单、risk level 和 approval/preflight gate 从 `agentruntime` 中拆出。
 - [x] `GoToolExecutor.Execute` 执行前接入 `toolapp.Preflight`，覆盖未注册 tool、未知参数、高风险审批缺失等拦截路径；默认本机开发模式仍允许受控高风险工具执行，可用 `AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL=true` 统一收紧。
 - [x] 新增 `internal/app/toolapp.Runner`，把 tool preflight、handler dispatch、结果合并和未注册 handler 拦截从 `agentruntime.GoToolExecutor` 中移出；`GoToolExecutor` 当前只注册 MVP 业务 handler。

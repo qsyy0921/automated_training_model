@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
 import json
 from pathlib import Path
+import subprocess
 from typing import Any
 
 from agent_worker.contracts import JobArtifact, JobEnvelope, JobLog, JobResult, WorkerHeartbeat, utc_now_iso
+from agent_worker.process_runner import run_command_with_events
 
 
 def run_lifecycle_job(job: JobEnvelope, logs: list[JobLog], started: str) -> JobResult:
@@ -98,6 +101,22 @@ def complete_lifecycle_execution(
     write_json(request_path, request)
     write_json(plan_path, plan)
 
+    execution_command = request_command(request)
+    if execution_command:
+        return complete_lifecycle_command_execution(
+            job=job,
+            action=action,
+            request=request,
+            plan=plan,
+            bundle_dir=bundle_dir,
+            request_path=request_path,
+            plan_path=plan_path,
+            result_path=result_path,
+            command=execution_command,
+            logs=logs,
+            started=started,
+        )
+
     execution = build_execution_record(job, action, request, plan, bundle_dir, started)
     write_json(result_path, execution)
 
@@ -139,6 +158,127 @@ def complete_lifecycle_execution(
         retryable=False,
         attempt=1,
         max_attempts=1,
+        started_at=started,
+        finished_at=finished,
+    )
+
+
+def complete_lifecycle_command_execution(
+    job: JobEnvelope,
+    action: str,
+    request: dict[str, Any],
+    plan: dict[str, Any],
+    bundle_dir: Path,
+    request_path: Path,
+    plan_path: Path,
+    result_path: Path,
+    command: list[str],
+    logs: list[JobLog],
+    started: str,
+) -> JobResult:
+    cwd = resolve_execution_cwd(request)
+    timeout_seconds = execution_timeout_seconds(request)
+    env = execution_env(request)
+    lifecycle_logs = list(logs)
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"normalized request for {action}"))
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"execution bundle root: {bundle_dir}"))
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"execution cwd: {cwd}"))
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"execution command: {' '.join(command)}"))
+    for step in plan.get("steps", []):
+        lifecycle_logs.append(JobLog(at=started, level="info", message=f"execute step: {step.get('id', '-')}: {step.get('title', '-')}"))
+
+    metadata = lifecycle_artifact_metadata(job, action, plan, "false")
+    metadata["execution_timeout_seconds"] = str(timeout_seconds)
+    try:
+        completed = run_command_with_events(
+            command=command,
+            cwd=str(cwd),
+            timeout=timeout_seconds,
+            env=env,
+            label=f"{action} command execution",
+        )
+    except subprocess.TimeoutExpired:
+        finished = utc_now_iso()
+        execution = build_command_execution_record(
+            job=job,
+            action=action,
+            request=request,
+            plan=plan,
+            bundle_dir=bundle_dir,
+            command=command,
+            cwd=cwd,
+            started=started,
+            finished=finished,
+            execution_mode="command-timeout",
+            status="failed",
+            summary=f"{action} command timed out after {timeout_seconds}s",
+            timeout_seconds=timeout_seconds,
+        )
+        write_json(result_path, execution)
+        lifecycle_logs.append(JobLog(at=finished, level="error", message=execution["summary"]))
+        return JobResult(
+            task_id=job.task_id,
+            status="failed",
+            message=execution["summary"],
+            artifacts=lifecycle_execution_artifacts(job, action, request_path, plan_path, result_path, metadata, "command-timeout"),
+            logs=lifecycle_logs,
+            heartbeat=WorkerHeartbeat(at=finished, status="failed", message=f"{action} command timed out"),
+            retryable=True,
+            attempt=1,
+            max_attempts=3,
+            started_at=started,
+            finished_at=finished,
+        )
+
+    finished = utc_now_iso()
+    stdout_lines = summarize_process_output(completed.stdout or "")
+    stderr_lines = summarize_process_output(completed.stderr or "")
+    if stdout_lines:
+        lifecycle_logs.append(JobLog(at=finished, level="info", message=f"command stdout: {stdout_lines[0]}"))
+    if stderr_lines:
+        lifecycle_logs.append(JobLog(at=finished, level="warn", message=f"command stderr: {stderr_lines[0]}"))
+
+    success = completed.returncode == 0
+    execution_mode = "command-executed" if success else "command-failed"
+    summary = (
+        f"{action} command completed: exit={completed.returncode}"
+        if success
+        else f"{action} command failed: exit={completed.returncode}"
+    )
+    execution = build_command_execution_record(
+        job=job,
+        action=action,
+        request=request,
+        plan=plan,
+        bundle_dir=bundle_dir,
+        command=command,
+        cwd=cwd,
+        started=started,
+        finished=finished,
+        execution_mode=execution_mode,
+        status="completed" if success else "failed",
+        summary=summary,
+        timeout_seconds=timeout_seconds,
+        returncode=completed.returncode,
+        stdout_excerpt=stdout_lines,
+        stderr_excerpt=stderr_lines,
+    )
+    write_json(result_path, execution)
+    lifecycle_logs.append(JobLog(at=finished, level="info" if success else "error", message=summary))
+    return JobResult(
+        task_id=job.task_id,
+        status="completed" if success else "failed",
+        message=summary,
+        artifacts=lifecycle_execution_artifacts(job, action, request_path, plan_path, result_path, metadata, execution_mode),
+        logs=lifecycle_logs,
+        heartbeat=WorkerHeartbeat(
+            at=finished,
+            status="completed" if success else "failed",
+            message=f"{action} command {'completed' if success else 'failed'}",
+        ),
+        retryable=False if success else False,
+        attempt=1,
+        max_attempts=3,
         started_at=started,
         finished_at=finished,
     )
@@ -206,6 +346,55 @@ def build_execution_record(
     }
 
 
+def build_command_execution_record(
+    job: JobEnvelope,
+    action: str,
+    request: dict[str, Any],
+    plan: dict[str, Any],
+    bundle_dir: Path,
+    command: list[str],
+    cwd: Path,
+    started: str,
+    finished: str,
+    execution_mode: str,
+    status: str,
+    summary: str,
+    timeout_seconds: int,
+    returncode: int | None = None,
+    stdout_excerpt: list[str] | None = None,
+    stderr_excerpt: list[str] | None = None,
+) -> dict[str, Any]:
+    record = {
+        "task_id": job.task_id,
+        "workflow_id": job.workflow_id,
+        "agent_id": job.agent_id,
+        "tool_id": job.tool_id,
+        "action": action,
+        "dry_run": False,
+        "execution_mode": execution_mode,
+        "status": status,
+        "bundle_dir": str(bundle_dir),
+        "dataset_id": str(plan.get("dataset_id", "")),
+        "model_id": str(plan.get("model_id", "")),
+        "target": str(plan.get("target", "")),
+        "summary": summary,
+        "started_at": started,
+        "finished_at": finished,
+        "execution_command": command,
+        "execution_cwd": str(cwd),
+        "execution_timeout_seconds": timeout_seconds,
+        "request": request,
+        "plan": plan,
+    }
+    if returncode is not None:
+        record["returncode"] = returncode
+    if stdout_excerpt:
+        record["stdout_excerpt"] = stdout_excerpt
+    if stderr_excerpt:
+        record["stderr_excerpt"] = stderr_excerpt
+    return record
+
+
 def execution_summary(action: str, plan: dict[str, Any]) -> str:
     if action == "training.run":
         return (
@@ -240,12 +429,76 @@ def lifecycle_artifact_metadata(job: JobEnvelope, action: str, plan: dict[str, A
     }
 
 
+def lifecycle_execution_artifacts(
+    job: JobEnvelope,
+    action: str,
+    request_path: Path,
+    plan_path: Path,
+    result_path: Path,
+    metadata: dict[str, str],
+    execution_mode: str,
+) -> list[JobArtifact]:
+    return [
+        JobArtifact(
+            name=f"{job.task_id}-{action}-request",
+            uri=str(request_path),
+            kind=f"{action}.request",
+            metadata={**metadata, "role": "request"},
+        ),
+        JobArtifact(
+            name=f"{job.task_id}-{action}-plan",
+            uri=str(plan_path),
+            kind=f"{action}.plan",
+            metadata={**metadata, "role": "plan"},
+        ),
+        JobArtifact(
+            name=f"{job.task_id}-{action}-result",
+            uri=str(result_path),
+            kind=f"{action}.result",
+            metadata={**metadata, "role": "result", "execution_mode": execution_mode},
+        ),
+    ]
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
+
+
+def resolve_execution_cwd(request: dict[str, Any]) -> Path:
+    raw = optional_string(request, "execution_cwd")
+    if not raw:
+        return repo_root()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = repo_root() / path
+    return path.resolve()
+
+
+def request_command(request: dict[str, Any]) -> list[str]:
+    return string_list(request.get("execution_command"))
+
+
+def execution_env(request: dict[str, Any]) -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    for key, value in string_map(request.get("execution_env")).items():
+        env[key] = value
+    return env
+
+
+def execution_timeout_seconds(request: dict[str, Any]) -> int:
+    raw = request.get("execution_timeout_seconds")
+    if raw in (None, ""):
+        return 3600
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 3600
+    return value if value > 0 else 3600
 
 
 def build_training_plan(request: dict[str, Any]) -> dict[str, Any]:
@@ -369,3 +622,22 @@ def string_list(value: Any) -> list[str]:
         if text:
             out.append(text)
     return out
+
+
+def summarize_process_output(text: str) -> list[str]:
+    lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            lines.append(first_line(line))
+        if len(lines) >= 3:
+            break
+    return lines
+
+
+def first_line(text: str) -> str:
+    text = (text or "").strip()
+    if not text:
+        return ""
+    line = text.splitlines()[0].strip()
+    return line[:240] + ("..." if len(line) > 240 else "")
