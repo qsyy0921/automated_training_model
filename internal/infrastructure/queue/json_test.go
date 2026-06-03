@@ -67,7 +67,11 @@ func TestJSONQueueWritesArtifactManifest(t *testing.T) {
 		task.Attempt = 1
 		task.MaxAttempts = 1
 		task.WorkerHeartbeat = &workflow.TaskHeartbeat{At: finished.Format(time.RFC3339Nano), Status: "completed", Message: "done"}
-		task.Artifacts = []workflow.TaskArtifact{{Name: "plan", URI: "artifact://training/task_000001", Kind: "dry-run-plan"}}
+		task.Artifacts = []workflow.TaskArtifact{
+			{Name: "request", URI: "artifact://training/task_000001/request", Kind: "training.run.request", Metadata: map[string]string{"role": "request"}},
+			{Name: "plan", URI: "artifact://training/task_000001/plan", Kind: "training.run.plan", Metadata: map[string]string{"role": "plan"}},
+			{Name: "result", URI: "artifact://training/task_000001/result", Kind: "training.run.result", Metadata: map[string]string{"role": "result", "execution_mode": "recipe-executed"}},
+		}
 		task.Metadata = map[string]string{"worker_finished_at": finished.Format(time.RFC3339Nano)}
 		task.StartedAt = &started
 		task.FinishedAt = &finished
@@ -93,8 +97,23 @@ func TestJSONQueueWritesArtifactManifest(t *testing.T) {
 	if err := json.Unmarshal(data, &payload); err != nil {
 		t.Fatalf("parse manifest: %v\n%s", err, string(data))
 	}
-	if payload["task_id"] != "task_000001" || payload["status"] != string(workflow.TaskCompleted) {
+	if payload["schema_version"] != "artifact-manifest/v1" || payload["task_id"] != "task_000001" || payload["status"] != string(workflow.TaskCompleted) {
 		t.Fatalf("unexpected manifest payload: %s", string(data))
+	}
+	summary, ok := payload["artifact_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected artifact_summary, got %s", string(data))
+	}
+	if summary["artifact_count"] != float64(3) {
+		t.Fatalf("expected artifact_count=3, got %v", summary["artifact_count"])
+	}
+	roleCounts, ok := summary["role_counts"].(map[string]any)
+	if !ok || roleCounts["request"] != float64(1) || roleCounts["plan"] != float64(1) || roleCounts["result"] != float64(1) {
+		t.Fatalf("unexpected role_counts: %+v", summary["role_counts"])
+	}
+	modeCounts, ok := summary["execution_mode_counts"].(map[string]any)
+	if !ok || modeCounts["recipe-executed"] != float64(1) {
+		t.Fatalf("unexpected execution_mode_counts: %+v", summary["execution_mode_counts"])
 	}
 }
 

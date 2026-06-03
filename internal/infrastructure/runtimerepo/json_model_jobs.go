@@ -3,11 +3,13 @@ package runtimerepo
 import (
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/agentruntime"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/artifactmanifest"
 )
 
 type JSONModelJobStore struct {
@@ -18,6 +20,7 @@ type JSONModelJobStore struct {
 }
 
 type modelJobArtifactManifestFile struct {
+	SchemaVersion   string                          `json:"schema_version"`
 	JobID           string                          `json:"job_id"`
 	ParentID        string                          `json:"parent_id,omitempty"`
 	Kind            string                          `json:"kind"`
@@ -28,6 +31,7 @@ type modelJobArtifactManifestFile struct {
 	Attempt         int                             `json:"attempt,omitempty"`
 	MaxAttempts     int                             `json:"max_attempts,omitempty"`
 	WorkerHeartbeat *agentruntime.ModelJobHeartbeat `json:"worker_heartbeat,omitempty"`
+	ArtifactSummary artifactmanifest.Summary        `json:"artifact_summary"`
 	Artifacts       []agentruntime.ModelJobArtifact `json:"artifacts,omitempty"`
 	Metadata        map[string]string               `json:"metadata,omitempty"`
 	CreatedAt       time.Time                       `json:"created_at"`
@@ -157,7 +161,14 @@ func (s *JSONModelJobStore) WriteArtifactManifest(job agentruntime.ModelJob) (st
 		return "", nil
 	}
 	path := s.artifactManifestPath(job.ID)
+	summary := artifactmanifest.BuildSummary(modelJobManifestEntries(job.Artifacts))
+	if summary.ArtifactCount == 0 {
+		if count, err := strconv.Atoi(strings.TrimSpace(job.Metadata["artifact_count"])); err == nil && count > 0 {
+			summary.ArtifactCount = count
+		}
+	}
 	payload := modelJobArtifactManifestFile{
+		SchemaVersion:   artifactmanifest.SchemaVersionV1,
 		JobID:           job.ID,
 		ParentID:        job.ParentID,
 		Kind:            job.Kind,
@@ -168,6 +179,7 @@ func (s *JSONModelJobStore) WriteArtifactManifest(job agentruntime.ModelJob) (st
 		Attempt:         job.Attempt,
 		MaxAttempts:     job.MaxAttempts,
 		WorkerHeartbeat: job.WorkerHeartbeat,
+		ArtifactSummary: summary,
 		Artifacts:       job.Artifacts,
 		Metadata:        job.Metadata,
 		CreatedAt:       job.CreatedAt,
@@ -209,4 +221,20 @@ func normalizeModelJobLimit(limit int) int {
 		return 500
 	}
 	return limit
+}
+
+func modelJobManifestEntries(items []agentruntime.ModelJobArtifact) []artifactmanifest.Entry {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]artifactmanifest.Entry, 0, len(items))
+	for _, item := range items {
+		out = append(out, artifactmanifest.Entry{
+			Name:     item.Name,
+			URI:      item.URI,
+			Kind:     item.Kind,
+			Metadata: item.Metadata,
+		})
+	}
+	return out
 }

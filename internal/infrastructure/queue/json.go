@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/domain/workflow"
+	"github.com/qsyy0921/automated_training_model/internal/infrastructure/artifactmanifest"
 )
 
 type JSONQueue struct {
@@ -22,21 +24,23 @@ type JSONQueue struct {
 }
 
 type taskArtifactManifestFile struct {
-	TaskID          string                  `json:"task_id"`
-	Type            string                  `json:"type"`
-	Status          workflow.TaskStatus     `json:"status"`
-	Message         string                  `json:"message,omitempty"`
-	Retryable       bool                    `json:"retryable,omitempty"`
-	Attempt         int                     `json:"attempt,omitempty"`
-	MaxAttempts     int                     `json:"max_attempts,omitempty"`
-	WorkerHeartbeat *workflow.TaskHeartbeat `json:"worker_heartbeat,omitempty"`
-	Artifacts       []workflow.TaskArtifact `json:"artifacts,omitempty"`
-	Metadata        map[string]string       `json:"metadata,omitempty"`
-	CreatedAt       time.Time               `json:"created_at"`
-	StartedAt       *time.Time              `json:"started_at,omitempty"`
-	UpdatedAt       time.Time               `json:"updated_at"`
-	FinishedAt      *time.Time              `json:"finished_at,omitempty"`
-	ArchivedAt      time.Time               `json:"archived_at"`
+	SchemaVersion   string                   `json:"schema_version"`
+	TaskID          string                   `json:"task_id"`
+	Type            string                   `json:"type"`
+	Status          workflow.TaskStatus      `json:"status"`
+	Message         string                   `json:"message,omitempty"`
+	Retryable       bool                     `json:"retryable,omitempty"`
+	Attempt         int                      `json:"attempt,omitempty"`
+	MaxAttempts     int                      `json:"max_attempts,omitempty"`
+	WorkerHeartbeat *workflow.TaskHeartbeat  `json:"worker_heartbeat,omitempty"`
+	ArtifactSummary artifactmanifest.Summary `json:"artifact_summary"`
+	Artifacts       []workflow.TaskArtifact  `json:"artifacts,omitempty"`
+	Metadata        map[string]string        `json:"metadata,omitempty"`
+	CreatedAt       time.Time                `json:"created_at"`
+	StartedAt       *time.Time               `json:"started_at,omitempty"`
+	UpdatedAt       time.Time                `json:"updated_at"`
+	FinishedAt      *time.Time               `json:"finished_at,omitempty"`
+	ArchivedAt      time.Time                `json:"archived_at"`
 }
 
 func NewJSONQueue(path string, now func() time.Time) (*JSONQueue, error) {
@@ -138,7 +142,14 @@ func (q *JSONQueue) WriteArtifactManifest(task workflow.Task) (string, error) {
 		return "", nil
 	}
 	path := q.artifactManifestPath(task.ID)
+	summary := artifactmanifest.BuildSummary(taskManifestEntries(task.Artifacts))
+	if summary.ArtifactCount == 0 {
+		if count, err := strconv.Atoi(task.Metadata["artifact_count"]); err == nil && count > 0 {
+			summary.ArtifactCount = count
+		}
+	}
 	payload := taskArtifactManifestFile{
+		SchemaVersion:   artifactmanifest.SchemaVersionV1,
 		TaskID:          task.ID,
 		Type:            task.Type,
 		Status:          task.Status,
@@ -147,6 +158,7 @@ func (q *JSONQueue) WriteArtifactManifest(task workflow.Task) (string, error) {
 		Attempt:         task.Attempt,
 		MaxAttempts:     task.MaxAttempts,
 		WorkerHeartbeat: task.WorkerHeartbeat,
+		ArtifactSummary: summary,
 		Artifacts:       copyTaskArtifacts(task.Artifacts),
 		Metadata:        copyStringMap(task.Metadata),
 		CreatedAt:       task.CreatedAt,
@@ -231,4 +243,20 @@ func writeJSONFile(path string, value any) error {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
+}
+
+func taskManifestEntries(items []workflow.TaskArtifact) []artifactmanifest.Entry {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]artifactmanifest.Entry, 0, len(items))
+	for _, item := range items {
+		out = append(out, artifactmanifest.Entry{
+			Name:     item.Name,
+			URI:      item.URI,
+			Kind:     item.Kind,
+			Metadata: item.Metadata,
+		})
+	}
+	return out
 }

@@ -1,9 +1,9 @@
 package runtimerepo
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -100,26 +100,45 @@ func TestJSONModelJobStoreWritesArtifactManifest(t *testing.T) {
 		Attempt:         1,
 		MaxAttempts:     1,
 		WorkerHeartbeat: &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:00:10Z", Status: "completed", Message: "done"},
-		Artifacts:       []agentruntime.ModelJobArtifact{{Name: "manifest", URI: "artifact://verify/model-job-artifact", Kind: "manifest"}},
-		Metadata:        map[string]string{"execution_path": "python-worker", "artifact_count": "1"},
-		CreatedAt:       now,
-		FinishedAt:      &finished,
+		Artifacts: []agentruntime.ModelJobArtifact{
+			{Name: "request", URI: "artifact://verify/model-job-artifact/request", Kind: "model.verify_hf.request", Metadata: map[string]string{"role": "request"}},
+			{Name: "result", URI: "artifact://verify/model-job-artifact/result", Kind: "model.verify_hf.result", Metadata: map[string]string{"role": "result", "execution_mode": "worker-verify"}},
+		},
+		Metadata:   map[string]string{"execution_path": "python-worker", "artifact_count": "1"},
+		CreatedAt:  now,
+		FinishedAt: &finished,
 	})
 	manifestPath, err := store.WriteArtifactManifest(job)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasSuffix(filepath.ToSlash(manifestPath), "/artifacts/model-job-artifact.artifact_manifest.json") {
+	if filepath.Base(manifestPath) != "model-job-artifact.artifact_manifest.json" {
 		t.Fatalf("unexpected manifest path: %s", manifestPath)
 	}
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := string(data)
-	for _, fragment := range []string{`"job_id": "model-job-artifact"`, `"kind": "model.verify_hf"`, `"artifact://verify/model-job-artifact"`, `"artifact_count": "1"`} {
-		if !strings.Contains(body, fragment) {
-			t.Fatalf("expected manifest to contain %q, got %s", fragment, body)
-		}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("parse manifest: %v\n%s", err, string(data))
+	}
+	if payload["schema_version"] != "artifact-manifest/v1" || payload["job_id"] != "model-job-artifact" || payload["kind"] != "model.verify_hf" {
+		t.Fatalf("unexpected manifest payload: %s", string(data))
+	}
+	summary, ok := payload["artifact_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected artifact_summary, got %s", string(data))
+	}
+	if summary["artifact_count"] != float64(2) {
+		t.Fatalf("expected artifact_count=2, got %v", summary["artifact_count"])
+	}
+	roleCounts, ok := summary["role_counts"].(map[string]any)
+	if !ok || roleCounts["request"] != float64(1) || roleCounts["result"] != float64(1) {
+		t.Fatalf("unexpected role_counts: %+v", summary["role_counts"])
+	}
+	primary, ok := summary["primary_artifact"].(map[string]any)
+	if !ok || primary["name"] != "result" || primary["role"] != "result" || primary["execution_mode"] != "worker-verify" {
+		t.Fatalf("unexpected primary_artifact: %+v", summary["primary_artifact"])
 	}
 }
