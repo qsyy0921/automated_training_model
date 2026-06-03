@@ -1,7 +1,9 @@
 package runtimerepo
 
 import (
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +15,25 @@ type JSONModelJobStore struct {
 	path string
 	now  func() time.Time
 	jobs map[string]agentruntime.ModelJob
+}
+
+type modelJobArtifactManifestFile struct {
+	JobID           string                          `json:"job_id"`
+	ParentID        string                          `json:"parent_id,omitempty"`
+	Kind            string                          `json:"kind"`
+	RepoID          string                          `json:"repo_id,omitempty"`
+	Status          string                          `json:"status"`
+	Message         string                          `json:"message,omitempty"`
+	Retryable       bool                            `json:"retryable,omitempty"`
+	Attempt         int                             `json:"attempt,omitempty"`
+	MaxAttempts     int                             `json:"max_attempts,omitempty"`
+	WorkerHeartbeat *agentruntime.ModelJobHeartbeat `json:"worker_heartbeat,omitempty"`
+	Artifacts       []agentruntime.ModelJobArtifact `json:"artifacts,omitempty"`
+	Metadata        map[string]string               `json:"metadata,omitempty"`
+	CreatedAt       time.Time                       `json:"created_at"`
+	UpdatedAt       time.Time                       `json:"updated_at"`
+	FinishedAt      *time.Time                      `json:"finished_at,omitempty"`
+	ArchivedAt      time.Time                       `json:"archived_at"`
 }
 
 func NewJSONModelJobStore(path string, now func() time.Time) (*JSONModelJobStore, error) {
@@ -126,6 +147,47 @@ func (s *JSONModelJobStore) load() error {
 
 func (s *JSONModelJobStore) persistLocked() error {
 	return writeJSONFile(s.path, sortedModelJobs(s.jobs))
+}
+
+func (s *JSONModelJobStore) WriteArtifactManifest(job agentruntime.ModelJob) (string, error) {
+	if strings.TrimSpace(job.ID) == "" {
+		return "", nil
+	}
+	if len(job.Artifacts) == 0 && strings.TrimSpace(job.Metadata["artifact_count"]) == "" {
+		return "", nil
+	}
+	path := s.artifactManifestPath(job.ID)
+	payload := modelJobArtifactManifestFile{
+		JobID:           job.ID,
+		ParentID:        job.ParentID,
+		Kind:            job.Kind,
+		RepoID:          job.RepoID,
+		Status:          job.Status,
+		Message:         job.Message,
+		Retryable:       job.Retryable,
+		Attempt:         job.Attempt,
+		MaxAttempts:     job.MaxAttempts,
+		WorkerHeartbeat: job.WorkerHeartbeat,
+		Artifacts:       job.Artifacts,
+		Metadata:        job.Metadata,
+		CreatedAt:       job.CreatedAt,
+		UpdatedAt:       job.UpdatedAt,
+		FinishedAt:      job.FinishedAt,
+		ArchivedAt:      s.now(),
+	}
+	if err := writeJSONFile(path, payload); err != nil {
+		return "", err
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path), nil
+	}
+	return abs, nil
+}
+
+func (s *JSONModelJobStore) artifactManifestPath(jobID string) string {
+	base := filepath.Dir(s.path)
+	return filepath.Join(base, "artifacts", jobID+".artifact_manifest.json")
 }
 
 func sortedModelJobs(items map[string]agentruntime.ModelJob) []agentruntime.ModelJob {

@@ -60,7 +60,7 @@ Model & Data Training Platform
 - Governance control surface：强制检查点、数据治理、发布治理、运行策略、Schema、预算、租户隔离和恢复策略。
 - 模型注册元数据持久化到 `data_lake/models/models.json`，模型权重和 checkpoint 不进入 Git。
 - Agent Runtime session/trace 默认持久化到 `data_lake/runtime`，Web/CLI/桌面端/QQ 共用同一份运行态审计记录。
-- Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前未完成的下载任务会恢复为 `interrupted`，重新提交后可利用 HuggingFace cache 继续。
+- Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；worker-backed job 的 artifact manifest 会额外归档到 `data_lake/runtime/artifacts/*.artifact_manifest.json`；服务重启前未完成的下载任务会恢复为 `interrupted`，重新提交后可利用 HuggingFace cache 继续。
 - Tool schema / preflight / runner 已拆到 `internal/app/toolapp`：未注册工具、未知参数、高风险审批缺失和缺失 handler 会在具体执行前被拦截。
 - Runtime / Gateway 错误响应保留兼容的 `error` 字符串，同时新增 `error_envelope`，包含 `code`、`message`、`source`、`retryable`，CLI stream 会优先显示结构化错误消息。
 - Data Intake Workflow 的 MVP 已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，完成附件 quarantine、静态 scan、dry-run plan 和 pending approval workflow，并把 `workflow_id`、`plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划和 workflow 默认持久化到 `data_lake/runtime/intake`。
@@ -271,7 +271,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-pla
 
 文本规划默认使用 `mimo-v2.5-pro`，视觉理解默认使用 `mimo-v2.5`。普通聊天默认走 fast chat，`AGENT_RUNTIME_FAST_CHAT=false` 可关闭；已知 LocateAnything 固定流程默认走 Go 本地语义 fast-path，`AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH=false` 可强制回到 Mimo planner；`AGENT_RUNTIME_PYTHON_WORKER=false` 可把 Python planner 从常驻 worker 回退到单次 spawn 模式。
 
-模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态、进度、日志、取消标记和恢复关系持久化到 `data_lake/runtime/model_jobs.json`。可通过 `runtime model-jobs` 查看列表，`runtime job <job_id>` 查看详情，`runtime job-logs <job_id>` 查看生命周期日志，`runtime cancel-job <job_id>` 请求取消，`runtime resume-job <job_id>` 基于 HuggingFace cache 新建恢复任务。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
+模型下载是 runtime 异步长任务。`model.download_hf` 会立即返回 `queued/job_id`，后台任务写入 `data_lake/models/artifacts/huggingface`，任务状态、进度、日志、取消标记和恢复关系持久化到 `data_lake/runtime/model_jobs.json`；worker 产物摘要会额外归档到 `data_lake/runtime/artifacts/<job_id>.artifact_manifest.json`。可通过 `runtime model-jobs` 查看列表，`runtime job <job_id>` 查看详情，`runtime job-logs <job_id>` 查看生命周期日志，`runtime cancel-job <job_id>` 请求取消，`runtime resume-job <job_id>` 基于 HuggingFace cache 新建恢复任务。模型权重、checkpoint、HF cache 和真实 API Key 不能提交到 Git。
 
 默认本机开发模式允许高风险工具进入受控执行；需要统一收紧时设置：
 

@@ -126,6 +126,7 @@ type runtimeModelJobLogsPayload struct {
 	Artifacts       []runtimeJobArtifact `json:"artifacts"`
 	Stdout          string               `json:"stdout"`
 	Stderr          string               `json:"stderr"`
+	Metadata        map[string]any       `json:"metadata"`
 	Logs            []runtimeModelJobLog `json:"logs"`
 }
 
@@ -771,6 +772,11 @@ func (c *runtimeChat) printJobLogs(id string) error {
 	}
 	if len(payload.Artifacts) > 0 {
 		lines = append(lines, fmt.Sprintf("artifacts %d  %s", len(payload.Artifacts), valueOr(payload.Artifacts[0].URI, "-")))
+	}
+	if payload.Metadata != nil {
+		if manifest := strings.TrimSpace(fmt.Sprint(payload.Metadata["artifact_manifest"])); manifest != "" && manifest != "<nil>" {
+			lines = append(lines, "manifest  "+firstLine(manifest, c.contentWidth()-12))
+		}
 	}
 	if strings.TrimSpace(payload.Stdout) != "" {
 		lines = append(lines, "stdout    "+firstLine(payload.Stdout, c.contentWidth()-12))

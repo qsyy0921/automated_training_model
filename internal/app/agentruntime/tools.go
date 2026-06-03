@@ -670,6 +670,7 @@ func (e *GoToolExecutor) runHFModelWorkerJob(jobID string, req modelruntime.Work
 		}
 		job.Logs = appendModelJobLog(job.Logs, finished, "info", job.Message)
 	})
+	e.persistModelJobArtifactManifest(jobID)
 }
 
 func (e *GoToolExecutor) ListModelJobs(limit int) []ModelJob {
@@ -1034,6 +1035,32 @@ func pythonWorkerErrorMetadata(err error) map[string]string {
 		"worker_error_kind":      typed.WorkerKind(),
 		"worker_error_retryable": strconv.FormatBool(typed.WorkerRetryable()),
 	}
+}
+
+func (e *GoToolExecutor) persistModelJobArtifactManifest(jobID string) {
+	writer, ok := e.modelJobs.(ModelJobArtifactManifestWriter)
+	if !ok {
+		return
+	}
+	job, ok := e.modelJobs.Get(jobID)
+	if !ok {
+		return
+	}
+	path, err := writer.WriteArtifactManifest(job)
+	if err != nil || strings.TrimSpace(path) == "" {
+		if err != nil {
+			now := e.now()
+			e.modelJobs.Update(jobID, func(job *ModelJob) {
+				job.Logs = appendModelJobLog(job.Logs, now, "warn", "artifact manifest persist failed: "+err.Error())
+			})
+		}
+		return
+	}
+	e.modelJobs.Update(jobID, func(job *ModelJob) {
+		job.Metadata = mergeStringMaps(job.Metadata, map[string]string{
+			"artifact_manifest": path,
+		})
+	})
 }
 
 func firstNonEmpty(values ...string) string {

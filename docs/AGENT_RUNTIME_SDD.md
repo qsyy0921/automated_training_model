@@ -228,7 +228,7 @@ Mimo 路由规则：
 | Tool Runner | `internal/app/toolapp.Runner` 负责 preflight、handler dispatch、结果合并和未注册 handler 拦截 | 增加 handler registry 持久化和审批队列联动 |
 | Tool Executor | `GoToolExecutor` 当前只注册 runtime、workflow app 调用、intake app 调用、vision 调用、llm.plan、modelruntime adapter | 将 model job 生命周期迁移到 task/model worker，将 workflow app 接到 workflow/task repository |
 | Runtime Workflow | `internal/app/runtimeworkflow` 管理 `workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则、RunRequest 构造和回复格式 | 后续替换 agent app 内存队列，接入持久 task repository、日志和 artifacts |
-| Model Runtime | `internal/app/modelruntime` 管理 `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数默认值、路径白名单、Python 脚本调用、超时和 smoke JSON 解析；已知 LocateAnything 固定流程可由 Go 本地语义 fast-path 生成计划；`model.download_hf` 默认进入异步 `ModelJob` 并启动 Python worker，`model.verify_hf` / `model.smoke_locateanything` 可显式 `job=true` 进入 worker job，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧，`AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service` 回退旧下载路径；worker timeout / decode failure 会把 stdout、stderr 和错误类型带回 Go store | 后续接入模型注册、统一 task repository、逐文件进度、实时日志和断点续传 UI |
+| Model Runtime | `internal/app/modelruntime` 管理 `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数默认值、路径白名单、Python 脚本调用、超时和 smoke JSON 解析；已知 LocateAnything 固定流程可由 Go 本地语义 fast-path 生成计划；`model.download_hf` 默认进入异步 `ModelJob` 并启动 Python worker，`model.verify_hf` / `model.smoke_locateanything` 可显式 `job=true` 进入 worker job，可用 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` 收紧，`AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service` 回退旧下载路径；worker timeout / decode failure 会把 stdout、stderr 和错误类型带回 Go store，worker artifacts 会额外归档到 runtime artifact manifest | 后续接入模型注册、统一 task repository、逐文件进度、实时日志和断点续传 UI |
 | Training Runtime | 当前先通过 `training.run(dry_run)` 进入 Python worker `ModelJob`，由 `/bot-train-dry <dataset_id> [target_task] [model_family]` 触发，返回 dry-run artifact 和 heartbeat | 后续接入真实训练 recipe、GPU 调度、checkpoint artifact 和统一 task repository |
 | Data Intake Workflow | `internal/app/intakeapp` 生成 quarantine、静态 scan、`intake.plan` / `vlm.inspect` dry-run 计划和 pending approval workflow；`internal/infrastructure/intakerepo.JSONRepository` 默认持久化到 `data_lake/runtime/intake`；ShanghaiTech 数据附件会在 trace metadata 中记录 `workflow_id`、`plan_id`、`dataset_name`、`source_uri`、`dry_run` 和审批边界 | 将 JSON MVP 推进到真实文件隔离区、深度 scan、审批队列和正式 dataset registry 写入 |
 | Trace | 每条消息写入 `TraceEvent`，JSON MVP 可跨重启恢复 | 检索、成本统计、skill mining 输入 |
@@ -341,7 +341,7 @@ $env:QQ_ONEBOT_ACCESS_TOKEN="replace_me_if_napcat_requires_token"
 2. Go ToolExecutor 校验 `repo_id`、`local_dir`、`manifest` 和 `data_lake` 写入边界。
 3. ToolExecutor 创建 `ModelJob`，立即返回 `queued` 和 `job_id`。
 4. Go worker runner 生成 job envelope，启动 `python -m agent_worker.main`，由 Python worker 调用 `skills/huggingface-model-downloader/scripts/download_hf_snapshot.py`。
-5. `JSONModelJobStore` 将任务状态、进度、生命周期日志、heartbeat、artifacts、stdout/stderr 摘要、取消标记和 parent/resume 关系写入 `data_lake/runtime/model_jobs.json`。
+5. `JSONModelJobStore` 将任务状态、进度、生命周期日志、heartbeat、artifacts、stdout/stderr 摘要、取消标记和 parent/resume 关系写入 `data_lake/runtime/model_jobs.json`，并把 worker-backed artifacts 归档到 `data_lake/runtime/artifacts/<job_id>.artifact_manifest.json`。
 6. Web、CLI、桌面端和 QQ 后续都通过 runtime job 状态查询进度；CLI/Gateway 可请求取消或基于 HuggingFace cache 新建恢复任务；如需回退旧 service runner，可显式设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`。
 
 如果服务重启时存在 `queued` 或 `running` 的模型任务，JSON store 会把它们恢复为 `interrupted` 并标记 `resumable=true`，避免 UI 误判后台 worker 仍在执行。HuggingFace snapshot cache 本身支持断点续传；用户通过 `resume-job` 新建恢复任务后可继续利用本地 cache。

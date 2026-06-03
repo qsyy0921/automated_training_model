@@ -138,6 +138,7 @@ func (s *Server) runtimeModelJobLogs(w http.ResponseWriter, r *http.Request, id 
 		"artifacts":        job.Artifacts,
 		"stdout":           job.Stdout,
 		"stderr":           job.Stderr,
+		"metadata":         job.Metadata,
 		"logs":             agentruntime.RecentModelJobLogs(job, runtimeTraceLimit(r)),
 	})
 }

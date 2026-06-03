@@ -278,6 +278,7 @@ export interface RuntimeModelJobLogs {
   }>;
   stdout?: string;
   stderr?: string;
+  metadata?: Record<string, string>;
   logs: RuntimeModelJobLog[] | null;
 }
 

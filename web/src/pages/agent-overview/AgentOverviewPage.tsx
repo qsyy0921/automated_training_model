@@ -208,6 +208,13 @@ export function AgentOverviewPage() {
                 <small>{modelJobLogs.data?.artifacts?.[0]?.uri}</small>
               </div>
             ) : null}
+            {selectedJobId !== "" && modelJobLogs.data?.metadata?.artifact_manifest ? (
+              <div className="overviewRow">
+                <strong>manifest</strong>
+                <span>artifact manifest</span>
+                <small>{modelJobLogs.data.metadata.artifact_manifest}</small>
+              </div>
+            ) : null}
             {selectedJobId !== "" && modelJobLogs.data?.stdout ? (
               <pre className="jsonPreview">{modelJobLogs.data.stdout}</pre>
             ) : null}

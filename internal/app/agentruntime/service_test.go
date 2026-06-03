@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,12 @@ type fakeAgentPlane struct {
 	submitted agent.RunRequest
 }
 
+type manifestRecordingStore struct {
+	*InMemoryModelJobStore
+	path string
+	job  ModelJob
+}
+
 func (f *fakeAgentPlane) SubmitWorkflowRun(ctx context.Context, req agent.RunRequest) (agent.WorkflowRun, error) {
 	f.submitted = req
 	run := agent.WorkflowRun{ID: "run_test", TaskID: "task_test", WorkflowID: req.WorkflowID, DatasetID: req.DatasetID, Status: "queued"}
@@ -27,6 +34,14 @@ func (f *fakeAgentPlane) SubmitWorkflowRun(ctx context.Context, req agent.RunReq
 
 func (f *fakeAgentPlane) ListRuns(ctx context.Context) ([]agent.WorkflowRun, error) {
 	return f.runs, nil
+}
+
+func (s *manifestRecordingStore) WriteArtifactManifest(job ModelJob) (string, error) {
+	s.job = job
+	if strings.TrimSpace(s.path) == "" {
+		s.path = filepath.Join("runtime", "artifacts", job.ID+".artifact_manifest.json")
+	}
+	return s.path, nil
 }
 
 func TestBotRunDrySubmitsWorkflow(t *testing.T) {
@@ -1019,6 +1034,85 @@ func TestPythonWorkerDecodeFailurePersistsObservability(t *testing.T) {
 		select {
 		case <-deadline:
 			t.Fatalf("expected worker decode failure to fail job, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func TestPythonWorkerArtifactManifestPathPersistedToMetadata(t *testing.T) {
+	store := &manifestRecordingStore{InMemoryModelJobStore: NewInMemoryModelJobStore(time.Now)}
+	executor := NewGoToolExecutorWithModelJobs(&fakeAgentPlane{}, nil, store)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "worker verify completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:00Z", Status: "completed", Message: "verified"},
+			Artifacts:   []modelruntime.WorkerArtifact{{Name: "manifest", URI: "artifact://verify/" + req.TaskID, Kind: "manifest"}},
+		}, nil
+	}
+	_, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: channel.InboundMessage{
+			ID:        "msg1",
+			Channel:   channel.KindQQ,
+			AccountID: "default",
+			Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+			SenderID:  "10001",
+			Text:      "verify model",
+		},
+		Session: BuildSessionContext(channel.InboundMessage{
+			ID:        "msg1",
+			Channel:   channel.KindQQ,
+			AccountID: "default",
+			Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+			SenderID:  "10001",
+		}, DelegationDecision{AgentID: "model-agent"}),
+		Intent: Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.verify_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B", "job": "true"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "succeeded" {
+			if got := job.Metadata["artifact_manifest"]; !strings.Contains(got, "artifact_manifest.json") {
+				select {
+				case <-deadline:
+					t.Fatalf("expected artifact manifest metadata, got %+v", job.Metadata)
+				default:
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
+			}
+			if store.job.ID != job.ID || len(store.job.Artifacts) != 1 {
+				t.Fatalf("expected artifact manifest writer to receive final job, got %+v", store.job)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected worker job to succeed, got %+v", job)
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}

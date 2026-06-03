@@ -64,7 +64,7 @@ Workers and Providers
 | Sub-agent Router | `subagent.go` | 决定是否委托 planner/vision/data-intake/training/skill-miner | 不绕过 approval |
 | Tool Schema / Preflight | `internal/app/toolapp/schema.go` | tool registry、参数 schema、risk、approval/preflight | 不执行真实副作用 |
 | Tool Runner | `internal/app/toolapp/runner.go` | preflight、handler dispatch、结果合并、未注册 handler 拦截、输出最小工具进度事件 | 不绑定 channel/session/runtime store |
-| ToolExecutor | `tools.go` | 注册 MVP 工具 handler；`intake.plan` / `vlm.inspect` 只调用 `intakeapp`，`workflow.list_runs` / `workflow.submit_run` 只调用 `runtimeworkflow`，`model.*` 只调用 `modelruntime` 并管理异步 `ModelJob` 生命周期 | 后续把 model job 生命周期迁移到 task/model worker，把 `runtimeworkflow` 接到正式 workflow/task repository |
+| ToolExecutor | `tools.go` | 注册 MVP 工具 handler；`intake.plan` / `vlm.inspect` 只调用 `intakeapp`，`workflow.list_runs` / `workflow.submit_run` 只调用 `runtimeworkflow`，`model.*` 只调用 `modelruntime` 并管理异步 `ModelJob` 生命周期；worker-backed job 完成后会尝试归档 `artifact manifest` | 后续把 model job 生命周期迁移到 task/model worker，把 `runtimeworkflow` 接到正式 workflow/task repository |
 | Model Runtime | `internal/app/modelruntime` | `model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 参数规范化、路径白名单、脚本调用、超时和 smoke JSON 解析 | 不持有 channel/session/trace；后续接统一模型任务 worker |
 | Runtime Store | `store.go`、`model_jobs.go`、`internal/infrastructure/runtimerepo`、`internal/infrastructure/intakerepo` | sessions、traces、model jobs、dry-run intake plans/workflows | session/trace、model jobs、intake plans 和 intake workflows 默认 JSON 持久化；后续迁移到 task repository / intake repository |
 | Gateway Middleware | `internal/infrastructure/middleware` | request id、CORS、recover、Gateway token auth、non-loopback access guard | 不读取模型密钥；不把 token 写入 status 或日志 |
@@ -145,7 +145,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - `--dry-run`：读取远端清单，记录 `remote_file_count` 和 `remote_total_bytes`，不下载权重。
 - 默认下载：调用 `huggingface_hub.snapshot_download`，支持 resume。
 - `--verify-only`：对比远端文件清单和本地文件大小，缺失或大小不一致时失败。
-- `GET /api/runtime/model-jobs/{job_id}/logs`：读取已持久化的模型任务生命周期日志。
+- `GET /api/runtime/model-jobs/{job_id}/logs`：读取已持久化的模型任务生命周期日志，并返回 `metadata.artifact_manifest` 以定位归档后的 artifact manifest。
 - `GET /api/runtime/model-jobs/{job_id}/logs/stream`：以 NDJSON 输出已有日志和终态事件，为后续真实 worker 日志流保留兼容入口。
 - Web Agent Overview 可点击 model job 并查询 `/logs`，与 CLI/API 共用同一 Gateway 边界。
 
@@ -173,7 +173,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
-- model job 逐文件字节级进度、实时 worker stdout/stderr NDJSON 流和自动 resume；当前 `model.download_hf` 已默认通过 Go `ModelJob` 启动 Python worker，`model.verify_hf` 与 `model.smoke_locateanything` 也支持显式 worker job，并把 heartbeat/log/artifact/retry/stdout/stderr 摘要写入 store；timeout / decode failure 也会保留部分 stdout/stderr 和错误类型，但仍未提供逐文件流式输出和自动恢复执行。
+- model job 逐文件字节级进度、实时 worker stdout/stderr NDJSON 流和自动 resume；当前 `model.download_hf` 已默认通过 Go `ModelJob` 启动 Python worker，`model.verify_hf` 与 `model.smoke_locateanything` 也支持显式 worker job，并把 heartbeat/log/artifact/retry/stdout/stderr 摘要写入 store，同时把 artifact 摘要归档到 `runtime-root/artifacts/*.artifact_manifest.json`；timeout / decode failure 也会保留部分 stdout/stderr 和错误类型，但仍未提供逐文件流式输出和自动恢复执行。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`；`model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析已迁移到 `internal/app/modelruntime`。后续仍需把 model job 生命周期和 workflow run 接入正式 task repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、审批确认、model job 日志流和会话恢复；最小 tool progress streaming 已完成。

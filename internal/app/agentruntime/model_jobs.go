@@ -64,6 +64,10 @@ type ModelJobStore interface {
 	List(limit int) []ModelJob
 }
 
+type ModelJobArtifactManifestWriter interface {
+	WriteArtifactManifest(job ModelJob) (string, error)
+}
+
 type InMemoryModelJobStore struct {
 	mu   sync.RWMutex
 	now  func() time.Time

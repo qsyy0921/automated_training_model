@@ -40,6 +40,7 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 		WorkerHeartbeat: &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:56Z", Status: "completed", Message: "done"},
 		Artifacts:       []agentruntime.ModelJobArtifact{{Name: "plan", URI: "artifact://dry-run/job1", Kind: "dry-run-plan"}},
 		Stdout:          "{\"status\":\"completed\"}",
+		Metadata:        map[string]string{"artifact_manifest": "F:\\automated_training_model\\data_lake\\runtime\\artifacts\\job1.artifact_manifest.json"},
 		Logs: []agentruntime.ModelJobLog{
 			{At: time.Unix(1, 0), Level: "info", Message: "queued"},
 			{At: time.Unix(2, 0), Level: "info", Message: "done"},
@@ -56,7 +57,7 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"job_id":"job1"`) || !strings.Contains(rec.Body.String(), `"done"`) || strings.Contains(rec.Body.String(), `"queued"`) {
 		t.Fatalf("unexpected logs response: %s", rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), `"worker_heartbeat"`) || !strings.Contains(rec.Body.String(), `"artifact://dry-run/job1"`) || !strings.Contains(rec.Body.String(), `"stdout":"{\"status\":\"completed\"}"`) {
+	if !strings.Contains(rec.Body.String(), `"worker_heartbeat"`) || !strings.Contains(rec.Body.String(), `"artifact://dry-run/job1"`) || !strings.Contains(rec.Body.String(), `"stdout":"{\"status\":\"completed\"}"`) || !strings.Contains(rec.Body.String(), `"artifact_manifest"`) {
 		t.Fatalf("unexpected logs response: %s", rec.Body.String())
 	}
 
@@ -85,6 +86,7 @@ func TestRuntimeModelJobLogsEndpointReturnsFailedWorkerFields(t *testing.T) {
 		WorkerHeartbeat: &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:56Z", Status: "running", Message: "alive"},
 		Stdout:          "{\"stage\":\"download\"}",
 		Stderr:          "worker still running",
+		Metadata:        map[string]string{"artifact_manifest": "F:\\automated_training_model\\data_lake\\runtime\\artifacts\\job-timeout.artifact_manifest.json"},
 		Logs: []agentruntime.ModelJobLog{
 			{At: time.Unix(1, 0), Level: "info", Message: "queued"},
 			{At: time.Unix(2, 0), Level: "error", Message: "python model worker timed out after 1s; stderr=worker still running"},
@@ -98,7 +100,7 @@ func TestRuntimeModelJobLogsEndpointReturnsFailedWorkerFields(t *testing.T) {
 		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, fragment := range []string{`"job_id":"job-timeout"`, `"status":"failed"`, `"retryable":true`, `"attempt":2`, `"max_attempts":3`, `"worker_heartbeat"`, `"stdout":"{\"stage\":\"download\"}"`, `"stderr":"worker still running"`} {
+	for _, fragment := range []string{`"job_id":"job-timeout"`, `"status":"failed"`, `"retryable":true`, `"attempt":2`, `"max_attempts":3`, `"worker_heartbeat"`, `"stdout":"{\"stage\":\"download\"}"`, `"stderr":"worker still running"`, `"artifact_manifest"`} {
 		if !strings.Contains(body, fragment) {
 			t.Fatalf("expected fragment %q in body: %s", fragment, body)
 		}
