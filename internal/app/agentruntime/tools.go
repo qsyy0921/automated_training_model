@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -630,6 +631,7 @@ func (e *GoToolExecutor) runHFModelWorkerJob(jobID string, req modelruntime.Work
 		}
 		job.Retryable = result.Retryable
 		appendWorkerLogs(job, result.Logs, finished)
+		job.Metadata = mergeStringMaps(job.Metadata, workerMetadata(result))
 		if ctx.Err() == context.Canceled || job.CancelRequested {
 			job.Status = "canceled"
 			job.Message = "python worker canceled"
@@ -640,14 +642,14 @@ func (e *GoToolExecutor) runHFModelWorkerJob(jobID string, req modelruntime.Work
 		if err != nil {
 			job.Status = "failed"
 			job.Error = err.Error()
-			job.Message = "python worker execution failed"
+			job.Message = firstNonEmpty(result.Message, "python worker execution failed")
 			job.ProgressPercent = normalizeProgress(job.ProgressPercent)
 			job.Retryable = isPythonWorkerRetryable(err)
 			job.Resumable = job.Retryable
+			job.Metadata = mergeStringMaps(job.Metadata, pythonWorkerErrorMetadata(err))
 			job.Logs = appendModelJobLog(job.Logs, finished, "error", err.Error())
 			return
 		}
-		job.Metadata = mergeStringMaps(job.Metadata, workerMetadata(result))
 		switch strings.ToLower(strings.TrimSpace(result.Status)) {
 		case "completed", "ok", "succeeded":
 			job.Status = "succeeded"
@@ -1005,8 +1007,33 @@ func isPythonWorkerRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
+	type retryableWorkerError interface {
+		WorkerRetryable() bool
+	}
+	var typed retryableWorkerError
+	if errors.As(err, &typed) {
+		return typed.WorkerRetryable()
+	}
 	lower := strings.ToLower(err.Error())
 	return strings.Contains(lower, "timed out") || strings.Contains(lower, "context deadline exceeded")
+}
+
+func pythonWorkerErrorMetadata(err error) map[string]string {
+	if err == nil {
+		return nil
+	}
+	type typedWorkerError interface {
+		WorkerKind() string
+		WorkerRetryable() bool
+	}
+	var typed typedWorkerError
+	if !errors.As(err, &typed) {
+		return nil
+	}
+	return map[string]string{
+		"worker_error_kind":      typed.WorkerKind(),
+		"worker_error_retryable": strconv.FormatBool(typed.WorkerRetryable()),
+	}
 }
 
 func firstNonEmpty(values ...string) string {

@@ -863,6 +863,168 @@ func TestTrainingDryRunCanQueuePythonWorkerJob(t *testing.T) {
 	}
 }
 
+func TestPythonWorkerTimeoutFailurePersistsObservability(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		result := modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "failed",
+			Message:     "python model worker timed out after 1s; stderr=worker still running",
+			Retryable:   true,
+			Attempt:     2,
+			MaxAttempts: 3,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:01Z", Status: "running", Message: "alive"},
+			Logs:        []modelruntime.WorkerLog{{At: "2026-06-03T00:00:00Z", Level: "warn", Message: "worker nearly timed out"}},
+			Stdout:      "{\"stage\":\"download\"}",
+			Stderr:      "worker still running",
+		}
+		return result, modelruntime.WorkerRunError{
+			Kind:          "timeout",
+			Message:       result.Message,
+			Stdout:        result.Stdout,
+			Stderr:        result.Stderr,
+			RetryableFlag: true,
+		}
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "model-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "queued" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected python worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "failed" {
+			if !job.Retryable || !job.Resumable || job.Attempt != 2 || job.MaxAttempts != 3 {
+				t.Fatalf("expected retry metadata on timeout, got %+v", job)
+			}
+			if job.WorkerHeartbeat == nil || job.WorkerHeartbeat.Status != "running" {
+				t.Fatalf("expected heartbeat on timeout, got %+v", job)
+			}
+			if !strings.Contains(job.Stdout, "\"stage\":\"download\"") || !strings.Contains(job.Stderr, "worker still running") {
+				t.Fatalf("expected stdout/stderr summaries on timeout, got %+v", job)
+			}
+			if job.Metadata["worker_error_kind"] != "timeout" || job.Metadata["worker_error_retryable"] != "true" || job.Metadata["worker_heartbeat_status"] != "running" {
+				t.Fatalf("expected timeout metadata, got %+v", job.Metadata)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected worker timeout to fail job, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func TestPythonWorkerDecodeFailurePersistsObservability(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		result := modelruntime.WorkerJobResult{
+			TaskID:    req.TaskID,
+			Status:    "failed",
+			Message:   "decode python model worker result: unexpected EOF; stdout={ stderr=bad json",
+			Retryable: false,
+			Stdout:    "{",
+			Stderr:    "bad json",
+		}
+		return result, modelruntime.WorkerRunError{
+			Kind:          "decode_result",
+			Message:       result.Message,
+			Stdout:        result.Stdout,
+			Stderr:        result.Stderr,
+			RetryableFlag: false,
+		}
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "model-agent"})
+	_, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected python worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "failed" {
+			if job.Retryable || job.Resumable {
+				t.Fatalf("expected decode error to stay non-retryable, got %+v", job)
+			}
+			if !strings.Contains(job.Stdout, "{") || !strings.Contains(job.Stderr, "bad json") {
+				t.Fatalf("expected partial stdout/stderr on decode error, got %+v", job)
+			}
+			if job.Metadata["worker_error_kind"] != "decode_result" || job.Metadata["worker_error_retryable"] != "false" {
+				t.Fatalf("expected decode metadata, got %+v", job.Metadata)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected worker decode failure to fail job, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 func TestBotTrainDryCommandQueuesWorkerJobThroughRuntime(t *testing.T) {
 	plane := &fakeAgentPlane{}
 	executor := NewGoToolExecutor(plane, nil)

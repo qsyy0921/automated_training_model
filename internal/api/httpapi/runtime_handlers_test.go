@@ -72,6 +72,39 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 	}
 }
 
+func TestRuntimeModelJobLogsEndpointReturnsFailedWorkerFields(t *testing.T) {
+	job := agentruntime.ModelJob{
+		ID:              "job-timeout",
+		Status:          "failed",
+		Message:         "python model worker timed out after 1s; stderr=worker still running",
+		Error:           "python model worker timed out after 1s; stderr=worker still running",
+		ProgressPercent: 15,
+		Retryable:       true,
+		Attempt:         2,
+		MaxAttempts:     3,
+		WorkerHeartbeat: &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:56Z", Status: "running", Message: "alive"},
+		Stdout:          "{\"stage\":\"download\"}",
+		Stderr:          "worker still running",
+		Logs: []agentruntime.ModelJobLog{
+			{At: time.Unix(1, 0), Level: "info", Message: "queued"},
+			{At: time.Unix(2, 0), Level: "error", Message: "python model worker timed out after 1s; stderr=worker still running"},
+		},
+	}
+	server := &Server{runtime: agentruntime.NewServiceWithRunner(fakeRuntimeRunner{job: job})}
+	req := httptest.NewRequest(http.MethodGet, "/api/runtime/model-jobs/job-timeout/logs?limit=5", nil)
+	rec := httptest.NewRecorder()
+	server.runtimeModelJobDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, fragment := range []string{`"job_id":"job-timeout"`, `"status":"failed"`, `"retryable":true`, `"attempt":2`, `"max_attempts":3`, `"worker_heartbeat"`, `"stdout":"{\"stage\":\"download\"}"`, `"stderr":"worker still running"`} {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("expected fragment %q in body: %s", fragment, body)
+		}
+	}
+}
+
 func TestRuntimeModelJobNotFoundReturnsErrorEnvelope(t *testing.T) {
 	server := &Server{runtime: agentruntime.NewServiceWithRunner(fakeRuntimeRunner{job: agentruntime.ModelJob{ID: "job1"}})}
 	req := httptest.NewRequest(http.MethodGet, "/api/runtime/model-jobs/missing", nil)

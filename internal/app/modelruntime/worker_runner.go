@@ -63,6 +63,26 @@ type WorkerJobResult struct {
 	Stderr      string             `json:"stderr,omitempty"`
 }
 
+type WorkerRunError struct {
+	Kind          string
+	Message       string
+	Stdout        string
+	Stderr        string
+	RetryableFlag bool
+}
+
+func (e WorkerRunError) Error() string {
+	return e.Message
+}
+
+func (e WorkerRunError) WorkerRetryable() bool {
+	return e.RetryableFlag
+}
+
+func (e WorkerRunError) WorkerKind() string {
+	return e.Kind
+}
+
 type PythonModelWorkerRunner struct {
 	python     func() string
 	pythonPath func() string
@@ -105,12 +125,40 @@ func (r *PythonModelWorkerRunner) Run(ctx context.Context, req WorkerJobRequest)
 	stdoutText := truncateWorkerOutput(stdout.String())
 	stderrText := truncateWorkerOutput(stderr.String())
 	if runCtx.Err() == context.DeadlineExceeded {
-		return WorkerJobResult{}, fmt.Errorf("python model worker timed out after %s; stderr=%s", r.timeout(), compactWorkerError(stderrText))
+		message := fmt.Sprintf("python model worker timed out after %s; stderr=%s", r.timeout(), compactWorkerError(stderrText))
+		return WorkerJobResult{
+			TaskID:    req.TaskID,
+			Status:    "failed",
+			Retryable: true,
+			Message:   message,
+			Stdout:    stdoutText,
+			Stderr:    stderrText,
+		}, WorkerRunError{
+			Kind:          "timeout",
+			Message:       message,
+			Stdout:        stdoutText,
+			Stderr:        stderrText,
+			RetryableFlag: true,
+		}
 	}
 
 	var result WorkerJobResult
 	if err := json.Unmarshal([]byte(strings.TrimSpace(stdoutText)), &result); err != nil {
-		return WorkerJobResult{}, fmt.Errorf("decode python model worker result: %w; stdout=%s stderr=%s", err, compactWorkerError(stdoutText), compactWorkerError(stderrText))
+		message := fmt.Sprintf("decode python model worker result: %v; stdout=%s stderr=%s", err, compactWorkerError(stdoutText), compactWorkerError(stderrText))
+		return WorkerJobResult{
+			TaskID:    req.TaskID,
+			Status:    "failed",
+			Retryable: false,
+			Message:   message,
+			Stdout:    stdoutText,
+			Stderr:    stderrText,
+		}, WorkerRunError{
+			Kind:          "decode_result",
+			Message:       message,
+			Stdout:        stdoutText,
+			Stderr:        stderrText,
+			RetryableFlag: false,
+		}
 	}
 	result.Stdout = stdoutText
 	result.Stderr = stderrText

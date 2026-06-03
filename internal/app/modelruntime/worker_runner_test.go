@@ -37,18 +37,24 @@ func TestPythonModelWorkerRunnerFailedResult(t *testing.T) {
 
 func TestPythonModelWorkerRunnerRejectsInvalidJSON(t *testing.T) {
 	runner := helperPythonModelWorkerRunner("badjson")
-	_, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"})
+	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"})
 	if err == nil || !containsAll(err.Error(), "decode python model worker result", "stdout") {
 		t.Fatalf("expected decode error, got %v", err)
+	}
+	if result.Status != "failed" || result.Retryable || !containsAll(result.Stdout, "{") || !containsAll(result.Stderr, "bad json") {
+		t.Fatalf("expected failed partial result with stdout/stderr, got %+v", result)
 	}
 }
 
 func TestPythonModelWorkerRunnerTimeout(t *testing.T) {
 	runner := helperPythonModelWorkerRunner("sleep")
 	runner.timeout = func() time.Duration { return 50 * time.Millisecond }
-	_, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"})
+	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"})
 	if err == nil || !containsAll(err.Error(), "timed out") {
 		t.Fatalf("expected timeout error, got %v", err)
+	}
+	if result.Status != "failed" || !result.Retryable || !containsAll(result.Stderr, "worker still running") {
+		t.Fatalf("expected retryable failed partial result, got %+v", result)
 	}
 }
 
@@ -69,6 +75,7 @@ func TestPythonModelWorkerRunnerHelperProcess(t *testing.T) {
 		fmt.Fprint(os.Stderr, "bad json")
 		os.Exit(1)
 	case "sleep":
+		fmt.Fprint(os.Stderr, "worker still running")
 		time.Sleep(500 * time.Millisecond)
 		fmt.Fprint(os.Stdout, `{"task_id":"job1","status":"completed"}`)
 		os.Exit(0)
