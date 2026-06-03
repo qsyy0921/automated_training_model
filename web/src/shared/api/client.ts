@@ -73,6 +73,7 @@ export const apiClient = {
     const result = await request<Record<string, unknown>>(path, { method: "POST", body: JSON.stringify(payload) });
     return { task: normalizeLifecycleTaskResponse(path, result) };
   },
+  listTasks: async (limit = 30) => request<{ tasks: TaskRecord[] | null }>(`/api/tasks?limit=${limit}`),
   taskStatus: async (id: string) => {
     const result = await request<{ task: TaskRecord }>(`/api/tasks/${id}`);
     return result.task;

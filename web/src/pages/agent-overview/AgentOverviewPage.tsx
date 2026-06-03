@@ -7,16 +7,24 @@ export function AgentOverviewPage() {
   const [view, setView] = useState<"overview" | "review">("overview");
   const [qqText, setQQText] = useState("/bot-ping");
   const [selectedJobId, setSelectedJobId] = useState("");
+  const [selectedTaskId, setSelectedTaskId] = useState("");
   const runtime = useQuery({ queryKey: ["runtime-status"], queryFn: () => apiClient.runtimeStatus() });
   const channels = useQuery({ queryKey: ["channels"], queryFn: () => apiClient.listChannels() });
   const sessions = useQuery({ queryKey: ["runtime-sessions"], queryFn: () => apiClient.runtimeSessions(), refetchInterval: 3000 });
   const traces = useQuery({ queryKey: ["runtime-traces"], queryFn: () => apiClient.runtimeTraces(12), refetchInterval: 3000 });
   const modelJobs = useQuery({ queryKey: ["runtime-model-jobs"], queryFn: () => apiClient.runtimeModelJobs(8), refetchInterval: 3000 });
+  const lifecycleTasks = useQuery({ queryKey: ["lifecycle-tasks"], queryFn: () => apiClient.listTasks(8), refetchInterval: 3000 });
   const modelJobLogs = useQuery({
     queryKey: ["runtime-model-job-logs", selectedJobId],
     queryFn: () => apiClient.runtimeModelJobLogs(selectedJobId, 30),
     enabled: selectedJobId !== "",
     refetchInterval: selectedJobId ? 3000 : false
+  });
+  const taskLogs = useQuery({
+    queryKey: ["lifecycle-task-logs", selectedTaskId],
+    queryFn: () => apiClient.taskLogs(selectedTaskId, 30),
+    enabled: selectedTaskId !== "",
+    refetchInterval: selectedTaskId ? 3000 : false
   });
   const intakeWorkflows = useQuery({ queryKey: ["runtime-intake-workflows"], queryFn: () => apiClient.runtimeIntakeWorkflows(6), refetchInterval: 3000 });
   const desktop = useQuery({ queryKey: ["desktop-status"], queryFn: () => apiClient.desktopStatus() });
@@ -223,6 +231,78 @@ export function AgentOverviewPage() {
             ) : null}
             {(modelJobLogs.data?.logs ?? []).length === 0 && selectedJobId !== "" && !modelJobLogs.isLoading ? <p className="empty">暂无日志</p> : null}
             {(modelJobLogs.data?.logs ?? []).slice(-8).map((log, index) => (
+              <div className="logRow" key={`${log.at}-${index}`}>
+                <span>{compactDateTime(log.at)}</span>
+                <strong>{log.level}</strong>
+                <small>{log.message}</small>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Lifecycle Tasks">
+          <div className="overviewList">
+            {(lifecycleTasks.data?.tasks ?? []).length === 0 ? <p className="empty">no lifecycle tasks</p> : null}
+            {(lifecycleTasks.data?.tasks ?? []).slice(0, 6).map((task) => (
+              <button
+                className={`overviewRow overviewRowButton${selectedTaskId === task.id ? " active" : ""}`}
+                key={task.id}
+                type="button"
+                onClick={() => setSelectedTaskId(task.id)}
+              >
+                <strong>{task.type}</strong>
+                <span>{task.status} · {task.progress_percent ?? 0}%</span>
+                <small>{task.message || task.id}</small>
+              </button>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Lifecycle Task Logs">
+          <div className="overviewList">
+            {selectedTaskId === "" ? <p className="empty">选择一个 lifecycle task 查看日志</p> : null}
+            {selectedTaskId !== "" ? (
+              <div className="overviewRow">
+                <strong>{taskLogs.data?.task_id ?? selectedTaskId}</strong>
+                <span>{taskLogs.isLoading ? "loading" : `${taskLogs.data?.status ?? "unknown"} · ${taskLogs.data?.progress_percent ?? 0}%`}</span>
+                <small>Gateway: /api/tasks/{selectedTaskId}/logs</small>
+              </div>
+            ) : null}
+            {selectedTaskId !== "" && taskLogs.data ? (
+              <div className="overviewRow">
+                <strong>worker</strong>
+                <span>
+                  retryable={String(taskLogs.data.retryable ?? false)} · attempt={taskLogs.data.attempt ?? 0}/{taskLogs.data.max_attempts ?? 0}
+                </span>
+                <small>
+                  {taskLogs.data.worker_heartbeat
+                    ? `heartbeat ${compactDateTime(taskLogs.data.worker_heartbeat.at)} · ${taskLogs.data.worker_heartbeat.status} · ${taskLogs.data.worker_heartbeat.message || ""}`
+                    : "暂无 worker heartbeat"}
+                </small>
+              </div>
+            ) : null}
+            {selectedTaskId !== "" && (taskLogs.data?.artifacts?.length ?? 0) > 0 ? (
+              <div className="overviewRow">
+                <strong>artifacts</strong>
+                <span>{taskLogs.data?.artifacts?.length ?? 0}</span>
+                <small>{taskLogs.data?.artifacts?.[0]?.uri}</small>
+              </div>
+            ) : null}
+            {selectedTaskId !== "" && taskLogs.data?.metadata?.artifact_manifest ? (
+              <div className="overviewRow">
+                <strong>manifest</strong>
+                <span>artifact manifest</span>
+                <small>{taskLogs.data.metadata.artifact_manifest}</small>
+              </div>
+            ) : null}
+            {selectedTaskId !== "" && taskLogs.data?.stdout ? (
+              <pre className="jsonPreview">{taskLogs.data.stdout}</pre>
+            ) : null}
+            {selectedTaskId !== "" && taskLogs.data?.stderr ? (
+              <pre className="jsonPreview">{taskLogs.data.stderr}</pre>
+            ) : null}
+            {(taskLogs.data?.logs ?? []).length === 0 && selectedTaskId !== "" && !taskLogs.isLoading ? <p className="empty">暂无日志</p> : null}
+            {(taskLogs.data?.logs ?? []).slice(-8).map((log, index) => (
               <div className="logRow" key={`${log.at}-${index}`}>
                 <span>{compactDateTime(log.at)}</span>
                 <strong>{log.level}</strong>

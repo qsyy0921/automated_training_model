@@ -2,6 +2,7 @@ export type TaskKind = "autolabel.job" | "training.run" | "evaluation.run" | "mo
 
 export interface TaskRecord {
   id: string;
+  task_id?: string;
   type: TaskKind | string;
   status: string;
   message?: string;

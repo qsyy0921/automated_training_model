@@ -100,6 +100,7 @@
 - [x] 为 lifecycle HTTP task 增加 `dry_run=false` 的最小执行路径：`WorkerGateway` 会把 `dry_run` 透传到 Python worker；`training.run` / `evaluation.run` / `deployment.run` / `autolabel.run` 在非 dry-run 时会把 `request.json`、`plan.json`、`result.json` materialize 到 `data_lake/runtime/lifecycle/<action>/<task_id>/`，并通过 `ops/scripts/smoke-lifecycle-execution-worker.ps1` 验证 task 完成、heartbeat、artifact manifest 和结果文件落地。
 - [x] 为 `labelctl` 补齐 lifecycle 领域命令组：新增 `labelctl autolabel submit`、`labelctl training submit`、`labelctl evaluation submit` 及对应的 `task/status/task-logs/cancel-task` 子命令，统一走 `/api/autolabel/jobs`、`/api/training/runs`、`/api/evaluation/runs` 和同一份 task store。
 - [x] 为 lifecycle task 补齐统一观测面：新增 `GET /api/tasks` 列表接口；交互式 `labelctl agent` 现支持 `/tasks`、`/task <id>`、`/task-logs <id>`、`/follow-task <id>`，一次性 CLI 也支持 `labelctl runtime tasks/task/task-logs`、`labelctl logs follow-task` 和各领域命令组的 `follow-task`。
+- [x] Web Agent Overview 对齐 lifecycle task 观测面：前端现在会轮询 `GET /api/tasks` 和 `GET /api/tasks/{id}/logs`，可直接选中 task 查看 heartbeat、artifact、artifact manifest、stdout/stderr 和最近日志，不再只有 model job 面板。
 - [x] 新增 `internal/app/toolapp`，将 tool schema、参数白名单、risk level 和 approval/preflight gate 从 `agentruntime` 中拆出。
 - [x] `GoToolExecutor.Execute` 执行前接入 `toolapp.Preflight`，覆盖未注册 tool、未知参数、高风险审批缺失等拦截路径；默认本机开发模式仍允许受控高风险工具执行，可用 `AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL=true` 统一收紧。
 - [x] 新增 `internal/app/toolapp.Runner`，把 tool preflight、handler dispatch、结果合并和未注册 handler 拦截从 `agentruntime.GoToolExecutor` 中移出；`GoToolExecutor` 当前只注册 MVP 业务 handler。
