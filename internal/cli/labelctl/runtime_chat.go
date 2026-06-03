@@ -269,11 +269,13 @@ type runtimeModelJob struct {
 
 type runtimeTask struct {
 	ID              string `json:"id"`
+	ParentID        string `json:"parent_id"`
 	Type            string `json:"type"`
 	Status          string `json:"status"`
 	Message         string `json:"message"`
 	Error           string `json:"error"`
 	ProgressPercent int    `json:"progress_percent"`
+	Resumable       bool   `json:"resumable"`
 	Retryable       bool   `json:"retryable"`
 	Attempt         int    `json:"attempt"`
 	MaxAttempts     int    `json:"max_attempts"`
@@ -477,6 +479,11 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 			return true, errors.New("usage: /follow-task <task_id>")
 		}
 		return true, c.followTask(parts[1])
+	case "/resume-task":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /resume-task <task_id>")
+		}
+		return true, c.resumeTask(parts[1])
 	case "/doctor":
 		return true, c.printDoctor()
 	case "/clear":
@@ -753,6 +760,7 @@ func (c *runtimeChat) printHelp() {
 		"/task-manifest <id> lifecycle task artifact manifest",
 		"/follow-job <id>  stream model job logs until terminal or timeout",
 		"/follow-task <id> stream lifecycle task logs until terminal or timeout",
+		"/resume-task <id> requeue interrupted/failed lifecycle task",
 		"/doctor      server, runtime and local CLI diagnostics",
 		"/json <x>    raw JSON for status/sessions/traces/jobs/tasks",
 		"/clear       clear screen",
@@ -880,6 +888,9 @@ func (c *runtimeChat) printTasks() error {
 		if task.Message != "" {
 			line += "  " + task.Message
 		}
+		if task.Resumable {
+			line += "  [resumable]"
+		}
 		lines = append(lines, line)
 	}
 	c.printPanel("Lifecycle Tasks", lines, "yellow")
@@ -920,8 +931,12 @@ func (c *runtimeChat) printTask(id string) error {
 		fmt.Sprintf("type      %s", valueOr(task.Type, "-")),
 		fmt.Sprintf("status    %s  progress=%d%%", valueOr(task.Status, "-"), task.ProgressPercent),
 		fmt.Sprintf("message   %s", valueOr(task.Message, "-")),
+		fmt.Sprintf("state     resumable=%t", task.Resumable),
 		fmt.Sprintf("retry     retryable=%t attempt=%d/%d", task.Retryable, task.Attempt, task.MaxAttempts),
 		fmt.Sprintf("updated   %s", compactTime(task.UpdatedAt)),
+	}
+	if task.ParentID != "" {
+		lines = append(lines, "parent    "+task.ParentID)
 	}
 	if task.Error != "" {
 		lines = append(lines, "error     "+firstLine(task.Error, c.contentWidth()-12))
@@ -1190,6 +1205,20 @@ func (c *runtimeChat) followTask(id string) error {
 	return scanner.Err()
 }
 
+func (c *runtimeChat) resumeTask(id string) error {
+	var payload runtimeTaskPayload
+	if err := postJSONValue(c.cfg.addr+"/api/tasks/"+url.PathEscape(id)+"/resume", map[string]string{}, &payload); err != nil {
+		return err
+	}
+	c.printPanel("Lifecycle Task Resumed", []string{
+		"id        " + valueOr(payload.Task.ID, "-"),
+		"type      " + valueOr(payload.Task.Type, "-"),
+		"status    " + valueOr(payload.Task.Status, "-"),
+		"message   " + valueOr(payload.Task.Message, "-"),
+	}, statusColor(payload.Task.Status))
+	return nil
+}
+
 func (c *runtimeChat) printDoctor() error {
 	lines := []string{
 		fmt.Sprintf("os        %s/%s", runtime.GOOS, runtime.GOARCH),
@@ -1357,6 +1386,35 @@ func getJSONValue(url string, target any) error {
 	if err != nil {
 		return err
 	}
+	applyGatewayAuth(req, cliGatewayToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("%s: %s", resp.Status, string(raw))
+	}
+	if err := json.Unmarshal(raw, target); err != nil {
+		return fmt.Errorf("parse %s: %w", url, err)
+	}
+	return nil
+}
+
+func postJSONValue(url string, body any, target any) error {
+	rawBody, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(rawBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
 	applyGatewayAuth(req, cliGatewayToken)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

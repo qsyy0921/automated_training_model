@@ -79,6 +79,8 @@ export const apiClient = {
     const result = await request<{ task: TaskRecord }>(`/api/tasks/${id}`);
     return result.task;
   },
+  resumeTask: async (id: string) =>
+    request<{ task: TaskRecord }>(`/api/tasks/${id}/resume`, { method: "POST", body: "{}" }),
   taskLogs: async (id: string, limit = 30) =>
     request<TaskRecord>(`/api/tasks/${id}/logs?limit=${limit}`),
   taskManifest: async (id: string) =>

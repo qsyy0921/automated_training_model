@@ -142,6 +142,46 @@ func TestJSONQueueContinuesTaskSequenceAfterReload(t *testing.T) {
 	}
 }
 
+func TestJSONQueueMarksRunningTasksInterruptedOnReload(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "tasks.json")
+	now := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+	q, err := NewJSONQueue(path, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run", Payload: map[string]string{"dataset_id": "ds1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := now.Add(time.Minute)
+	if err := q.Update(context.Background(), id, func(task *workflow.Task) {
+		task.Status = workflow.TaskRunning
+		task.ProgressPercent = 40
+		task.StartedAt = &started
+	}); err != nil {
+		t.Fatal(err)
+	}
+	restartedAt := now.Add(2 * time.Hour)
+	reloaded, err := NewJSONQueue(path, func() time.Time { return restartedAt })
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := reloaded.Status(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != workflow.TaskInterrupted || !task.Resumable || !task.Retryable {
+		t.Fatalf("expected interrupted resumable task, got %+v", task)
+	}
+	if task.FinishedAt == nil || !task.FinishedAt.Equal(restartedAt) {
+		t.Fatalf("expected finished_at set to restart time, got %+v", task)
+	}
+	if task.Metadata["interrupted_reason"] != "server_restart" {
+		t.Fatalf("expected interrupted_reason metadata, got %+v", task.Metadata)
+	}
+}
+
 func TestJSONQueueListReturnsLatestFirst(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "tasks.json")

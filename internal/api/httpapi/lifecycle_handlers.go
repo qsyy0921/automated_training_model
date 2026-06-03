@@ -159,6 +159,25 @@ func (s *Server) cancelTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"canceled": true})
 }
 
+func (s *Server) taskAction(w http.ResponseWriter, r *http.Request) {
+	id, action := lifecycleTaskPath(r)
+	if id == "" {
+		writeErrorText(w, http.StatusNotFound, "task id missing")
+		return
+	}
+	switch action {
+	case "resume":
+		task, err := s.lifecycle.ResumeTask(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"task": task})
+	default:
+		writeError(w, http.StatusNotFound, errors.New("task action not found"))
+	}
+}
+
 func (s *Server) taskLogs(w http.ResponseWriter, r *http.Request, id string) {
 	task, err := s.lifecycle.TaskStatus(r.Context(), id)
 	if err != nil {
@@ -247,11 +266,13 @@ func (s *Server) taskLogStream(w http.ResponseWriter, r *http.Request, id string
 func lifecycleTaskLogsPayload(task *workflow.Task, logs []workflow.TaskLog) map[string]any {
 	return map[string]any{
 		"id":               task.ID,
+		"parent_id":        task.ParentID,
 		"task_id":          task.ID,
 		"type":             task.Type,
 		"status":           task.Status,
 		"progress_percent": task.ProgressPercent,
 		"message":          task.Message,
+		"resumable":        task.Resumable,
 		"retryable":        task.Retryable,
 		"attempt":          task.Attempt,
 		"max_attempts":     task.MaxAttempts,
@@ -298,7 +319,7 @@ func lifecycleTaskFinalEvent(task *workflow.Task) map[string]any {
 
 func lifecycleTaskTerminal(status workflow.TaskStatus) bool {
 	switch status {
-	case workflow.TaskCompleted, workflow.TaskFailed, workflow.TaskCanceled:
+	case workflow.TaskCompleted, workflow.TaskFailed, workflow.TaskCanceled, workflow.TaskInterrupted:
 		return true
 	default:
 		return false

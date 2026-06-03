@@ -3,11 +3,13 @@ export type TaskKind = "autolabel.job" | "training.run" | "evaluation.run" | "mo
 export interface TaskRecord {
   id: string;
   task_id?: string;
+  parent_id?: string;
   type: TaskKind | string;
   status: string;
   message?: string;
   progress?: number;
   progress_percent?: number;
+  resumable?: boolean;
   retryable?: boolean;
   attempt?: number;
   max_attempts?: number;

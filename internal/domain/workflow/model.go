@@ -5,11 +5,12 @@ import "time"
 type TaskStatus string
 
 const (
-	TaskPending   TaskStatus = "pending"
-	TaskRunning   TaskStatus = "running"
-	TaskCompleted TaskStatus = "completed"
-	TaskFailed    TaskStatus = "failed"
-	TaskCanceled  TaskStatus = "canceled"
+	TaskPending     TaskStatus = "pending"
+	TaskRunning     TaskStatus = "running"
+	TaskCompleted   TaskStatus = "completed"
+	TaskFailed      TaskStatus = "failed"
+	TaskCanceled    TaskStatus = "canceled"
+	TaskInterrupted TaskStatus = "interrupted"
 )
 
 type TaskSpec struct {
@@ -20,12 +21,14 @@ type TaskSpec struct {
 
 type Task struct {
 	ID              string            `json:"id"`
+	ParentID        string            `json:"parent_id,omitempty"`
 	Type            string            `json:"type"`
 	Status          TaskStatus        `json:"status"`
 	Payload         map[string]string `json:"payload"`
 	Message         string            `json:"message,omitempty"`
 	Error           string            `json:"error,omitempty"`
 	ProgressPercent int               `json:"progress_percent,omitempty"`
+	Resumable       bool              `json:"resumable,omitempty"`
 	Retryable       bool              `json:"retryable,omitempty"`
 	Attempt         int               `json:"attempt,omitempty"`
 	MaxAttempts     int               `json:"max_attempts,omitempty"`

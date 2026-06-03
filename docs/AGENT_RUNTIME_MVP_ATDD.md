@@ -280,11 +280,14 @@ rg -n "tp-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|tp-c3" README.md docs internal 
 git status --short --ignored data_lake\models data_lake\catalog tmp
 ```
 
-### ATDD-025 lifecycle HTTP 任务 JSON 持久化、worker dry-run 与 logs/manifest 归档
+### ATDD-025 lifecycle HTTP 任务 JSON 持久化、重启 interrupted/resume 与 logs/manifest 归档
 
 Given 通过 `/api/training/runs`、`/api/evaluation/runs` 或 `/api/deployments` 创建任务
 When labelserver 使用默认 `runtime-root/tasks.json` 重新启动并重载 queue
-Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`task_000002` 这类序号不会在重载后从头开始；worker-backed lifecycle task 还应把 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr 写回同一份 task store，并通过 `GET /api/tasks/{id}/logs` / `/logs/stream` 暴露同一份状态，`metadata.artifact_manifest` 指向归档后的 `artifact-manifest/v1` 文件。
+Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`task_000002` 这类序号不会在重载后从头开始
+And 重启前仍处于 `pending/running` 的 task 会恢复为 `interrupted`、`resumable=true`
+And `POST /api/tasks/{id}/resume` 会重新排队同一 payload，并在新 task 上写入 `parent_id` / `resumed_from_task_id`
+And worker-backed lifecycle task 还应把 `running/completed/failed/canceled/interrupted`、heartbeat、logs、artifacts、stdout/stderr 写回同一份 task store，并通过 `GET /api/tasks/{id}/logs` / `/logs/stream` 暴露同一份状态，`metadata.artifact_manifest` 指向归档后的 `artifact-manifest/v1` 文件。
 
 证据：`internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go`。
 

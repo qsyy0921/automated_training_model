@@ -26,3 +26,27 @@ func (g *NoopGateway) Status(ctx context.Context, id string) (*workflow.Task, er
 func (g *NoopGateway) Cancel(ctx context.Context, id string) error {
 	return g.queue.Cancel(ctx, id)
 }
+
+func (g *NoopGateway) Resume(ctx context.Context, id string) (string, error) {
+	task, err := g.queue.Status(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	newID, err := g.queue.Enqueue(ctx, workflow.TaskSpec{Type: task.Type, Payload: task.Payload})
+	if err != nil {
+		return "", err
+	}
+	_ = g.queue.Update(ctx, newID, func(next *workflow.Task) {
+		next.ParentID = task.ID
+		next.Metadata = map[string]string{"resumed_from_task_id": task.ID}
+	})
+	_ = g.queue.Update(ctx, id, func(prev *workflow.Task) {
+		prev.Resumable = false
+		if prev.Metadata == nil {
+			prev.Metadata = map[string]string{}
+		}
+		prev.Metadata["resumed_by_task_id"] = newID
+		prev.Message = "resumed as " + newID
+	})
+	return newID, nil
+}

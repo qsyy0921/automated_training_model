@@ -41,6 +41,13 @@ func (f fakeTaskGateway) Status(ctx context.Context, id string) (*workflow.Task,
 
 func (f fakeTaskGateway) Cancel(ctx context.Context, id string) error { return nil }
 
+func (f fakeTaskGateway) Resume(ctx context.Context, id string) (string, error) {
+	if f.task == nil {
+		return "", errors.New("task not found")
+	}
+	return "task_000002", nil
+}
+
 func TestLifecycleTaskLogsEndpoints(t *testing.T) {
 	root := t.TempDir()
 	manifestPath := filepath.Join(root, "task_000001.artifact_manifest.json")
@@ -143,5 +150,27 @@ func TestLifecycleTaskNotFoundReturnsErrorEnvelope(t *testing.T) {
 	}
 	if payload.Error == "" {
 		t.Fatalf("missing error payload: %s", rec.Body.String())
+	}
+}
+
+func TestLifecycleTaskResumeEndpoint(t *testing.T) {
+	server := &Server{lifecycle: lifecycleapp.NewService(fakeTaskGateway{task: &workflow.Task{
+		ID:        "task_000002",
+		ParentID:  "task_000001",
+		Type:      "training.run",
+		Status:    workflow.TaskPending,
+		Resumable: false,
+	}})}
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/task_000001/resume", nil)
+	rec := httptest.NewRecorder()
+	server.taskAction(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, fragment := range []string{`"task":{"id":"task_000002"`, `"parent_id":"task_000001"`, `"status":"pending"`} {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("expected fragment %q in body: %s", fragment, body)
+		}
 	}
 }

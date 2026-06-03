@@ -50,6 +50,14 @@ func (s *Service) CancelTask(ctx context.Context, id string) error {
 	return s.gateway.Cancel(ctx, id)
 }
 
+func (s *Service) ResumeTask(ctx context.Context, id string) (*workflow.Task, error) {
+	newID, err := s.gateway.Resume(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.gateway.Status(ctx, newID)
+}
+
 func (s *Service) SubmitAutoLabel(ctx context.Context, req autolabel.Request) (autolabel.Job, error) {
 	if req.DatasetID == "" {
 		return autolabel.Job{}, fmt.Errorf("dataset_id is required")

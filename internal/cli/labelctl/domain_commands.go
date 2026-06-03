@@ -62,7 +62,7 @@ func runDataset(cfg Config, args []string) error {
 
 func runAutoLabel(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -112,6 +112,11 @@ func runAutoLabel(cfg Config, args []string) error {
 			return errors.New("usage: labelctl autolabel follow-task <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs/stream")
+	case "resume-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl autolabel resume-task <task_id>")
+		}
+		return postJSON(cfg.addr+"/api/tasks/"+url.PathEscape(args[1])+"/resume", map[string]string{})
 	case "cancel-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl autolabel cancel-task <task_id>")
@@ -124,7 +129,7 @@ func runAutoLabel(cfg Config, args []string) error {
 
 func runTraining(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -176,6 +181,11 @@ func runTraining(cfg Config, args []string) error {
 			return errors.New("usage: labelctl training follow-task <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs/stream")
+	case "resume-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl training resume-task <task_id>")
+		}
+		return postJSON(cfg.addr+"/api/tasks/"+url.PathEscape(args[1])+"/resume", map[string]string{})
 	case "cancel-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl training cancel-task <task_id>")
@@ -188,7 +198,7 @@ func runTraining(cfg Config, args []string) error {
 
 func runEvaluation(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -238,6 +248,11 @@ func runEvaluation(cfg Config, args []string) error {
 			return errors.New("usage: labelctl evaluation follow-task <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs/stream")
+	case "resume-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl evaluation resume-task <task_id>")
+		}
+		return postJSON(cfg.addr+"/api/tasks/"+url.PathEscape(args[1])+"/resume", map[string]string{})
 	case "cancel-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl evaluation cancel-task <task_id>")
@@ -318,7 +333,7 @@ func runModels(cfg Config, args []string) error {
 
 func runDeploy(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -374,6 +389,11 @@ func runDeploy(cfg Config, args []string) error {
 			return errors.New("usage: labelctl deploy follow-task <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs/stream")
+	case "resume-task":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl deploy resume-task <task_id>")
+		}
+		return postJSON(cfg.addr+"/api/tasks/"+url.PathEscape(args[1])+"/resume", map[string]string{})
 	case "cancel-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl deploy cancel-task <task_id>")

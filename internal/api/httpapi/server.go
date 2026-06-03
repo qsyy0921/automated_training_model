@@ -101,6 +101,7 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("POST /api/deployments", s.submitDeployment)
 	mux.HandleFunc("GET /api/tasks", s.listTasks)
 	mux.HandleFunc("GET /api/tasks/", s.taskDetail)
+	mux.HandleFunc("POST /api/tasks/", s.taskAction)
 	mux.HandleFunc("DELETE /api/tasks/", s.cancelTask)
 	mux.HandleFunc("GET /api/video/", s.video)
 	return middleware.Chain(

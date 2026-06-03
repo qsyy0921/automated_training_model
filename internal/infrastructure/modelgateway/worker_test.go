@@ -175,6 +175,56 @@ func TestWorkerGatewayCancelRunningTask(t *testing.T) {
 	}
 }
 
+func TestWorkerGatewayResumeInterruptedTask(t *testing.T) {
+	q, err := queue.NewJSONQueue(filepath.Join(t.TempDir(), "tasks.json"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run", Payload: map[string]string{"dataset_id": "shanghaitech-original", "dry_run": "true"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Update(context.Background(), id, func(task *workflow.Task) {
+		task.Status = workflow.TaskInterrupted
+		task.Resumable = true
+		task.Message = "server restarted before lifecycle task completed"
+	}); err != nil {
+		t.Fatal(err)
+	}
+	gateway := NewWorkerGatewayWithRunner(q, fakeWorkerRunner{
+		run: func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
+			return modelruntime.WorkerJobResult{
+				TaskID:      req.TaskID,
+				Status:      "completed",
+				Message:     "dry-run completed for training.run",
+				Attempt:     1,
+				MaxAttempts: 1,
+				Retryable:   false,
+			}, nil
+		},
+	}, time.Now, func() time.Duration { return time.Second })
+	newID, err := gateway.Resume(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newID == id {
+		t.Fatalf("expected new task id, got %s", newID)
+	}
+	prev, err := gateway.Status(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prev.Metadata["resumed_by_task_id"] != newID || prev.Resumable {
+		t.Fatalf("unexpected previous task state: %+v", prev)
+	}
+	next := waitForTask(t, gateway, newID, func(task *workflow.Task) bool {
+		return task.Status == workflow.TaskCompleted
+	})
+	if next.ParentID != id || next.Metadata["resumed_from_task_id"] != id {
+		t.Fatalf("unexpected resumed task linkage: %+v", next)
+	}
+}
+
 func waitForTask(t *testing.T, gateway *WorkerGateway, id string, done func(*workflow.Task) bool) *workflow.Task {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

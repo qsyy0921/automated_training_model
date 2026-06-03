@@ -16,6 +16,7 @@ type fakeGateway struct {
 	payload  map[string]string
 	status   *workflow.Task
 	canceled string
+	resumed  string
 }
 
 func (f *fakeGateway) Submit(ctx context.Context, taskType string, payload map[string]string) (string, error) {
@@ -41,6 +42,11 @@ func (f *fakeGateway) Status(ctx context.Context, id string) (*workflow.Task, er
 func (f *fakeGateway) Cancel(ctx context.Context, id string) error {
 	f.canceled = id
 	return nil
+}
+
+func (f *fakeGateway) Resume(ctx context.Context, id string) (string, error) {
+	f.resumed = id
+	return "task_000002", nil
 }
 
 func TestSubmitTrainingUsesGateway(t *testing.T) {
@@ -171,6 +177,23 @@ func TestTaskStatusAndCancelProxyToGateway(t *testing.T) {
 	}
 	if gateway.canceled != "task_000001" {
 		t.Fatalf("expected cancel to reach gateway, got %q", gateway.canceled)
+	}
+}
+
+func TestResumeTaskProxyToGateway(t *testing.T) {
+	gateway := &fakeGateway{
+		status: &workflow.Task{ID: "task_000002", ParentID: "task_000001", Type: "training.run", Status: workflow.TaskPending},
+	}
+	svc := NewService(gateway)
+	task, err := svc.ResumeTask(context.Background(), "task_000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.resumed != "task_000001" {
+		t.Fatalf("expected resume to reach gateway, got %q", gateway.resumed)
+	}
+	if task.ID != "task_000002" || task.ParentID != "task_000001" {
+		t.Fatalf("unexpected resumed task: %+v", task)
 	}
 }
 

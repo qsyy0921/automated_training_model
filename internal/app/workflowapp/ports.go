@@ -19,4 +19,5 @@ type ModelGateway interface {
 	List(ctx context.Context, limit int) ([]workflow.Task, error)
 	Status(ctx context.Context, id string) (*workflow.Task, error)
 	Cancel(ctx context.Context, id string) error
+	Resume(ctx context.Context, id string) (string, error)
 }

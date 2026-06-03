@@ -42,6 +42,7 @@
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、原始 stdout/stderr 字节流直通、取消幂等性和自动 resume 状态；当前 `model.download_hf` 已默认接入 Python worker，`model.verify_hf` 与 `model.smoke_locateanything` 已支持显式 `job=true` 的 worker job，且 `/bot-verify-hf-job [repo_id]` 已可直接触发后台 verify worker；worker timeout / decode failure 已能回写 stdout/stderr 和错误类型，artifact manifest 也已归档到 `runtime-root/artifacts`，运行中的 heartbeat 与结构化 `stdout/stderr` 行也已通过同一份 job store 暴露给 CLI/Web/API，但训练/评估和默认同步路径仍未统一迁移。
 - [ ] 将已归档的 `artifact-manifest/v1` 继续接入 lineage / Task Center / Model Registry：当前 API、CLI 和 Web 已能直接消费 `/api/runtime/model-jobs/{id}/manifest` 与 `/api/tasks/{id}/manifest`，但还没有统一的 catalog / lineage 聚合视图。
 - [ ] 把 runtime `training.run` / `evaluation.run` / `deployment.run` 继续扩展到真实训练 recipe、artifact lineage 和统一 task repository；当前 `/bot-train-run`、`/bot-eval-run`、`/bot-deploy-run` 已能直接创建 `dry_run=false` 的 Python worker `ModelJob` 并默认执行 `execution_recipe=default`，但仍是 repo-owned recipe runner，不是最终真实 GPU 训练/评估/部署 recipe。
+- [ ] 将 lifecycle task 的 interrupted/resume 从当前“手动重新排队”推进到真正的恢复闭环：当前 `tasks.json` 重启后会把 `pending/running` 标记为 `interrupted + resumable=true`，并可通过 `POST /api/tasks/{id}/resume` / CLI / Web 重新排队同一 payload；后续仍需补自动 retry、resume 去重、cancel/resume 幂等、child task lineage 和恢复策略审批。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [x] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [x] 在 Web Agent Overview 中接入 model job logs 查询，与 CLI/API 共用 `/api/runtime/model-jobs/{id}/logs`。
@@ -72,7 +73,7 @@
 
 ## 后端架构待办
 
-- [ ] 将 `lifecycleapp` 当前的 JSON task queue + `WorkerGateway` MVP 升级为统一 task repository：补真实训练/评估/部署 recipe、恢复、审批和更细粒度的状态机；当前 task logs / NDJSON stream、`artifact-manifest/v1` 归档和 `dry_run=false` command execution 已补齐，但仍未进入真实 GPU/部署 recipe。
+- [ ] 将 `lifecycleapp` 当前的 JSON task queue + `WorkerGateway` MVP 升级为统一 task repository：补真实训练/评估/部署 recipe、恢复、审批和更细粒度的状态机；当前 task logs / NDJSON stream、`artifact-manifest/v1` 归档、重启后 `interrupted/resumable` 恢复、手动 `resume-task` 和 `dry_run=false` command/recipe execution 已补齐，但仍未进入真实 GPU/部署 recipe。
 - [ ] 把 lifecycle CLI 的 execution flags 继续收敛到正式 recipe 参数与 schema 校验；当前 `-exec-recipe default` 已打通 repo-owned recipe runner，但 recipe 仍只是受控占位执行，不是最终训练/评估/部署 GPU 配方。
 - [ ] 为 `providerapp` 增加加密 secret store。
 - [ ] 补充 CLI：数据集注册、任务提交、导出标注、检查服务健康。

@@ -44,6 +44,10 @@ export function AgentOverviewPage() {
   const runs = useQuery({ queryKey: ["agent-runs"], queryFn: () => apiClient.listAgentRuns() });
   const workflows = useQuery({ queryKey: ["workflows"], queryFn: () => apiClient.listWorkflows() });
   const qqTest = useMutation({ mutationFn: (text: string) => apiClient.qqTestMessage(text) });
+  const resumeTask = useMutation({
+    mutationFn: (id: string) => apiClient.resumeTask(id),
+    onSuccess: (res) => setSelectedTaskId(res.task.id)
+  });
 
   const status = runtime.data?.runtime;
   const auth = runtime.data?.gateway?.auth;
@@ -272,6 +276,7 @@ export function AgentOverviewPage() {
                 <strong>{task.type}</strong>
                 <span>{task.status} · {task.progress_percent ?? 0}%</span>
                 <small>{task.message || task.id}</small>
+                {task.resumable ? <small>resumable</small> : null}
               </button>
             ))}
           </div>
@@ -297,6 +302,17 @@ export function AgentOverviewPage() {
                   {taskLogs.data.worker_heartbeat
                     ? `heartbeat ${compactDateTime(taskLogs.data.worker_heartbeat.at)} · ${taskLogs.data.worker_heartbeat.status} · ${taskLogs.data.worker_heartbeat.message || ""}`
                     : "暂无 worker heartbeat"}
+                </small>
+              </div>
+            ) : null}
+            {selectedTaskId !== "" && taskLogs.data?.resumable ? (
+              <div className="overviewRow">
+                <strong>resume</strong>
+                <span>interrupted/failed task can be requeued</span>
+                <small>
+                  <button className="btn btn-secondary" onClick={() => resumeTask.mutate(selectedTaskId)} disabled={resumeTask.isPending}>
+                    重新排队
+                  </button>
                 </small>
               </div>
             ) : null}

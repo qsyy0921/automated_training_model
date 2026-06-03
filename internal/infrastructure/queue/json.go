@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -187,10 +188,28 @@ func (q *JSONQueue) load() error {
 		if task.ID == "" {
 			continue
 		}
+		if task.Status == workflow.TaskPending || task.Status == workflow.TaskRunning {
+			finished := q.now()
+			task.Status = workflow.TaskInterrupted
+			task.Message = "server restarted before lifecycle task completed; use resume-task to requeue from saved payload"
+			task.Resumable = true
+			task.Retryable = true
+			if task.ProgressPercent < 100 {
+				task.ProgressPercent = 0
+			}
+			task.FinishedAt = &finished
+			task.UpdatedAt = finished
+			task.Metadata = mergeTaskMetadata(task.Metadata, map[string]string{
+				"interrupted_reason": "server_restart",
+			})
+		}
 		q.tasks[task.ID] = &task
 		if n, ok := parseTaskSequence(task.ID); ok && n > q.next {
 			q.next = n
 		}
+	}
+	if len(rows) > 0 {
+		return q.persistLocked()
 	}
 	return nil
 }
@@ -257,6 +276,25 @@ func taskManifestEntries(items []workflow.TaskArtifact) []artifactmanifest.Entry
 			Kind:     item.Kind,
 			Metadata: item.Metadata,
 		})
+	}
+	return out
+}
+
+func mergeTaskMetadata(base map[string]string, overlay map[string]string) map[string]string {
+	if len(base) == 0 && len(overlay) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range base {
+		out[key] = value
+	}
+	for key, value := range overlay {
+		if strings.TrimSpace(value) != "" {
+			out[key] = value
+		}
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

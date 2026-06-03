@@ -157,6 +157,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if err := runRuntime(cfg, []string{"task-manifest", "task1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runRuntime(cfg, []string{"resume-task", "task1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runLogs(cfg, []string{"tasks"}); err != nil {
 		t.Fatal(err)
 	}
@@ -167,6 +170,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := runDeploy(cfg, []string{"task-manifest", "task1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runTraining(cfg, []string{"resume-task", "task1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -184,6 +190,7 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		"GET /api/tasks/task1/logs",
 		"GET /api/tasks/task1/manifest",
 		"GET /api/tasks/task1/logs/stream",
+		"POST /api/tasks/task1/resume",
 	} {
 		want := 1
 		if key == "GET /api/runtime/model-jobs/job1/logs" {
@@ -200,6 +207,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		}
 		if key == "GET /api/tasks/task1/manifest" {
 			want = 3
+		}
+		if key == "POST /api/tasks/task1/resume" {
+			want = 2
 		}
 		if seen[key] != want {
 			t.Fatalf("expected %s %d times, got %d", key, want, seen[key])

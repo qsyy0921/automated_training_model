@@ -22,6 +22,10 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
   const task = useQuery({ queryKey: ["task", taskID], queryFn: () => apiClient.taskStatus(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
   const taskLogs = useQuery({ queryKey: ["task-logs", taskID], queryFn: () => apiClient.taskLogs(taskID, 12), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
   const taskManifest = useQuery({ queryKey: ["task-manifest", taskID], queryFn: () => apiClient.taskManifest(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
+  const resumeTask = useMutation({
+    mutationFn: (id: string) => apiClient.resumeTask(id),
+    onSuccess: (res) => setTaskID(res.task.id)
+  });
 
   const registerFolder = useMutation({
     mutationFn: () => apiClient.registerFolderDataset(folderPayload),
@@ -117,6 +121,11 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
             <b>{task.data.id}</b>
             <small>{task.data.status}</small>
             <small>{task.data.message}</small>
+            {task.data.resumable ? (
+              <Button type="button" onClick={() => resumeTask.mutate(task.data.id)} disabled={resumeTask.isPending}>
+                重新排队
+              </Button>
+            ) : null}
             {taskLogs.data?.worker_heartbeat ? (
               <small>
                 heartbeat {taskLogs.data.worker_heartbeat.status} · {taskLogs.data.worker_heartbeat.message || taskLogs.data.worker_heartbeat.at}

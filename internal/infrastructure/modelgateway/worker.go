@@ -67,6 +67,7 @@ func (g *WorkerGateway) Submit(ctx context.Context, taskType string, payload map
 	if err := g.queue.Update(ctx, id, func(task *workflow.Task) {
 		task.Message = workerQueuedMessage(dryRun)
 		task.ProgressPercent = 0
+		task.Resumable = false
 		task.Metadata = mergeTaskMetadata(task.Metadata, map[string]string{
 			"execution_path": "python-worker",
 			"dry_run":        strconv.FormatBool(dryRun),
@@ -98,6 +99,44 @@ func (g *WorkerGateway) Cancel(ctx context.Context, id string) error {
 	return nil
 }
 
+func (g *WorkerGateway) Resume(ctx context.Context, id string) (string, error) {
+	task, err := g.queue.Status(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if task.Status == workflow.TaskPending || task.Status == workflow.TaskRunning || task.Status == workflow.TaskCompleted {
+		return "", errors.New("task " + id + " cannot be resumed from status " + string(task.Status))
+	}
+	if !task.Resumable && task.Status != workflow.TaskFailed && task.Status != workflow.TaskCanceled && task.Status != workflow.TaskInterrupted {
+		return "", errors.New("task " + id + " is not resumable")
+	}
+	newPayload := copyStringMap(task.Payload)
+	if newPayload == nil {
+		newPayload = map[string]string{}
+	}
+	newPayload["resumed_from_task_id"] = task.ID
+	newID, err := g.Submit(ctx, task.Type, newPayload)
+	if err != nil {
+		return "", err
+	}
+	_ = g.queue.Update(ctx, newID, func(next *workflow.Task) {
+		next.ParentID = task.ID
+		next.Metadata = mergeTaskMetadata(next.Metadata, map[string]string{
+			"resumed_from_task_id": task.ID,
+		})
+	})
+	now := g.now()
+	_ = g.queue.Update(ctx, id, func(prev *workflow.Task) {
+		prev.Resumable = false
+		prev.Metadata = mergeTaskMetadata(prev.Metadata, map[string]string{
+			"resumed_by_task_id": newID,
+		})
+		prev.Message = "resumed as " + newID
+		prev.Logs = appendTaskLog(prev.Logs, now, "info", prev.Message)
+	})
+	return newID, nil
+}
+
 func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[string]string) {
 	task, err := g.queue.Status(context.Background(), id)
 	if err != nil || task == nil {
@@ -111,6 +150,7 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 	started := g.now()
 	_ = g.queue.Update(context.Background(), id, func(task *workflow.Task) {
 		task.Status = workflow.TaskRunning
+		task.Resumable = false
 		task.StartedAt = &started
 		task.Message = workerRunningMessage(dryRun)
 		task.ProgressPercent = 15
@@ -159,6 +199,7 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 		if ctx.Err() == context.Canceled || task.Status == workflow.TaskCanceled {
 			task.Status = workflow.TaskCanceled
 			task.Message = "python worker canceled"
+			task.Resumable = true
 			task.Logs = appendTaskLog(task.Logs, finished, "warn", task.Message)
 			return
 		}
@@ -166,6 +207,7 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 			task.Status = workflow.TaskFailed
 			task.Error = runErr.Error()
 			task.Message = firstNonEmpty(result.Message, "python worker execution failed")
+			task.Resumable = true
 			task.Retryable = isWorkerRetryable(runErr)
 			task.Metadata = mergeTaskMetadata(task.Metadata, pythonWorkerErrorMetadata(runErr))
 			task.Logs = appendTaskLog(task.Logs, finished, "error", runErr.Error())
@@ -176,14 +218,17 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 			task.Status = workflow.TaskCompleted
 			task.Message = firstNonEmpty(result.Message, workerCompletedMessage(dryRun))
 			task.ProgressPercent = 100
+			task.Resumable = false
 		case "failed":
 			task.Status = workflow.TaskFailed
 			task.Message = firstNonEmpty(result.Message, "python worker reported failure")
 			task.Error = result.Message
+			task.Resumable = true
 		default:
 			task.Status = workflow.TaskFailed
 			task.Message = firstNonEmpty(result.Message, "python worker returned unknown status")
 			task.Error = firstNonEmpty(result.Message, result.Status)
+			task.Resumable = true
 		}
 		task.Logs = appendTaskLog(task.Logs, finished, "info", task.Message)
 	})
@@ -450,6 +495,17 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func copyStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
 }
 
 func (g *WorkerGateway) archiveTaskArtifacts(id string) {
