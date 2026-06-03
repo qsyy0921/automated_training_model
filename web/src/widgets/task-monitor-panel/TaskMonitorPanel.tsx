@@ -22,6 +22,7 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
   const task = useQuery({ queryKey: ["task", taskID], queryFn: () => apiClient.taskStatus(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
   const taskLogs = useQuery({ queryKey: ["task-logs", taskID], queryFn: () => apiClient.taskLogs(taskID, 12), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
   const taskManifest = useQuery({ queryKey: ["task-manifest", taskID], queryFn: () => apiClient.taskManifest(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
+  const taskLineage = useQuery({ queryKey: ["task-lineage", taskID], queryFn: () => apiClient.taskLineage(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
   const resumeTask = useMutation({
     mutationFn: (id: string) => apiClient.resumeTask(id),
     onSuccess: (res) => setTaskID(res.task.id)
@@ -136,6 +137,11 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
               <small>
                 artifacts {taskManifest.data.manifest.artifact_summary.artifact_count} ·
                 {" "}primary {taskManifest.data.manifest.artifact_summary.primary_artifact?.role || "-"}
+              </small>
+            ) : null}
+            {taskLineage.data?.lineage?.length ? (
+              <small>
+                lineage {taskLineage.data.root_id} · {(taskLineage.data.lineage || []).map((item) => `${item.id}:${item.status}`).join(" -> ")}
               </small>
             ) : null}
             {taskLogs.data?.artifacts?.length ? <small>artifacts {taskLogs.data.artifacts.length}</small> : null}

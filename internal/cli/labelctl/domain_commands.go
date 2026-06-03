@@ -62,7 +62,7 @@ func runDataset(cfg Config, args []string) error {
 
 func runAutoLabel(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | task-lineage <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -107,6 +107,11 @@ func runAutoLabel(cfg Config, args []string) error {
 			return errors.New("usage: labelctl autolabel task-manifest <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/manifest")
+	case "task-lineage":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl autolabel task-lineage <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/lineage")
 	case "follow-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl autolabel follow-task <task_id>")
@@ -129,7 +134,7 @@ func runAutoLabel(cfg Config, args []string) error {
 
 func runTraining(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | task-lineage <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -176,6 +181,11 @@ func runTraining(cfg Config, args []string) error {
 			return errors.New("usage: labelctl training task-manifest <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/manifest")
+	case "task-lineage":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl training task-lineage <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/lineage")
 	case "follow-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl training follow-task <task_id>")
@@ -198,7 +208,7 @@ func runTraining(cfg Config, args []string) error {
 
 func runEvaluation(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | task-lineage <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -243,6 +253,11 @@ func runEvaluation(cfg Config, args []string) error {
 			return errors.New("usage: labelctl evaluation task-manifest <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/manifest")
+	case "task-lineage":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl evaluation task-lineage <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/lineage")
 	case "follow-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl evaluation follow-task <task_id>")
@@ -316,6 +331,11 @@ func runModels(cfg Config, args []string) error {
 			return errors.New("usage: labelctl models job-manifest <job_id>")
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/manifest")
+	case "job-lineage":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl models job-lineage <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/lineage")
 	case "cancel-job":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl models cancel-job <job_id>")
@@ -333,7 +353,7 @@ func runModels(cfg Config, args []string) error {
 
 func runDeploy(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] [-exec-recipe name] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | task-manifest <task_id> | task-lineage <task_id> | follow-task <task_id> | resume-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -384,6 +404,11 @@ func runDeploy(cfg Config, args []string) error {
 			return errors.New("usage: labelctl deploy task-manifest <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/manifest")
+	case "task-lineage":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl deploy task-lineage <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/lineage")
 	case "follow-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl deploy follow-task <task_id>")
@@ -419,22 +444,26 @@ func runLogs(cfg Config, args []string) error {
 		return getJSON(cfg.addr + "/api/runtime/model-jobs")
 	case "tasks":
 		return getJSON(cfg.addr + "/api/tasks")
-	case "job", "job-logs", "job-manifest":
+	case "job", "job-logs", "job-manifest", "job-lineage":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl logs job <job_id>")
 		}
 		suffix := "/logs"
 		if args[0] == "job-manifest" {
 			suffix = "/manifest"
+		} else if args[0] == "job-lineage" {
+			suffix = "/lineage"
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + suffix)
-	case "task", "task-logs", "task-manifest":
+	case "task", "task-logs", "task-manifest", "task-lineage":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl logs task <task_id>")
 		}
 		suffix := "/logs"
 		if args[0] == "task-manifest" {
 			suffix = "/manifest"
+		} else if args[0] == "task-lineage" {
+			suffix = "/lineage"
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + suffix)
 	case "follow-task":

@@ -145,10 +145,16 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if err := runModels(cfg, []string{"job-manifest", "job1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runModels(cfg, []string{"job-lineage", "job1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runLogs(cfg, []string{"job", "job1"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := runLogs(cfg, []string{"job-manifest", "job1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runLogs(cfg, []string{"job-lineage", "job1"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := runRuntime(cfg, []string{"tasks"}); err != nil {
@@ -172,13 +178,28 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if err := runLogs(cfg, []string{"task-manifest", "task1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runLogs(cfg, []string{"task-lineage", "task1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runDeploy(cfg, []string{"follow-task", "task1"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := runDeploy(cfg, []string{"task-manifest", "task1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runDeploy(cfg, []string{"task-lineage", "task1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runTraining(cfg, []string{"resume-task", "task1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runTraining(cfg, []string{"task-lineage", "task1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runEvaluation(cfg, []string{"task-lineage", "task1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runAutoLabel(cfg, []string{"task-lineage", "task1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -208,7 +229,7 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 			want = 3
 		}
 		if key == "GET /api/runtime/model-jobs/job1/lineage" {
-			want = 1
+			want = 3
 		}
 		if key == "GET /api/tasks" {
 			want = 2
@@ -220,7 +241,7 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 			want = 3
 		}
 		if key == "GET /api/tasks/task1/lineage" {
-			want = 1
+			want = 6
 		}
 		if key == "POST /api/tasks/task1/resume" {
 			want = 2

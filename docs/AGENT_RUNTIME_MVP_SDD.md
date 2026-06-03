@@ -155,7 +155,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - `GET /api/tasks/{task_id}/manifest`：直接读取 lifecycle task 的 `artifact-manifest/v1` 归档文件，返回 `path + manifest`，避免 CLI/Web 只能展示 manifest 路径。
 - `GET /api/tasks/{task_id}/logs/stream`：以 NDJSON 输出 lifecycle task 的已有日志和终态事件；当前通过轮询同一份 task store 暴露运行中的 worker 输出。
 - `POST /api/tasks/{task_id}/resume`：针对 `interrupted/failed/canceled` lifecycle task 重新排队同一 payload，返回新的 task id，并在新 task 上记录 `parent_id` / `resumed_from_task_id`。
-- `labelctl agent` 支持 `/job-manifest <job_id>`、`/job-lineage <job_id>`、`/task-manifest <task_id>`、`/task-lineage <task_id>`、`/resume-task <task_id>`；一次性 CLI 支持 `labelctl runtime job-manifest|job-lineage|task-manifest|task-lineage|resume-task`、`labelctl models job-manifest`、`labelctl logs job-manifest|task-manifest` 和各 lifecycle 命令组的 `task-manifest|resume-task`。
+- `labelctl agent` 支持 `/job-manifest <job_id>`、`/job-lineage <job_id>`、`/task-manifest <task_id>`、`/task-lineage <task_id>`、`/resume-task <task_id>`；一次性 CLI 支持 `labelctl runtime job-manifest|job-lineage|task-manifest|task-lineage|resume-task`、`labelctl models job-manifest|job-lineage`、`labelctl logs job-manifest|job-lineage|task-manifest|task-lineage` 和各 lifecycle 命令组的 `task-manifest|task-lineage|resume-task`。
 - Web Agent Overview 和 Task Monitor Panel 会额外查询 `/manifest`，直接显示 artifact count、role/kind/execution summary，不再只显示 manifest 文件路径。
 
 ## 9. 当前可验收证据
