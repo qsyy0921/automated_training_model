@@ -23,10 +23,16 @@ type GoToolExecutor struct {
 	toolRunner     *toolapp.Runner[ToolExecutionRequest]
 	intake         *intakeapp.Service
 	models         *modelruntime.Service
+	workerRunner   modelWorkerRunner
 	workflows      *runtimeworkflow.Service
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
+	runHFWorkerJob func(context.Context, modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error)
 	jobMu          sync.Mutex
 	jobCancels     map[string]context.CancelFunc
+}
+
+type modelWorkerRunner interface {
+	Run(context.Context, modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error)
 }
 
 func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolExecutor {
@@ -34,14 +40,16 @@ func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolEx
 		now = time.Now
 	}
 	executor := &GoToolExecutor{
-		now:        now,
-		modelJobs:  NewModelJobStore(now),
-		intake:     intakeapp.NewService(intakeapp.NewMemoryRepository(), nil, intakeapp.NewDryRunPlanner(now)),
-		models:     modelruntime.NewService(),
-		workflows:  runtimeworkflow.NewService(agents),
-		jobCancels: map[string]context.CancelFunc{},
+		now:          now,
+		modelJobs:    NewModelJobStore(now),
+		intake:       intakeapp.NewService(intakeapp.NewMemoryRepository(), nil, intakeapp.NewDryRunPlanner(now)),
+		models:       modelruntime.NewService(),
+		workerRunner: modelruntime.NewPythonModelWorkerRunner(),
+		workflows:    runtimeworkflow.NewService(agents),
+		jobCancels:   map[string]context.CancelFunc{},
 	}
 	executor.runHFModelTool = executor.runHFModelViaService
+	executor.runHFWorkerJob = executor.runPythonModelWorkerJob
 	executor.toolRunner = toolapp.NewRunner[ToolExecutionRequest](toolapp.DefaultCatalog(), toolPreflightPolicyFromEnv)
 	executor.registerToolHandlers()
 	return executor
@@ -258,6 +266,9 @@ func (e *GoToolExecutor) downloadHFModel(ctx context.Context, call ToolCall) (To
 			Status:    "approval_required",
 		}, nil
 	}
+	if strings.EqualFold(strings.TrimSpace(call.Params["dry_run"]), "true") {
+		return e.enqueueHFModelWorkerDryRun(call)
+	}
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_HF_DOWNLOAD_SYNC")), "true") {
 		return e.runHFModelTool(ctx, call, false)
 	}
@@ -289,6 +300,57 @@ func (e *GoToolExecutor) enqueueHFModelDownload(call ToolCall) (ToolExecutionRes
 		return ToolExecutionResult{}, err
 	}
 	return e.enqueueHFModelDownloadRequest(req, "", call)
+}
+
+func (e *GoToolExecutor) enqueueHFModelWorkerDryRun(call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareHFModelRequest(call, false)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	created := e.now()
+	job := e.modelJobs.Create(ModelJob{
+		ID:              fmt.Sprintf("model-job-%d", created.UnixNano()),
+		Kind:            "model.download_hf",
+		RepoID:          req.RepoID,
+		LocalDir:        req.LocalDir,
+		Manifest:        req.Manifest,
+		Status:          "queued",
+		Message:         "queued python worker dry-run",
+		ProgressPercent: 0,
+		Resumable:       true,
+		Retryable:       false,
+		Logs:            []ModelJobLog{{At: created, Level: "info", Message: "queued python worker dry-run"}},
+		Metadata: map[string]string{
+			"execution_path": "python-worker",
+			"dry_run":        "true",
+		},
+	})
+	go e.runHFModelWorkerJob(job.ID, modelruntime.WorkerJobRequest{
+		TaskID:     job.ID,
+		WorkflowID: "runtime-model-worker",
+		AgentID:    "model-agent",
+		ToolID:     "model.download_hf",
+		Action:     "download_hf",
+		DatasetID:  strings.TrimSpace(call.Params["dataset_id"]),
+		DryRun:     true,
+		Params: map[string]string{
+			"repo_id":   req.RepoID,
+			"local_dir": req.LocalDir,
+			"manifest":  req.Manifest,
+		},
+	})
+	return ToolExecutionResult{
+		ReplyText: fmt.Sprintf("Python worker dry-run 已排队：job=%s repo=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", job.ID, req.RepoID),
+		Status:    "queued",
+		Metadata: map[string]string{
+			"job_id":         job.ID,
+			"repo_id":        req.RepoID,
+			"local_dir":      req.LocalDir,
+			"manifest":       req.Manifest,
+			"execution_path": "python-worker",
+			"dry_run":        "true",
+		},
+	}, nil
 }
 
 func (e *GoToolExecutor) enqueueHFModelDownloadRequest(req hfModelRequest, parentID string, call ToolCall) (ToolExecutionResult, error) {
@@ -357,6 +419,89 @@ func (e *GoToolExecutor) runHFModelJob(jobID string, call ToolCall) {
 		job.ProgressPercent = 100
 		job.Resumable = false
 		job.Logs = appendModelJobLog(job.Logs, finished, "info", result.ReplyText)
+	})
+}
+
+func (e *GoToolExecutor) runHFModelWorkerJob(jobID string, req modelruntime.WorkerJobRequest) {
+	started := e.now()
+	e.modelJobs.Update(jobID, func(job *ModelJob) {
+		job.Status = "running"
+		job.StartedAt = &started
+		job.Message = "running python model worker"
+		job.ProgressPercent = 15
+		job.Metadata = mergeStringMaps(job.Metadata, map[string]string{
+			"execution_path": "python-worker",
+			"tool_id":        req.ToolID,
+			"action":         req.Action,
+		})
+		job.Logs = appendModelJobLog(job.Logs, started, "info", job.Message)
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), modelruntime.HFDownloadTimeout())
+	e.setModelJobCancel(jobID, cancel)
+	defer cancel()
+	defer e.clearModelJobCancel(jobID)
+
+	result, err := e.runHFWorkerJob(ctx, req)
+	finished := e.now()
+	e.modelJobs.Update(jobID, func(job *ModelJob) {
+		job.FinishedAt = &finished
+		if hb := toModelJobHeartbeat(result.Heartbeat); hb != nil {
+			job.WorkerHeartbeat = hb
+		}
+		if len(result.Artifacts) > 0 {
+			job.Artifacts = toModelJobArtifacts(result.Artifacts)
+		}
+		if strings.TrimSpace(result.Stdout) != "" {
+			job.Stdout = result.Stdout
+		}
+		if strings.TrimSpace(result.Stderr) != "" {
+			job.Stderr = result.Stderr
+		}
+		if result.Attempt > 0 {
+			job.Attempt = result.Attempt
+		}
+		if result.MaxAttempts > 0 {
+			job.MaxAttempts = result.MaxAttempts
+		}
+		job.Retryable = result.Retryable
+		appendWorkerLogs(job, result.Logs, finished)
+		if ctx.Err() == context.Canceled || job.CancelRequested {
+			job.Status = "canceled"
+			job.Message = "python worker canceled"
+			job.Resumable = true
+			job.Logs = appendModelJobLog(job.Logs, finished, "warn", job.Message)
+			return
+		}
+		if err != nil {
+			job.Status = "failed"
+			job.Error = err.Error()
+			job.Message = "python worker execution failed"
+			job.ProgressPercent = normalizeProgress(job.ProgressPercent)
+			job.Retryable = isPythonWorkerRetryable(err)
+			job.Resumable = job.Retryable
+			job.Logs = appendModelJobLog(job.Logs, finished, "error", err.Error())
+			return
+		}
+		job.Metadata = mergeStringMaps(job.Metadata, workerMetadata(result))
+		switch strings.ToLower(strings.TrimSpace(result.Status)) {
+		case "completed", "ok", "succeeded":
+			job.Status = "succeeded"
+			job.Message = firstNonEmpty(result.Message, "python worker completed")
+			job.ProgressPercent = 100
+			job.Resumable = false
+		case "failed":
+			job.Status = "failed"
+			job.Message = firstNonEmpty(result.Message, "python worker reported failure")
+			job.Error = result.Message
+			job.ProgressPercent = normalizeProgress(job.ProgressPercent)
+			job.Resumable = result.Retryable
+		default:
+			job.Status = "failed"
+			job.Message = firstNonEmpty(result.Message, "python worker returned unknown status")
+			job.Error = firstNonEmpty(result.Message, result.Status)
+			job.Resumable = result.Retryable
+		}
+		job.Logs = appendModelJobLog(job.Logs, finished, "info", job.Message)
 	})
 }
 
@@ -471,6 +616,10 @@ func (e *GoToolExecutor) runHFModelViaService(ctx context.Context, call ToolCall
 	}, nil
 }
 
+func (e *GoToolExecutor) runPythonModelWorkerJob(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	return e.workerRunner.Run(ctx, req)
+}
+
 func (e *GoToolExecutor) smokeLocateAnythingModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {
 	result, err := e.models.SmokeLocateAnything(ctx, call.Params)
 	if err != nil {
@@ -481,6 +630,98 @@ func (e *GoToolExecutor) smokeLocateAnythingModel(ctx context.Context, call Tool
 		Status:    result.Status,
 		Metadata:  result.Metadata,
 	}, nil
+}
+
+func appendWorkerLogs(job *ModelJob, logs []modelruntime.WorkerLog, fallback time.Time) {
+	for _, log := range logs {
+		at := fallback
+		if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(log.At)); err == nil {
+			at = parsed
+		}
+		job.Logs = appendModelJobLog(job.Logs, at, log.Level, log.Message)
+	}
+}
+
+func workerMetadata(result modelruntime.WorkerJobResult) map[string]string {
+	metadata := map[string]string{}
+	if strings.TrimSpace(result.StartedAt) != "" {
+		metadata["worker_started_at"] = result.StartedAt
+	}
+	if strings.TrimSpace(result.FinishedAt) != "" {
+		metadata["worker_finished_at"] = result.FinishedAt
+	}
+	if result.Attempt > 0 {
+		metadata["worker_attempt"] = strconv.Itoa(result.Attempt)
+	}
+	if result.MaxAttempts > 0 {
+		metadata["worker_max_attempts"] = strconv.Itoa(result.MaxAttempts)
+	}
+	if result.Heartbeat != nil && strings.TrimSpace(result.Heartbeat.Status) != "" {
+		metadata["worker_heartbeat_status"] = result.Heartbeat.Status
+	}
+	if len(result.Artifacts) > 0 {
+		metadata["artifact_count"] = strconv.Itoa(len(result.Artifacts))
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
+}
+
+func toModelJobHeartbeat(value *modelruntime.WorkerHeartbeat) *ModelJobHeartbeat {
+	if value == nil {
+		return nil
+	}
+	return &ModelJobHeartbeat{At: value.At, Status: value.Status, Message: value.Message}
+}
+
+func toModelJobArtifacts(items []modelruntime.WorkerArtifact) []ModelJobArtifact {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]ModelJobArtifact, 0, len(items))
+	for _, item := range items {
+		out = append(out, ModelJobArtifact{
+			Name:     item.Name,
+			URI:      item.URI,
+			Kind:     item.Kind,
+			Metadata: item.Metadata,
+		})
+	}
+	return out
+}
+
+func mergeStringMaps(base map[string]string, overlay map[string]string) map[string]string {
+	if len(base) == 0 && len(overlay) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range base {
+		out[key] = value
+	}
+	for key, value := range overlay {
+		if strings.TrimSpace(value) != "" {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func isPythonWorkerRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "timed out") || strings.Contains(lower, "context deadline exceeded")
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (e *GoToolExecutor) listRuns(ctx context.Context) (ToolExecutionResult, error) {

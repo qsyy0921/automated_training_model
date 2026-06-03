@@ -66,7 +66,7 @@ func DefaultCatalog() Catalog {
 			ID:                 "model.download_hf",
 			Name:               "Download HuggingFace Model",
 			Risk:               RiskHigh,
-			AllowedParamKeys:   []string{"repo_id", "local_dir", "manifest", "approved", "verify_only"},
+			AllowedParamKeys:   []string{"repo_id", "local_dir", "manifest", "approved", "verify_only", "dry_run", "dataset_id"},
 			ApprovalParamKey:   "approved",
 			ApprovalParamValue: "true",
 		},

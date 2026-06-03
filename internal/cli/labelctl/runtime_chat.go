@@ -119,7 +119,27 @@ type runtimeModelJobLogsPayload struct {
 	JobID           string               `json:"job_id"`
 	Status          string               `json:"status"`
 	ProgressPercent int                  `json:"progress_percent"`
+	Retryable       bool                 `json:"retryable"`
+	Attempt         int                  `json:"attempt"`
+	MaxAttempts     int                  `json:"max_attempts"`
+	WorkerHeartbeat *runtimeJobHeartbeat `json:"worker_heartbeat"`
+	Artifacts       []runtimeJobArtifact `json:"artifacts"`
+	Stdout          string               `json:"stdout"`
+	Stderr          string               `json:"stderr"`
 	Logs            []runtimeModelJobLog `json:"logs"`
+}
+
+type runtimeJobHeartbeat struct {
+	At      string `json:"at"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type runtimeJobArtifact struct {
+	Name     string            `json:"name"`
+	URI      string            `json:"uri"`
+	Kind     string            `json:"kind"`
+	Metadata map[string]string `json:"metadata"`
 }
 
 type runtimeJobStreamEvent struct {
@@ -172,6 +192,9 @@ type runtimeModelJob struct {
 	ProgressPercent int    `json:"progress_percent"`
 	CancelRequested bool   `json:"cancel_requested"`
 	Resumable       bool   `json:"resumable"`
+	Retryable       bool   `json:"retryable"`
+	Attempt         int    `json:"attempt"`
+	MaxAttempts     int    `json:"max_attempts"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
 }
@@ -722,7 +745,8 @@ func (c *runtimeChat) printJob(id string) error {
 		fmt.Sprintf("kind      %s", valueOr(job.Kind, "-")),
 		fmt.Sprintf("status    %s  progress=%d%%", valueOr(job.Status, "-"), job.ProgressPercent),
 		fmt.Sprintf("message   %s", valueOr(job.Message, "-")),
-		fmt.Sprintf("resumable %t  cancel_requested=%t", job.Resumable, job.CancelRequested),
+		fmt.Sprintf("retry     retryable=%t attempt=%d/%d", job.Retryable, job.Attempt, job.MaxAttempts),
+		fmt.Sprintf("state     resumable=%t cancel_requested=%t", job.Resumable, job.CancelRequested),
 		fmt.Sprintf("updated   %s", compactTime(job.UpdatedAt)),
 	}
 	if job.ParentID != "" {
@@ -740,6 +764,19 @@ func (c *runtimeChat) printJobLogs(id string) error {
 	lines := []string{
 		fmt.Sprintf("job       %s", valueOr(payload.JobID, id)),
 		fmt.Sprintf("status    %s  progress=%d%%", valueOr(payload.Status, "-"), payload.ProgressPercent),
+		fmt.Sprintf("retry     retryable=%t attempt=%d/%d", payload.Retryable, payload.Attempt, payload.MaxAttempts),
+	}
+	if payload.WorkerHeartbeat != nil {
+		lines = append(lines, fmt.Sprintf("heartbeat %s  %s  %s", compactTime(payload.WorkerHeartbeat.At), valueOr(payload.WorkerHeartbeat.Status, "-"), valueOr(payload.WorkerHeartbeat.Message, "-")))
+	}
+	if len(payload.Artifacts) > 0 {
+		lines = append(lines, fmt.Sprintf("artifacts %d  %s", len(payload.Artifacts), valueOr(payload.Artifacts[0].URI, "-")))
+	}
+	if strings.TrimSpace(payload.Stdout) != "" {
+		lines = append(lines, "stdout    "+firstLine(payload.Stdout, c.contentWidth()-12))
+	}
+	if strings.TrimSpace(payload.Stderr) != "" {
+		lines = append(lines, "stderr    "+firstLine(payload.Stderr, c.contentWidth()-12))
 	}
 	if len(payload.Logs) == 0 {
 		lines = append(lines, "", "no logs")

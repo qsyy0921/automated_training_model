@@ -66,6 +66,7 @@ Model & Data Training Platform
 - Data Intake Workflow 的 MVP 已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，完成附件 quarantine、静态 scan、dry-run plan 和 pending approval workflow，并把 `workflow_id`、`plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划和 workflow 默认持久化到 `data_lake/runtime/intake`。
 - Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令、runtime self-description、`规划 ShanghaiTech 数据接入` 和已知 LocateAnything 固定流程走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
 - Python model worker 已具备最小可观测执行契约：`python -m agent_worker.main --health` 输出 heartbeat/capabilities，dry-run job 结果包含 heartbeat、logs、artifact 引用、attempt/max_attempts 和 retryable；真实 Go task runner 接入仍在后续阶段。
+- Go 控制面已接入 Python model worker 的最小调度链路：当前 `model.download_hf` 在 `dry_run=true` 时会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；真实 HuggingFace 下载路径暂时仍保持现有 service runner。
 
 ## Agent 生命周期
 
@@ -406,4 +407,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web Agent Overview、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、runtime/gateway `error_envelope`、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming、最小 tool progress streaming 和 Python model worker heartbeat/log/artifact/retry 契约；下一阶段重点是 approval 交互确认、durable queue、Go task runner 接入 Python worker、逐文件日志流、真实模型任务 artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web Agent Overview、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、runtime/gateway `error_envelope`、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming、最小 tool progress streaming、Python model worker heartbeat/log/artifact/retry 契约，以及 `model.download_hf dry_run=true` 的 Go -> Python worker -> ModelJob 可观测闭环；下一阶段重点是 approval 交互确认、durable queue、真实 HuggingFace / 训练任务统一切到 task runner、逐文件日志流、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。

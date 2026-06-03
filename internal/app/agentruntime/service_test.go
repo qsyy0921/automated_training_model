@@ -436,6 +436,82 @@ func TestModelJobCancelAndResume(t *testing.T) {
 	_, _ = executor.CancelModelJob(resumed.ID)
 }
 
+func TestModelDownloadDryRunQueuesPythonWorkerJob(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "worker dry-run completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:00Z", Status: "completed", Message: "done"},
+			Artifacts:   []modelruntime.WorkerArtifact{{Name: "plan", URI: "artifact://dry-run/" + req.TaskID, Kind: "dry-run-plan"}},
+			Logs:        []modelruntime.WorkerLog{{At: "2026-06-03T00:00:00Z", Level: "info", Message: "worker accepted"}},
+			Stdout:      "{\"status\":\"completed\"}",
+		}, nil
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model dry-run",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "model-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B", "dry_run": "true"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "queued" || result.Metadata["execution_path"] != "python-worker" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected python worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "succeeded" {
+			if job.WorkerHeartbeat == nil || job.WorkerHeartbeat.Status != "completed" {
+				t.Fatalf("expected worker heartbeat, got %+v", job)
+			}
+			if len(job.Artifacts) != 1 || job.Attempt != 1 || job.MaxAttempts != 1 {
+				t.Fatalf("expected worker artifacts and retry metadata, got %+v", job)
+			}
+			if !strings.Contains(job.Stdout, "\"completed\"") {
+				t.Fatalf("expected stdout summary, got %+v", job)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected worker job to succeed, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 func TestRecentModelJobLogsAndTerminalStatus(t *testing.T) {
 	job := ModelJob{ID: "job1", Status: "succeeded", Logs: []ModelJobLog{
 		{At: time.Unix(1, 0), Level: "info", Message: "one"},

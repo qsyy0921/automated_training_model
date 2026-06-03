@@ -188,6 +188,32 @@ export function AgentOverviewPage() {
                 <small>Gateway: /api/runtime/model-jobs/{selectedJobId}/logs</small>
               </div>
             ) : null}
+            {selectedJobId !== "" && modelJobLogs.data ? (
+              <div className="overviewRow">
+                <strong>worker</strong>
+                <span>
+                  retryable={String(modelJobLogs.data.retryable ?? false)} · attempt={modelJobLogs.data.attempt ?? 0}/{modelJobLogs.data.max_attempts ?? 0}
+                </span>
+                <small>
+                  {modelJobLogs.data.worker_heartbeat
+                    ? `heartbeat ${compactDateTime(modelJobLogs.data.worker_heartbeat.at)} · ${modelJobLogs.data.worker_heartbeat.status} · ${modelJobLogs.data.worker_heartbeat.message || ""}`
+                    : "暂无 worker heartbeat"}
+                </small>
+              </div>
+            ) : null}
+            {selectedJobId !== "" && (modelJobLogs.data?.artifacts?.length ?? 0) > 0 ? (
+              <div className="overviewRow">
+                <strong>artifacts</strong>
+                <span>{modelJobLogs.data?.artifacts?.length ?? 0}</span>
+                <small>{modelJobLogs.data?.artifacts?.[0]?.uri}</small>
+              </div>
+            ) : null}
+            {selectedJobId !== "" && modelJobLogs.data?.stdout ? (
+              <pre className="jsonPreview">{modelJobLogs.data.stdout}</pre>
+            ) : null}
+            {selectedJobId !== "" && modelJobLogs.data?.stderr ? (
+              <pre className="jsonPreview">{modelJobLogs.data.stderr}</pre>
+            ) : null}
             {(modelJobLogs.data?.logs ?? []).length === 0 && selectedJobId !== "" && !modelJobLogs.isLoading ? <p className="empty">暂无日志</p> : null}
             {(modelJobLogs.data?.logs ?? []).slice(-8).map((log, index) => (
               <div className="logRow" key={`${log.at}-${index}`}>

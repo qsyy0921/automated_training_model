@@ -34,6 +34,12 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 		Status:          "succeeded",
 		Message:         "done",
 		ProgressPercent: 100,
+		Retryable:       false,
+		Attempt:         1,
+		MaxAttempts:     2,
+		WorkerHeartbeat: &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:56Z", Status: "completed", Message: "done"},
+		Artifacts:       []agentruntime.ModelJobArtifact{{Name: "plan", URI: "artifact://dry-run/job1", Kind: "dry-run-plan"}},
+		Stdout:          "{\"status\":\"completed\"}",
 		Logs: []agentruntime.ModelJobLog{
 			{At: time.Unix(1, 0), Level: "info", Message: "queued"},
 			{At: time.Unix(2, 0), Level: "info", Message: "done"},
@@ -48,6 +54,9 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), `"job_id":"job1"`) || !strings.Contains(rec.Body.String(), `"done"`) || strings.Contains(rec.Body.String(), `"queued"`) {
+		t.Fatalf("unexpected logs response: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"worker_heartbeat"`) || !strings.Contains(rec.Body.String(), `"artifact://dry-run/job1"`) || !strings.Contains(rec.Body.String(), `"stdout":"{\"status\":\"completed\"}"`) {
 		t.Fatalf("unexpected logs response: %s", rec.Body.String())
 	}
 

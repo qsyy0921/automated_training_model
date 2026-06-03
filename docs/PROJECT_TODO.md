@@ -38,6 +38,7 @@
 - [x] 将 `intake.plan` / `vlm.inspect` 的 dry-run Data Intake Plan 构造外迁到 `internal/app/intakeapp`，runtime 只负责 tool handler 调用和 trace metadata。
 - [x] 为 JSON MVP model jobs 补齐阶段进度、生命周期日志、取消请求和手动 resume child job；CLI/Gateway 可查询详情、日志、取消和恢复。
 - [x] 新增 Python model worker 可观测执行契约：`--health`、heartbeat、ordered logs、artifact 引用、attempt/max_attempts 和 retryable，先覆盖 dry-run 与参数错误。
+- [x] 新增 Go -> Python model worker 最小调度链路：`model.download_hf dry_run=true` 会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回 job store。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、真实 worker stdout/stderr 日志流、取消幂等性和自动 resume 状态。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [x] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。

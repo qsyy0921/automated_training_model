@@ -71,9 +71,9 @@ func TestRuntimeChatModelJobCommandsUseGateway(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/runtime/model-jobs/job1":
-			_, _ = w.Write([]byte(`{"job":{"id":"job1","repo_id":"nvidia/LocateAnything-3B","kind":"model.download_hf","status":"running","progress_percent":25,"message":"running","updated_at":"2026-06-03T12:34:56Z"}}`))
+			_, _ = w.Write([]byte(`{"job":{"id":"job1","repo_id":"nvidia/LocateAnything-3B","kind":"model.download_hf","status":"running","progress_percent":25,"message":"running","retryable":true,"attempt":1,"max_attempts":3,"updated_at":"2026-06-03T12:34:56Z"}}`))
 		case "/api/runtime/model-jobs/job1/logs":
-			_, _ = w.Write([]byte(`{"job_id":"job1","status":"running","progress_percent":25,"logs":[{"at":"2026-06-03T12:34:56Z","level":"info","message":"running"}]}`))
+			_, _ = w.Write([]byte(`{"job_id":"job1","status":"running","progress_percent":25,"retryable":true,"attempt":1,"max_attempts":3,"worker_heartbeat":{"at":"2026-06-03T12:34:56Z","status":"running","message":"alive"},"artifacts":[{"name":"plan","uri":"artifact://dry-run/job1","kind":"dry-run-plan"}],"stdout":"{\"status\":\"running\"}","logs":[{"at":"2026-06-03T12:34:56Z","level":"info","message":"running"}]}`))
 		case "/api/runtime/model-jobs/job1/logs/stream":
 			_, _ = w.Write([]byte(`{"type":"log","job_id":"job1","log":{"at":"2026-06-03T12:34:56Z","level":"info","message":"running"}}` + "\n"))
 			_, _ = w.Write([]byte(`{"type":"final","job_id":"job1","status":"succeeded","progress_percent":100,"message":"done"}` + "\n"))
@@ -100,7 +100,7 @@ func TestRuntimeChatModelJobCommandsUseGateway(t *testing.T) {
 			t.Fatalf("expected request to %s", path)
 		}
 	}
-	if !strings.Contains(out.String(), "Model Job Logs") || !strings.Contains(out.String(), "final status=succeeded") {
+	if !strings.Contains(out.String(), "Model Job Logs") || !strings.Contains(out.String(), "final status=succeeded") || !strings.Contains(out.String(), "artifact://dry-run/job1") || !strings.Contains(out.String(), "attempt=1/3") {
 		t.Fatalf("unexpected output:\n%s", out.String())
 	}
 }

@@ -224,6 +224,22 @@ export interface RuntimeModelJob {
   progress_percent?: number;
   cancel_requested?: boolean;
   resumable?: boolean;
+  retryable?: boolean;
+  attempt?: number;
+  max_attempts?: number;
+  worker_heartbeat?: {
+    at: string;
+    status: string;
+    message?: string;
+  };
+  artifacts?: Array<{
+    name: string;
+    uri: string;
+    kind?: string;
+    metadata?: Record<string, string>;
+  }>;
+  stdout?: string;
+  stderr?: string;
   logs?: Array<{
     at: string;
     level: string;
@@ -246,6 +262,22 @@ export interface RuntimeModelJobLogs {
   job_id: string;
   status: string;
   progress_percent: number;
+  retryable?: boolean;
+  attempt?: number;
+  max_attempts?: number;
+  worker_heartbeat?: {
+    at: string;
+    status: string;
+    message?: string;
+  };
+  artifacts?: Array<{
+    name: string;
+    uri: string;
+    kind?: string;
+    metadata?: Record<string, string>;
+  }>;
+  stdout?: string;
+  stderr?: string;
   logs: RuntimeModelJobLog[] | null;
 }
 

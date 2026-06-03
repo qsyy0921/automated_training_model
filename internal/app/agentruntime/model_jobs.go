@@ -10,25 +10,45 @@ import (
 const defaultModelJobLimit = 100
 
 type ModelJob struct {
-	ID              string            `json:"id"`
-	ParentID        string            `json:"parent_id,omitempty"`
-	Kind            string            `json:"kind"`
-	RepoID          string            `json:"repo_id"`
-	LocalDir        string            `json:"local_dir"`
-	Manifest        string            `json:"manifest"`
-	VerifyOnly      bool              `json:"verify_only"`
-	Status          string            `json:"status"`
-	Message         string            `json:"message,omitempty"`
-	Error           string            `json:"error,omitempty"`
-	ProgressPercent int               `json:"progress_percent,omitempty"`
-	CancelRequested bool              `json:"cancel_requested,omitempty"`
-	Resumable       bool              `json:"resumable,omitempty"`
-	Logs            []ModelJobLog     `json:"logs,omitempty"`
-	Metadata        map[string]string `json:"metadata,omitempty"`
-	CreatedAt       time.Time         `json:"created_at"`
-	StartedAt       *time.Time        `json:"started_at,omitempty"`
-	FinishedAt      *time.Time        `json:"finished_at,omitempty"`
-	UpdatedAt       time.Time         `json:"updated_at"`
+	ID              string             `json:"id"`
+	ParentID        string             `json:"parent_id,omitempty"`
+	Kind            string             `json:"kind"`
+	RepoID          string             `json:"repo_id"`
+	LocalDir        string             `json:"local_dir"`
+	Manifest        string             `json:"manifest"`
+	VerifyOnly      bool               `json:"verify_only"`
+	Status          string             `json:"status"`
+	Message         string             `json:"message,omitempty"`
+	Error           string             `json:"error,omitempty"`
+	ProgressPercent int                `json:"progress_percent,omitempty"`
+	CancelRequested bool               `json:"cancel_requested,omitempty"`
+	Resumable       bool               `json:"resumable,omitempty"`
+	Retryable       bool               `json:"retryable,omitempty"`
+	Attempt         int                `json:"attempt,omitempty"`
+	MaxAttempts     int                `json:"max_attempts,omitempty"`
+	WorkerHeartbeat *ModelJobHeartbeat `json:"worker_heartbeat,omitempty"`
+	Artifacts       []ModelJobArtifact `json:"artifacts,omitempty"`
+	Stdout          string             `json:"stdout,omitempty"`
+	Stderr          string             `json:"stderr,omitempty"`
+	Logs            []ModelJobLog      `json:"logs,omitempty"`
+	Metadata        map[string]string  `json:"metadata,omitempty"`
+	CreatedAt       time.Time          `json:"created_at"`
+	StartedAt       *time.Time         `json:"started_at,omitempty"`
+	FinishedAt      *time.Time         `json:"finished_at,omitempty"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type ModelJobHeartbeat struct {
+	At      string `json:"at"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
+}
+
+type ModelJobArtifact struct {
+	Name     string            `json:"name"`
+	URI      string            `json:"uri"`
+	Kind     string            `json:"kind,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 type ModelJobLog struct {

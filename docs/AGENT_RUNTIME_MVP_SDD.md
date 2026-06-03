@@ -71,7 +71,7 @@ Workers and Providers
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Web Agent Overview | `web/src/pages/agent-overview/AgentOverviewPage.tsx` | 展示 runtime status、sessions、traces、model jobs、model job logs、intake workflows 和 QQ test-message 入口 | 不直接写 Data Lake，不绕过 Gateway API |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
-| Python Model Worker | `workers/python/agent_worker` | 模型/数据任务的 worker envelope、`--health`、heartbeat、logs、artifact 引用、attempt/max_attempts/retryable 契约 | 不拥有 Go task lifecycle；不直接写 runtime session/trace；真实调度仍由后续 task runner 接入 |
+| Python Model Worker | `workers/python/agent_worker`、`internal/app/modelruntime/worker_runner.go` | 模型/数据任务的 worker envelope、`--health`、heartbeat、logs、artifact 引用、attempt/max_attempts/retryable 契约；当前 `model.download_hf dry_run=true` 会经由 Go `ModelJob` 启动 `python -m agent_worker.main`，并把 worker 结果写回同一份 job store | 不拥有 Go task lifecycle；不直接写 runtime session/trace；真实 HuggingFace 下载/训练任务后续仍需统一迁移到 task runner |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
 ## 6. Sub-agent 使用规则
@@ -162,6 +162,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | Mimo API smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-api.ps1` |
 | Mimo planner smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-mimo-planner.ps1` |
 | HF dry-run | `python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py --repo-id nvidia/LocateAnything-3B --local-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B --manifest data_lake\catalog\models\nvidia_LocateAnything-3B.download.json --dry-run` |
+| Python worker dry-run ModelJob | `go test ./internal/app/agentruntime -run TestModelDownloadDryRunQueuesPythonWorkerJob` |
 | HF real download | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1 -StartDownload -WaitForCompletion` |
 | HF verify-only | `python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py --repo-id nvidia/LocateAnything-3B --local-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B --manifest data_lake\catalog\models\nvidia_LocateAnything-3B.download.json --verify-only` |
 | LocateAnything load smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1` |
@@ -170,8 +171,8 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
-- model job 逐文件字节级进度、真实 worker stdout/stderr 日志流和自动 resume；当前已完成生命周期日志查询、最小 NDJSON stream，以及 Python worker heartbeat/log/artifact/retry 输出契约，但 Go task runner 尚未把真实 worker stdout/stderr 接入 ModelJobStore。
+- model job 逐文件字节级进度、实时 worker stdout/stderr NDJSON 流和自动 resume；当前 `model.download_hf dry_run=true` 已能通过 Go `ModelJob` 启动 Python worker，并把 heartbeat/log/artifact/retry/stdout/stderr 摘要写入 store，但真实 HuggingFace 下载仍保留旧 service runner，未统一切到 task runner。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`；`model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析已迁移到 `internal/app/modelruntime`。后续仍需把 model job 生命周期和 workflow run 接入正式 task repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、审批确认、model job 日志流和会话恢复；最小 tool progress streaming 已完成。
-- Python worker 已有 heartbeat、logs、retries、artifacts 的最小 dry-run/health 契约；后续仍需接入 Go task repository、真实模型执行、artifact manifest 和失败重试调度。
+- Python worker 已有 heartbeat、logs、retries、artifacts 的最小 dry-run/health 契约，且 `model.download_hf dry_run=true` 已接入 Go `ModelJob`；后续仍需把真实下载/训练/评估统一接到 task repository、artifact manifest 和失败重试调度。

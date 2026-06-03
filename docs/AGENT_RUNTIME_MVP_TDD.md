@@ -70,6 +70,7 @@ $go = Resolve-Go
 | Python 语法和 import | `python -m compileall workers\python` |
 | Fast chat / Go intent metadata 分流 | `python -m unittest discover -s workers\python\agent_runtime\tests` |
 | Model worker envelope / heartbeat / logs / artifacts / retry metadata | `python -m unittest discover -s workers\python\agent_worker\tests` |
+| Go Python worker runner | `go test ./internal/app/modelruntime -run TestPythonModelWorkerRunner` |
 | Mimo API | `ops/scripts/smoke-mimo-api.ps1` |
 | Mimo planner / guard plan | `ops/scripts/smoke-mimo-planner.ps1` |
 
@@ -158,6 +159,8 @@ python -m compileall workers\python
 $env:PYTHONPATH=(Resolve-Path .\workers\python).Path
 python -m unittest discover -s workers\python\agent_worker\tests
 python -m unittest discover -s workers\python\agent_runtime\tests
+& $go test ./internal/app/modelruntime -run TestPythonModelWorkerRunner
+& $go test ./internal/app/agentruntime -run TestModelDownloadDryRunQueuesPythonWorkerJob
 cd F:\automated_training_model\web
 npm run build
 cd F:\automated_training_model
@@ -171,10 +174,10 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 
 ## 10. 当前测试缺口
 
-- ModelJob 逐文件字节级进度、真实 worker stdout/stderr 日志流和自动 resume 测试；当前已覆盖生命周期日志查询和最小 NDJSON stream，不覆盖逐文件 worker 输出。
+- ModelJob 逐文件字节级进度、真实 worker stdout/stderr 实时 NDJSON 流和自动 resume 测试；当前已覆盖 `model.download_hf dry_run=true` 的 worker 调度、worker stdout/stderr 摘要入库和生命周期日志查询，但不覆盖逐文件流式输出。
 - `modelruntime` 接入统一 task/model worker 和 workflow repository 后的集成测试。
 - QQ OneBot WebSocket reader 长连接测试。
 - Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。
 - Gateway auth 集成 smoke：非 loopback 模拟、CLI `-token`、桌面端 `-token` 和前端 token profile。
 - ShanghaiTech original 真实推理 smoke。
-- Python worker 到 Go task repository 的真实调度集成测试；当前只覆盖 worker 自身 envelope、health、heartbeat、logs、artifact 和 retry metadata。
+- Python worker 到统一 Go task repository 的真实调度集成测试；当前已覆盖 worker 自身 envelope、health、heartbeat、logs、artifact、retry metadata，以及 `model.download_hf dry_run=true` 的 Go `ModelJob` 调度链。

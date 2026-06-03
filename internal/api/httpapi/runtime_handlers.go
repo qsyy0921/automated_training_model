@@ -131,6 +131,13 @@ func (s *Server) runtimeModelJobLogs(w http.ResponseWriter, r *http.Request, id 
 		"job_id":           job.ID,
 		"status":           job.Status,
 		"progress_percent": job.ProgressPercent,
+		"retryable":        job.Retryable,
+		"attempt":          job.Attempt,
+		"max_attempts":     job.MaxAttempts,
+		"worker_heartbeat": job.WorkerHeartbeat,
+		"artifacts":        job.Artifacts,
+		"stdout":           job.Stdout,
+		"stderr":           job.Stderr,
 		"logs":             agentruntime.RecentModelJobLogs(job, runtimeTraceLimit(r)),
 	})
 }
