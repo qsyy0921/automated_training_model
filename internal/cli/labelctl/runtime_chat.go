@@ -105,11 +105,25 @@ type runtimeJobsPayload struct {
 	Jobs []runtimeModelJob `json:"jobs"`
 }
 
+type runtimeTasksPayload struct {
+	Tasks []runtimeTask `json:"tasks"`
+}
+
 type runtimeJobPayload struct {
 	Job runtimeModelJob `json:"job"`
 }
 
+type runtimeTaskPayload struct {
+	Task runtimeTask `json:"task"`
+}
+
 type runtimeModelJobLog struct {
+	At      string `json:"at"`
+	Level   string `json:"level"`
+	Message string `json:"message"`
+}
+
+type runtimeTaskLog struct {
 	At      string `json:"at"`
 	Level   string `json:"level"`
 	Message string `json:"message"`
@@ -130,6 +144,23 @@ type runtimeModelJobLogsPayload struct {
 	Logs            []runtimeModelJobLog `json:"logs"`
 }
 
+type runtimeTaskLogsPayload struct {
+	TaskID          string               `json:"task_id"`
+	Type            string               `json:"type"`
+	Status          string               `json:"status"`
+	ProgressPercent int                  `json:"progress_percent"`
+	Message         string               `json:"message"`
+	Retryable       bool                 `json:"retryable"`
+	Attempt         int                  `json:"attempt"`
+	MaxAttempts     int                  `json:"max_attempts"`
+	WorkerHeartbeat *runtimeJobHeartbeat `json:"worker_heartbeat"`
+	Artifacts       []runtimeJobArtifact `json:"artifacts"`
+	Stdout          string               `json:"stdout"`
+	Stderr          string               `json:"stderr"`
+	Metadata        map[string]any       `json:"metadata"`
+	Logs            []runtimeTaskLog     `json:"logs"`
+}
+
 type runtimeJobHeartbeat struct {
 	At      string `json:"at"`
 	Status  string `json:"status"`
@@ -144,20 +175,20 @@ type runtimeJobArtifact struct {
 }
 
 type runtimeJobStreamEvent struct {
-	Type            string                 `json:"type"`
-	JobID           string                 `json:"job_id"`
-	Status          string                 `json:"status"`
-	ProgressPercent int                    `json:"progress_percent"`
-	Message         string                 `json:"message"`
-	Retryable       bool                   `json:"retryable"`
-	Attempt         int                    `json:"attempt"`
-	MaxAttempts     int                    `json:"max_attempts"`
-	WorkerHeartbeat *runtimeJobHeartbeat   `json:"worker_heartbeat"`
-	Artifacts       []runtimeJobArtifact   `json:"artifacts"`
-	Stdout          string                 `json:"stdout"`
-	Stderr          string                 `json:"stderr"`
-	Metadata        map[string]any         `json:"metadata"`
-	Log             runtimeModelJobLog     `json:"log"`
+	Type            string               `json:"type"`
+	JobID           string               `json:"job_id"`
+	Status          string               `json:"status"`
+	ProgressPercent int                  `json:"progress_percent"`
+	Message         string               `json:"message"`
+	Retryable       bool                 `json:"retryable"`
+	Attempt         int                  `json:"attempt"`
+	MaxAttempts     int                  `json:"max_attempts"`
+	WorkerHeartbeat *runtimeJobHeartbeat `json:"worker_heartbeat"`
+	Artifacts       []runtimeJobArtifact `json:"artifacts"`
+	Stdout          string               `json:"stdout"`
+	Stderr          string               `json:"stderr"`
+	Metadata        map[string]any       `json:"metadata"`
+	Log             runtimeModelJobLog   `json:"log"`
 }
 
 type runtimeSession struct {
@@ -208,6 +239,20 @@ type runtimeModelJob struct {
 	UpdatedAt       string `json:"updated_at"`
 }
 
+type runtimeTask struct {
+	ID              string `json:"id"`
+	Type            string `json:"type"`
+	Status          string `json:"status"`
+	Message         string `json:"message"`
+	Error           string `json:"error"`
+	ProgressPercent int    `json:"progress_percent"`
+	Retryable       bool   `json:"retryable"`
+	Attempt         int    `json:"attempt"`
+	MaxAttempts     int    `json:"max_attempts"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
+}
+
 type runtimeStreamEvent struct {
 	Type          string                `json:"type"`
 	Delta         string                `json:"delta,omitempty"`
@@ -221,6 +266,23 @@ type runtimeStreamEvent struct {
 	Session       string                `json:"session,omitempty"`
 	ElapsedMS     int64                 `json:"elapsed_ms,omitempty"`
 	ErrorEnvelope *runtimeErrorEnvelope `json:"error_envelope,omitempty"`
+}
+
+type runtimeTaskStreamEvent struct {
+	Type            string               `json:"type"`
+	TaskID          string               `json:"task_id"`
+	Status          string               `json:"status"`
+	ProgressPercent int                  `json:"progress_percent"`
+	Message         string               `json:"message"`
+	Retryable       bool                 `json:"retryable"`
+	Attempt         int                  `json:"attempt"`
+	MaxAttempts     int                  `json:"max_attempts"`
+	WorkerHeartbeat *runtimeJobHeartbeat `json:"worker_heartbeat"`
+	Artifacts       []runtimeJobArtifact `json:"artifacts"`
+	Stdout          string               `json:"stdout"`
+	Stderr          string               `json:"stderr"`
+	Metadata        map[string]any       `json:"metadata"`
+	Log             runtimeTaskLog       `json:"log"`
 }
 
 type runtimeErrorEnvelope struct {
@@ -297,7 +359,7 @@ func (c *runtimeChat) printBanner() {
 		"Gateway   " + c.cfg.addr,
 		"Session   " + c.sessionID + "  cwd=" + compactPath(mustGetwd()),
 		"Models    text=mimo-v2.5-pro  vision=mimo-v2.5",
-		"Commands  /help  /status  /traces  /jobs  /doctor  /exit",
+		"Commands  /help  /status  /traces  /jobs  /tasks  /doctor  /exit",
 	}, "cyan")
 }
 
@@ -343,23 +405,40 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 		return true, c.printSessions()
 	case "/traces":
 		return true, c.printTraces()
-	case "/jobs", "/tasks":
+	case "/jobs":
 		return true, c.printJobs()
+	case "/tasks":
+		return true, c.printTasks()
 	case "/job":
 		if len(parts) < 2 {
 			return true, errors.New("usage: /job <job_id>")
 		}
 		return true, c.printJob(parts[1])
+	case "/task":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /task <task_id>")
+		}
+		return true, c.printTask(parts[1])
 	case "/job-logs", "/logs-job":
 		if len(parts) < 2 {
 			return true, errors.New("usage: /job-logs <job_id>")
 		}
 		return true, c.printJobLogs(parts[1])
+	case "/task-logs", "/logs-task":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /task-logs <task_id>")
+		}
+		return true, c.printTaskLogs(parts[1])
 	case "/follow-job":
 		if len(parts) < 2 {
 			return true, errors.New("usage: /follow-job <job_id>")
 		}
 		return true, c.followJob(parts[1])
+	case "/follow-task":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /follow-task <task_id>")
+		}
+		return true, c.followTask(parts[1])
 	case "/doctor":
 		return true, c.printDoctor()
 	case "/clear":
@@ -627,11 +706,15 @@ func (c *runtimeChat) printHelp() {
 		"/sessions    active channel/session table",
 		"/traces      recent agent/tool trace tree",
 		"/jobs        model/background job table",
+		"/tasks       lifecycle task table",
 		"/job <id>    model/background job detail",
+		"/task <id>   lifecycle task detail",
 		"/job-logs <id>    model job lifecycle logs",
+		"/task-logs <id>   lifecycle task logs",
 		"/follow-job <id>  stream model job logs until terminal or timeout",
+		"/follow-task <id> stream lifecycle task logs until terminal or timeout",
 		"/doctor      server, runtime and local CLI diagnostics",
-		"/json <x>    raw JSON for status/sessions/traces/jobs",
+		"/json <x>    raw JSON for status/sessions/traces/jobs/tasks",
 		"/clear       clear screen",
 		"/ping        send /bot-ping through the same runtime path",
 		"/exit        quit",
@@ -742,6 +825,27 @@ func (c *runtimeChat) printJobs() error {
 	return nil
 }
 
+func (c *runtimeChat) printTasks() error {
+	var payload runtimeTasksPayload
+	if err := getJSONValue(c.cfg.addr+"/api/tasks", &payload); err != nil {
+		return err
+	}
+	if len(payload.Tasks) == 0 {
+		fmt.Fprintln(c.out, "no lifecycle tasks")
+		return nil
+	}
+	lines := []string{}
+	for _, task := range payload.Tasks {
+		line := fmt.Sprintf("%-24s %-12s %3d%% %-18s", valueOr(task.ID, "-"), valueOr(task.Status, "-"), task.ProgressPercent, valueOr(task.Type, "-"))
+		if task.Message != "" {
+			line += "  " + task.Message
+		}
+		lines = append(lines, line)
+	}
+	c.printPanel("Lifecycle Tasks", lines, "yellow")
+	return nil
+}
+
 func (c *runtimeChat) printJob(id string) error {
 	var payload runtimeJobPayload
 	if err := getJSONValue(c.cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(id), &payload); err != nil {
@@ -762,6 +866,27 @@ func (c *runtimeChat) printJob(id string) error {
 		lines = append(lines, "parent    "+job.ParentID)
 	}
 	c.printPanel("Model Job", lines, statusColor(job.Status))
+	return nil
+}
+
+func (c *runtimeChat) printTask(id string) error {
+	var payload runtimeTaskPayload
+	if err := getJSONValue(c.cfg.addr+"/api/tasks/"+url.PathEscape(id), &payload); err != nil {
+		return err
+	}
+	task := payload.Task
+	lines := []string{
+		fmt.Sprintf("id        %s", valueOr(task.ID, "-")),
+		fmt.Sprintf("type      %s", valueOr(task.Type, "-")),
+		fmt.Sprintf("status    %s  progress=%d%%", valueOr(task.Status, "-"), task.ProgressPercent),
+		fmt.Sprintf("message   %s", valueOr(task.Message, "-")),
+		fmt.Sprintf("retry     retryable=%t attempt=%d/%d", task.Retryable, task.Attempt, task.MaxAttempts),
+		fmt.Sprintf("updated   %s", compactTime(task.UpdatedAt)),
+	}
+	if task.Error != "" {
+		lines = append(lines, "error     "+firstLine(task.Error, c.contentWidth()-12))
+	}
+	c.printPanel("Lifecycle Task", lines, statusColor(task.Status))
 	return nil
 }
 
@@ -801,6 +926,46 @@ func (c *runtimeChat) printJobLogs(id string) error {
 		}
 	}
 	c.printPanel("Model Job Logs", lines, statusColor(payload.Status))
+	return nil
+}
+
+func (c *runtimeChat) printTaskLogs(id string) error {
+	var payload runtimeTaskLogsPayload
+	if err := getJSONValue(c.cfg.addr+"/api/tasks/"+url.PathEscape(id)+"/logs?limit=30", &payload); err != nil {
+		return err
+	}
+	lines := []string{
+		fmt.Sprintf("task      %s", valueOr(payload.TaskID, id)),
+		fmt.Sprintf("type      %s", valueOr(payload.Type, "-")),
+		fmt.Sprintf("status    %s  progress=%d%%", valueOr(payload.Status, "-"), payload.ProgressPercent),
+		fmt.Sprintf("retry     retryable=%t attempt=%d/%d", payload.Retryable, payload.Attempt, payload.MaxAttempts),
+	}
+	if payload.WorkerHeartbeat != nil {
+		lines = append(lines, fmt.Sprintf("heartbeat %s  %s  %s", compactTime(payload.WorkerHeartbeat.At), valueOr(payload.WorkerHeartbeat.Status, "-"), valueOr(payload.WorkerHeartbeat.Message, "-")))
+	}
+	if len(payload.Artifacts) > 0 {
+		lines = append(lines, fmt.Sprintf("artifacts %d  %s", len(payload.Artifacts), valueOr(payload.Artifacts[0].URI, "-")))
+	}
+	if payload.Metadata != nil {
+		if manifest := strings.TrimSpace(fmt.Sprint(payload.Metadata["artifact_manifest"])); manifest != "" && manifest != "<nil>" {
+			lines = append(lines, "manifest  "+firstLine(manifest, c.contentWidth()-12))
+		}
+	}
+	if strings.TrimSpace(payload.Stdout) != "" {
+		lines = append(lines, "stdout    "+firstLine(payload.Stdout, c.contentWidth()-12))
+	}
+	if strings.TrimSpace(payload.Stderr) != "" {
+		lines = append(lines, "stderr    "+firstLine(payload.Stderr, c.contentWidth()-12))
+	}
+	if len(payload.Logs) == 0 {
+		lines = append(lines, "", "no logs")
+	} else {
+		lines = append(lines, "")
+		for _, log := range payload.Logs {
+			lines = append(lines, taskLogLine(log))
+		}
+	}
+	c.printPanel("Lifecycle Task Logs", lines, statusColor(payload.Status))
 	return nil
 }
 
@@ -870,6 +1035,72 @@ func (c *runtimeChat) followJob(id string) error {
 	return scanner.Err()
 }
 
+func (c *runtimeChat) followTask(id string) error {
+	req, err := http.NewRequest(http.MethodGet, c.cfg.addr+"/api/tasks/"+url.PathEscape(id)+"/logs/stream?timeout_ms=60000", nil)
+	if err != nil {
+		return err
+	}
+	applyGatewayAuth(req, c.cfg.token)
+	client := &http.Client{Timeout: 65 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("%s: %s", resp.Status, string(bodyBytes))
+	}
+	c.printPanel("Following Lifecycle Task", []string{
+		"task      " + id,
+		"endpoint  /api/tasks/" + id + "/logs/stream",
+	}, "yellow")
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var event runtimeTaskStreamEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return fmt.Errorf("parse lifecycle task stream event: %w: %s", err, line)
+		}
+		switch event.Type {
+		case "log":
+			fmt.Fprintf(c.out, "%s\n", taskLogLine(event.Log))
+		case "final":
+			fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("final status=%s progress=%d%% %s", valueOr(event.Status, "-"), event.ProgressPercent, valueOr(event.Message, "")), statusColor(event.Status)))
+			if event.Attempt > 0 || event.MaxAttempts > 0 {
+				fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("retry attempt=%d/%d retryable=%t", event.Attempt, event.MaxAttempts, event.Retryable), "dim"))
+			}
+			if event.WorkerHeartbeat != nil {
+				fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("heartbeat %s %s %s", compactTime(event.WorkerHeartbeat.At), valueOr(event.WorkerHeartbeat.Status, "-"), valueOr(event.WorkerHeartbeat.Message, "-")), "dim"))
+			}
+			if len(event.Artifacts) > 0 {
+				fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("artifact  %s", valueOr(event.Artifacts[0].URI, "-")), "dim"))
+			}
+			if event.Metadata != nil {
+				if manifest := strings.TrimSpace(fmt.Sprint(event.Metadata["artifact_manifest"])); manifest != "" && manifest != "<nil>" {
+					fmt.Fprintf(c.out, "%s\n", c.color("manifest  "+firstLine(manifest, c.contentWidth()-12), "dim"))
+				}
+			}
+			if strings.TrimSpace(event.Stdout) != "" {
+				fmt.Fprintf(c.out, "%s\n", c.color("stdout    "+firstLine(event.Stdout, c.contentWidth()-12), "dim"))
+			}
+			if strings.TrimSpace(event.Stderr) != "" {
+				fmt.Fprintf(c.out, "%s\n", c.color("stderr    "+firstLine(event.Stderr, c.contentWidth()-12), "dim"))
+			}
+			return nil
+		case "error":
+			return errors.New(valueOr(event.Message, "lifecycle task stream failed"))
+		default:
+			fmt.Fprintf(c.out, "%s\n", firstLine(line, c.contentWidth()))
+		}
+	}
+	return scanner.Err()
+}
+
 func (c *runtimeChat) printDoctor() error {
 	lines := []string{
 		fmt.Sprintf("os        %s/%s", runtime.GOOS, runtime.GOARCH),
@@ -915,9 +1146,15 @@ func (c *runtimeChat) printRawJSON(name string) error {
 		return getJSON(c.cfg.addr + "/api/runtime/traces")
 	case "jobs", "model-jobs":
 		return getJSON(c.cfg.addr + "/api/runtime/model-jobs")
+	case "tasks":
+		return getJSON(c.cfg.addr + "/api/tasks")
 	default:
 		return fmt.Errorf("unknown json target: %s", name)
 	}
+}
+
+func taskLogLine(log runtimeTaskLog) string {
+	return fmt.Sprintf("%s  %-5s  %s", compactTime(log.At), valueOr(log.Level, "info"), valueOr(log.Message, "-"))
 }
 
 func (c *runtimeChat) printUser(text string) {
@@ -1109,9 +1346,11 @@ func compactMetadata(metadata map[string]any) string {
 
 func statusColor(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "ok", "planned", "tool_planned", "tool_planned_with_guard":
+	case "completed", "succeeded", "ok", "planned", "tool_planned", "tool_planned_with_guard":
 		return "green"
-	case "approval_required":
+	case "running":
+		return "cyan"
+	case "canceled", "approval_required":
 		return "yellow"
 	case "failed", "tool_failed", "planning_failed", "preflight_failed":
 		return "red"

@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -45,6 +46,22 @@ func (q *MemoryQueue) Status(ctx context.Context, id string) (*workflow.Task, er
 	}
 	copied := cloneTask(*task)
 	return &copied, nil
+}
+
+func (q *MemoryQueue) List(ctx context.Context, limit int) ([]workflow.Task, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	rows := make([]workflow.Task, 0, len(q.tasks))
+	for _, task := range q.tasks {
+		rows = append(rows, cloneTask(*task))
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].UpdatedAt.After(rows[j].UpdatedAt)
+	})
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows, nil
 }
 
 func (q *MemoryQueue) Cancel(ctx context.Context, id string) error {

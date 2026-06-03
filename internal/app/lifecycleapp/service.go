@@ -42,6 +42,10 @@ func (s *Service) TaskStatus(ctx context.Context, id string) (*workflow.Task, er
 	return s.gateway.Status(ctx, id)
 }
 
+func (s *Service) ListTasks(ctx context.Context, limit int) ([]workflow.Task, error) {
+	return s.gateway.List(ctx, limit)
+}
+
 func (s *Service) CancelTask(ctx context.Context, id string) error {
 	return s.gateway.Cancel(ctx, id)
 }

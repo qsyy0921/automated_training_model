@@ -127,6 +127,18 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if err := runLogs(cfg, []string{"job", "job1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runRuntime(cfg, []string{"tasks"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runRuntime(cfg, []string{"task-logs", "task1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runLogs(cfg, []string{"tasks"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runDeploy(cfg, []string{"follow-task", "task1"}); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, key := range []string{
 		"POST /api/datasets/register-folder",
@@ -137,10 +149,19 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		"POST /api/deployments",
 		"POST /api/channels/qq/test-message",
 		"GET /api/runtime/model-jobs/job1/logs",
+		"GET /api/tasks",
+		"GET /api/tasks/task1/logs",
+		"GET /api/tasks/task1/logs/stream",
 	} {
 		want := 1
 		if key == "GET /api/runtime/model-jobs/job1/logs" {
 			want = 3
+		}
+		if key == "GET /api/tasks" {
+			want = 2
+		}
+		if key == "GET /api/tasks/task1/logs" {
+			want = 1
 		}
 		if seen[key] != want {
 			t.Fatalf("expected %s %d times, got %d", key, want, seen[key])

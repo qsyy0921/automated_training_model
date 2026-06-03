@@ -24,6 +24,13 @@ func (f *fakeGateway) Submit(ctx context.Context, taskType string, payload map[s
 	return "task_000001", nil
 }
 
+func (f *fakeGateway) List(ctx context.Context, limit int) ([]workflow.Task, error) {
+	if f.status != nil {
+		return []workflow.Task{*f.status}, nil
+	}
+	return []workflow.Task{{ID: "task_000001", Type: "training.run", Status: workflow.TaskPending}}, nil
+}
+
 func (f *fakeGateway) Status(ctx context.Context, id string) (*workflow.Task, error) {
 	if f.status != nil {
 		return f.status, nil
@@ -133,5 +140,19 @@ func TestTaskStatusAndCancelProxyToGateway(t *testing.T) {
 	}
 	if gateway.canceled != "task_000001" {
 		t.Fatalf("expected cancel to reach gateway, got %q", gateway.canceled)
+	}
+}
+
+func TestListTasksProxyToGateway(t *testing.T) {
+	gateway := &fakeGateway{
+		status: &workflow.Task{ID: "task_000001", Type: "evaluation.run", Status: workflow.TaskRunning},
+	}
+	svc := NewService(gateway)
+	tasks, err := svc.ListTasks(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != "task_000001" || tasks[0].Type != "evaluation.run" {
+		t.Fatalf("unexpected tasks: %+v", tasks)
 	}
 }

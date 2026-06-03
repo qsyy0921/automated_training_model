@@ -258,6 +258,33 @@ func runRuntime(cfg Config, args []string) error {
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/logs/stream")
 	}
+	if args[0] == "tasks" {
+		return getJSON(cfg.addr + "/api/tasks")
+	}
+	if args[0] == "task" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime task <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	}
+	if args[0] == "task-logs" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime task-logs <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs")
+	}
+	if args[0] == "task-logs-stream" || args[0] == "follow-task" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime task-logs-stream <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs/stream")
+	}
+	if args[0] == "cancel-task" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime cancel-task <task_id>")
+		}
+		return deleteJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	}
 	if args[0] == "cancel-job" {
 		if len(args) < 2 {
 			return errors.New("usage: labelctl runtime cancel-job <job_id>")
@@ -933,7 +960,10 @@ func usage() {
   videos
   dataset [list|register-folder|register-manifest|activate]
   models [list|get <id>|register|jobs|job <id>|job-logs <id>|cancel-job <id>|resume-job <id>]
-  deploy [submit|task <id>|task-logs <id>|cancel-task <id>]
+  deploy [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
+  autolabel [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
+  training [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
+  evaluation [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
   logs [traces|audit|runs|jobs|job <id>|task <id>|intake]
   doctor
   providers

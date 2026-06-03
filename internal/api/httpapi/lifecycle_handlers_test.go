@@ -22,6 +22,13 @@ func (f fakeTaskGateway) Submit(ctx context.Context, taskType string, payload ma
 	return "task_000001", nil
 }
 
+func (f fakeTaskGateway) List(ctx context.Context, limit int) ([]workflow.Task, error) {
+	if f.task == nil {
+		return nil, nil
+	}
+	return []workflow.Task{*f.task}, nil
+}
+
 func (f fakeTaskGateway) Status(ctx context.Context, id string) (*workflow.Task, error) {
 	if f.task == nil || f.task.ID != id {
 		return nil, errors.New("task not found")
@@ -77,6 +84,29 @@ func TestLifecycleTaskLogsEndpoints(t *testing.T) {
 	stream := rec.Body.String()
 	if !strings.Contains(stream, `"type":"log"`) || !strings.Contains(stream, `"type":"final"`) || !strings.Contains(stream, `"status":"completed"`) || !strings.Contains(stream, `"artifact_manifest"`) {
 		t.Fatalf("unexpected stream body: %s", stream)
+	}
+}
+
+func TestLifecycleTaskListEndpoint(t *testing.T) {
+	task := &workflow.Task{
+		ID:              "task_000001",
+		Type:            "training.run",
+		Status:          workflow.TaskRunning,
+		Message:         "running python worker execution",
+		ProgressPercent: 35,
+	}
+	server := &Server{lifecycle: lifecycleapp.NewService(fakeTaskGateway{task: task})}
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks?limit=10", nil)
+	rec := httptest.NewRecorder()
+	server.listTasks(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, fragment := range []string{`"tasks"`, `"task_000001"`, `"training.run"`, `"running"`} {
+		if !strings.Contains(body, fragment) {
+			t.Fatalf("expected fragment %q in body: %s", fragment, body)
+		}
 	}
 }
 

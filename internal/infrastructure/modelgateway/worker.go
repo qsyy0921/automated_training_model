@@ -86,6 +86,10 @@ func (g *WorkerGateway) Status(ctx context.Context, id string) (*workflow.Task, 
 	return g.queue.Status(ctx, id)
 }
 
+func (g *WorkerGateway) List(ctx context.Context, limit int) ([]workflow.Task, error) {
+	return g.queue.List(ctx, limit)
+}
+
 func (g *WorkerGateway) Cancel(ctx context.Context, id string) error {
 	if err := g.queue.Cancel(ctx, id); err != nil {
 		return err

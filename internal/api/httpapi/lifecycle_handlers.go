@@ -108,6 +108,15 @@ func (s *Server) submitDeployment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"deployment": dep})
 }
 
+func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := s.lifecycle.ListTasks(r.Context(), runtimeTraceLimit(r))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": tasks})
+}
+
 func (s *Server) taskDetail(w http.ResponseWriter, r *http.Request) {
 	id, action := lifecycleTaskPath(r)
 	if id == "" {
@@ -220,25 +229,25 @@ func (s *Server) taskLogStream(w http.ResponseWriter, r *http.Request, id string
 
 func lifecycleTaskLogsPayload(task *workflow.Task, logs []workflow.TaskLog) map[string]any {
 	return map[string]any{
-		"id":                task.ID,
-		"task_id":           task.ID,
-		"type":              task.Type,
-		"status":            task.Status,
-		"progress_percent":  task.ProgressPercent,
-		"message":           task.Message,
-		"retryable":         task.Retryable,
-		"attempt":           task.Attempt,
-		"max_attempts":      task.MaxAttempts,
-		"worker_heartbeat":  task.WorkerHeartbeat,
-		"artifacts":         task.Artifacts,
-		"stdout":            task.Stdout,
-		"stderr":            task.Stderr,
-		"metadata":          task.Metadata,
-		"logs":              logs,
-		"created_at":        task.CreatedAt,
-		"started_at":        task.StartedAt,
-		"finished_at":       task.FinishedAt,
-		"updated_at":        task.UpdatedAt,
+		"id":               task.ID,
+		"task_id":          task.ID,
+		"type":             task.Type,
+		"status":           task.Status,
+		"progress_percent": task.ProgressPercent,
+		"message":          task.Message,
+		"retryable":        task.Retryable,
+		"attempt":          task.Attempt,
+		"max_attempts":     task.MaxAttempts,
+		"worker_heartbeat": task.WorkerHeartbeat,
+		"artifacts":        task.Artifacts,
+		"stdout":           task.Stdout,
+		"stderr":           task.Stderr,
+		"metadata":         task.Metadata,
+		"logs":             logs,
+		"created_at":       task.CreatedAt,
+		"started_at":       task.StartedAt,
+		"finished_at":      task.FinishedAt,
+		"updated_at":       task.UpdatedAt,
 	}
 }
 

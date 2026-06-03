@@ -22,21 +22,21 @@ type JSONQueue struct {
 }
 
 type taskArtifactManifestFile struct {
-	TaskID           string                   `json:"task_id"`
-	Type             string                   `json:"type"`
-	Status           workflow.TaskStatus      `json:"status"`
-	Message          string                   `json:"message,omitempty"`
-	Retryable        bool                     `json:"retryable,omitempty"`
-	Attempt          int                      `json:"attempt,omitempty"`
-	MaxAttempts      int                      `json:"max_attempts,omitempty"`
-	WorkerHeartbeat  *workflow.TaskHeartbeat  `json:"worker_heartbeat,omitempty"`
-	Artifacts        []workflow.TaskArtifact  `json:"artifacts,omitempty"`
-	Metadata         map[string]string        `json:"metadata,omitempty"`
-	CreatedAt        time.Time                `json:"created_at"`
-	StartedAt        *time.Time               `json:"started_at,omitempty"`
-	UpdatedAt        time.Time                `json:"updated_at"`
-	FinishedAt       *time.Time               `json:"finished_at,omitempty"`
-	ArchivedAt       time.Time                `json:"archived_at"`
+	TaskID          string                  `json:"task_id"`
+	Type            string                  `json:"type"`
+	Status          workflow.TaskStatus     `json:"status"`
+	Message         string                  `json:"message,omitempty"`
+	Retryable       bool                    `json:"retryable,omitempty"`
+	Attempt         int                     `json:"attempt,omitempty"`
+	MaxAttempts     int                     `json:"max_attempts,omitempty"`
+	WorkerHeartbeat *workflow.TaskHeartbeat `json:"worker_heartbeat,omitempty"`
+	Artifacts       []workflow.TaskArtifact `json:"artifacts,omitempty"`
+	Metadata        map[string]string       `json:"metadata,omitempty"`
+	CreatedAt       time.Time               `json:"created_at"`
+	StartedAt       *time.Time              `json:"started_at,omitempty"`
+	UpdatedAt       time.Time               `json:"updated_at"`
+	FinishedAt      *time.Time              `json:"finished_at,omitempty"`
+	ArchivedAt      time.Time               `json:"archived_at"`
 }
 
 func NewJSONQueue(path string, now func() time.Time) (*JSONQueue, error) {
@@ -73,6 +73,22 @@ func (q *JSONQueue) Enqueue(ctx context.Context, spec workflow.TaskSpec) (string
 		return "", err
 	}
 	return id, nil
+}
+
+func (q *JSONQueue) List(ctx context.Context, limit int) ([]workflow.Task, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	rows := make([]workflow.Task, 0, len(q.tasks))
+	for _, task := range q.tasks {
+		rows = append(rows, cloneTask(*task))
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].UpdatedAt.After(rows[j].UpdatedAt)
+	})
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows, nil
 }
 
 func (q *JSONQueue) Status(ctx context.Context, id string) (*workflow.Task, error) {

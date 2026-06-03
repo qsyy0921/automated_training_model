@@ -122,3 +122,36 @@ func TestJSONQueueContinuesTaskSequenceAfterReload(t *testing.T) {
 		t.Fatalf("unexpected task sequence: first=%s second=%s", first, second)
 	}
 }
+
+func TestJSONQueueListReturnsLatestFirst(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "tasks.json")
+	now := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+	q, err := NewJSONQueue(path, func() time.Time {
+		now = now.Add(time.Second)
+		return now
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "evaluation.run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Update(context.Background(), first, func(task *workflow.Task) {
+		task.Message = "updated later"
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := q.List(context.Background(), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 || rows[0].ID != first || rows[1].ID != second {
+		t.Fatalf("unexpected task order: %+v", rows)
+	}
+}
