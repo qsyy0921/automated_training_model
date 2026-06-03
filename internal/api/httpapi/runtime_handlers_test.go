@@ -16,7 +16,8 @@ import (
 )
 
 type fakeRuntimeRunner struct {
-	job agentruntime.ModelJob
+	job     agentruntime.ModelJob
+	lineage []agentruntime.ModelJob
 }
 
 func (f fakeRuntimeRunner) Run(ctx context.Context, msg channel.InboundMessage) (channel.OutboundMessage, error) {
@@ -28,6 +29,16 @@ func (f fakeRuntimeRunner) GetModelJob(id string) (agentruntime.ModelJob, bool) 
 		return agentruntime.ModelJob{}, false
 	}
 	return f.job, true
+}
+
+func (f fakeRuntimeRunner) LineageModelJob(id string) []agentruntime.ModelJob {
+	if len(f.lineage) > 0 {
+		return f.lineage
+	}
+	if id == f.job.ID {
+		return []agentruntime.ModelJob{f.job}
+	}
+	return nil
 }
 
 func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
@@ -87,6 +98,16 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"schema_version":"artifact-manifest/v1"`) || !strings.Contains(rec.Body.String(), `"primary_artifact"`) || !strings.Contains(rec.Body.String(), `job1.artifact_manifest.json`) {
 		t.Fatalf("unexpected manifest response: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/runtime/model-jobs/job1/lineage", nil)
+	rec = httptest.NewRecorder()
+	server.runtimeModelJobDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected lineage status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"job_id":"job1"`) || !strings.Contains(rec.Body.String(), `"root_id":"job1"`) || !strings.Contains(rec.Body.String(), `"lineage"`) {
+		t.Fatalf("unexpected lineage response: %s", rec.Body.String())
 	}
 }
 

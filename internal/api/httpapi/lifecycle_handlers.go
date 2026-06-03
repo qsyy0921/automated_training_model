@@ -134,6 +134,9 @@ func (s *Server) taskDetail(w http.ResponseWriter, r *http.Request) {
 	case "manifest":
 		s.taskManifest(w, r, id)
 		return
+	case "lineage":
+		s.taskLineage(w, r, id)
+		return
 	default:
 		writeError(w, http.StatusNotFound, errors.New("task not found"))
 		return
@@ -144,6 +147,24 @@ func (s *Server) taskDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"task": task})
+}
+
+func (s *Server) taskLineage(w http.ResponseWriter, r *http.Request, id string) {
+	tasks, err := s.lifecycle.TaskLineage(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	rootID := id
+	if len(tasks) > 0 {
+		rootID = tasks[0].ID
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"task_id": id,
+		"root_id": rootID,
+		"lineage": tasks,
+		"count":   len(tasks),
+	})
 }
 
 func (s *Server) cancelTask(w http.ResponseWriter, r *http.Request) {

@@ -17,7 +17,8 @@ import (
 )
 
 type fakeTaskGateway struct {
-	task *workflow.Task
+	task    *workflow.Task
+	lineage []workflow.Task
 }
 
 func (f fakeTaskGateway) Submit(ctx context.Context, taskType string, payload map[string]string) (string, error) {
@@ -37,6 +38,16 @@ func (f fakeTaskGateway) Status(ctx context.Context, id string) (*workflow.Task,
 	}
 	copied := *f.task
 	return &copied, nil
+}
+
+func (f fakeTaskGateway) Lineage(ctx context.Context, id string) ([]workflow.Task, error) {
+	if len(f.lineage) > 0 {
+		return f.lineage, nil
+	}
+	if f.task == nil || f.task.ID != id {
+		return nil, errors.New("task not found")
+	}
+	return []workflow.Task{*f.task}, nil
 }
 
 func (f fakeTaskGateway) Cancel(ctx context.Context, id string) error { return nil }
@@ -108,6 +119,16 @@ func TestLifecycleTaskLogsEndpoints(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"schema_version":"artifact-manifest/v1"`) || !strings.Contains(rec.Body.String(), `"primary_artifact"`) || !strings.Contains(rec.Body.String(), `task_000001.artifact_manifest.json`) {
 		t.Fatalf("unexpected manifest response: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/tasks/task_000001/lineage", nil)
+	rec = httptest.NewRecorder()
+	server.taskDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected lineage status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"task_id":"task_000001"`) || !strings.Contains(rec.Body.String(), `"root_id":"task_000001"`) || !strings.Contains(rec.Body.String(), `"lineage"`) {
+		t.Fatalf("unexpected lineage response: %s", rec.Body.String())
 	}
 }
 

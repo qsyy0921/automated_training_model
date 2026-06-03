@@ -87,6 +87,10 @@ func (g *WorkerGateway) Status(ctx context.Context, id string) (*workflow.Task, 
 	return g.queue.Status(ctx, id)
 }
 
+func (g *WorkerGateway) Lineage(ctx context.Context, id string) ([]workflow.Task, error) {
+	return g.queue.Lineage(ctx, id)
+}
+
 func (g *WorkerGateway) List(ctx context.Context, limit int) ([]workflow.Task, error) {
 	return g.queue.List(ctx, limit)
 }

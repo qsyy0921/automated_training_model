@@ -46,6 +46,10 @@ func (s *Service) ListTasks(ctx context.Context, limit int) ([]workflow.Task, er
 	return s.gateway.List(ctx, limit)
 }
 
+func (s *Service) TaskLineage(ctx context.Context, id string) ([]workflow.Task, error) {
+	return s.gateway.Lineage(ctx, id)
+}
+
 func (s *Service) CancelTask(ctx context.Context, id string) error {
 	return s.gateway.Cancel(ctx, id)
 }

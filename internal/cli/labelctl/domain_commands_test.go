@@ -136,6 +136,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if err := runRuntime(cfg, []string{"job-manifest", "job1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runRuntime(cfg, []string{"job-lineage", "job1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runModels(cfg, []string{"job-logs", "job1"}); err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +158,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := runRuntime(cfg, []string{"task-manifest", "task1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runRuntime(cfg, []string{"task-lineage", "task1"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := runRuntime(cfg, []string{"resume-task", "task1"}); err != nil {
@@ -186,9 +192,11 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		"POST /api/channels/qq/test-message",
 		"GET /api/runtime/model-jobs/job1/logs",
 		"GET /api/runtime/model-jobs/job1/manifest",
+		"GET /api/runtime/model-jobs/job1/lineage",
 		"GET /api/tasks",
 		"GET /api/tasks/task1/logs",
 		"GET /api/tasks/task1/manifest",
+		"GET /api/tasks/task1/lineage",
 		"GET /api/tasks/task1/logs/stream",
 		"POST /api/tasks/task1/resume",
 	} {
@@ -199,6 +207,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		if key == "GET /api/runtime/model-jobs/job1/manifest" {
 			want = 3
 		}
+		if key == "GET /api/runtime/model-jobs/job1/lineage" {
+			want = 1
+		}
 		if key == "GET /api/tasks" {
 			want = 2
 		}
@@ -207,6 +218,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		}
 		if key == "GET /api/tasks/task1/manifest" {
 			want = 3
+		}
+		if key == "GET /api/tasks/task1/lineage" {
+			want = 1
 		}
 		if key == "POST /api/tasks/task1/resume" {
 			want = 2

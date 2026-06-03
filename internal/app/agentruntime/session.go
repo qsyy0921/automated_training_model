@@ -288,6 +288,13 @@ func (r *DefaultSessionRunner) GetModelJob(id string) (ModelJob, bool) {
 	return ModelJob{}, false
 }
 
+func (r *DefaultSessionRunner) LineageModelJob(id string) []ModelJob {
+	if tools, ok := r.tools.(interface{ LineageModelJob(string) []ModelJob }); ok {
+		return tools.LineageModelJob(id)
+	}
+	return nil
+}
+
 func (r *DefaultSessionRunner) CancelModelJob(id string) (ModelJob, error) {
 	if tools, ok := r.tools.(interface {
 		CancelModelJob(string) (ModelJob, error)

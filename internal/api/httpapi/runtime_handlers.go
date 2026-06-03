@@ -112,6 +112,9 @@ func (s *Server) runtimeModelJobDetail(w http.ResponseWriter, r *http.Request) {
 	case "manifest":
 		s.runtimeModelJobManifest(w, r, id)
 		return
+	case "lineage":
+		s.runtimeModelJobLineage(w, r, id)
+		return
 	default:
 		writeError(w, http.StatusNotFound, errors.New("model job not found"))
 		return
@@ -122,6 +125,20 @@ func (s *Server) runtimeModelJobDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"job": job})
+}
+
+func (s *Server) runtimeModelJobLineage(w http.ResponseWriter, r *http.Request, id string) {
+	jobs := s.runtime.LineageModelJob(id)
+	if len(jobs) == 0 {
+		writeError(w, http.StatusNotFound, errors.New("model job not found"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"job_id":  id,
+		"root_id": jobs[0].ID,
+		"lineage": jobs,
+		"count":   len(jobs),
+	})
 }
 
 func (s *Server) runtimeModelJobLogs(w http.ResponseWriter, r *http.Request, id string) {

@@ -142,3 +142,31 @@ func TestJSONModelJobStoreWritesArtifactManifest(t *testing.T) {
 		t.Fatalf("unexpected primary_artifact: %+v", summary["primary_artifact"])
 	}
 }
+
+func TestJSONModelJobStoreLineageReturnsResumeFamily(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "model_jobs.json")
+	now := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+	store, err := NewJSONModelJobStore(path, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.Create(agentruntime.ModelJob{
+		ID:        "job-1",
+		Kind:      "model.download_hf",
+		RepoID:    "repo/a",
+		Status:    "failed",
+		CreatedAt: now,
+	})
+	store.Create(agentruntime.ModelJob{
+		ID:        "job-2",
+		ParentID:  "job-1",
+		Kind:      "model.download_hf",
+		RepoID:    "repo/a",
+		Status:    "queued",
+		CreatedAt: now.Add(time.Minute),
+	})
+	lineage := store.Lineage("job-2")
+	if len(lineage) != 2 || lineage[0].ID != "job-1" || lineage[1].ParentID != "job-1" {
+		t.Fatalf("unexpected lineage: %+v", lineage)
+	}
+}

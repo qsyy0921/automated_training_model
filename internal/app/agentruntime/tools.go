@@ -877,6 +877,10 @@ func (e *GoToolExecutor) GetModelJob(id string) (ModelJob, bool) {
 	return e.modelJobs.Get(id)
 }
 
+func (e *GoToolExecutor) LineageModelJob(id string) []ModelJob {
+	return e.modelJobs.Lineage(id)
+}
+
 func (e *GoToolExecutor) CancelModelJob(id string) (ModelJob, error) {
 	job, ok := e.modelJobs.Get(id)
 	if !ok {

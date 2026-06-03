@@ -117,6 +117,20 @@ type runtimeTaskPayload struct {
 	Task runtimeTask `json:"task"`
 }
 
+type runtimeJobLineagePayload struct {
+	JobID   string            `json:"job_id"`
+	RootID  string            `json:"root_id"`
+	Count   int               `json:"count"`
+	Lineage []runtimeModelJob `json:"lineage"`
+}
+
+type runtimeTaskLineagePayload struct {
+	TaskID  string        `json:"task_id"`
+	RootID  string        `json:"root_id"`
+	Count   int           `json:"count"`
+	Lineage []runtimeTask `json:"lineage"`
+}
+
 type runtimeModelJobLog struct {
 	At      string `json:"at"`
 	Level   string `json:"level"`
@@ -459,6 +473,11 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 			return true, errors.New("usage: /job-manifest <job_id>")
 		}
 		return true, c.printJobManifest(parts[1])
+	case "/job-lineage":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /job-lineage <job_id>")
+		}
+		return true, c.printJobLineage(parts[1])
 	case "/task-logs", "/logs-task":
 		if len(parts) < 2 {
 			return true, errors.New("usage: /task-logs <task_id>")
@@ -469,6 +488,11 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 			return true, errors.New("usage: /task-manifest <task_id>")
 		}
 		return true, c.printTaskManifest(parts[1])
+	case "/task-lineage":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /task-lineage <task_id>")
+		}
+		return true, c.printTaskLineage(parts[1])
 	case "/follow-job":
 		if len(parts) < 2 {
 			return true, errors.New("usage: /follow-job <job_id>")
@@ -756,8 +780,10 @@ func (c *runtimeChat) printHelp() {
 		"/task <id>   lifecycle task detail",
 		"/job-logs <id>    model job lifecycle logs",
 		"/job-manifest <id> model job artifact manifest",
+		"/job-lineage <id> model job resume lineage",
 		"/task-logs <id>   lifecycle task logs",
 		"/task-manifest <id> lifecycle task artifact manifest",
+		"/task-lineage <id> lifecycle task resume lineage",
 		"/follow-job <id>  stream model job logs until terminal or timeout",
 		"/follow-task <id> stream lifecycle task logs until terminal or timeout",
 		"/resume-task <id> requeue interrupted/failed lifecycle task",
@@ -1033,12 +1059,56 @@ func (c *runtimeChat) printJobManifest(id string) error {
 	return nil
 }
 
+func (c *runtimeChat) printJobLineage(id string) error {
+	var payload runtimeJobLineagePayload
+	if err := getJSONValue(c.cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(id)+"/lineage", &payload); err != nil {
+		return err
+	}
+	lines := []string{
+		"job       " + valueOr(payload.JobID, id),
+		"root      " + valueOr(payload.RootID, "-"),
+		fmt.Sprintf("count     %d", payload.Count),
+		"",
+	}
+	for _, job := range payload.Lineage {
+		line := fmt.Sprintf("%s  %-12s %3d%% %s", valueOr(job.ID, "-"), valueOr(job.Status, "-"), job.ProgressPercent, valueOr(job.Kind, "-"))
+		if job.ParentID != "" {
+			line += "  parent=" + job.ParentID
+		}
+		lines = append(lines, line)
+	}
+	c.printPanel("Model Job Lineage", lines, "yellow")
+	return nil
+}
+
 func (c *runtimeChat) printTaskManifest(id string) error {
 	var payload runtimeArtifactManifestPayload
 	if err := getJSONValue(c.cfg.addr+"/api/tasks/"+url.PathEscape(id)+"/manifest", &payload); err != nil {
 		return err
 	}
 	c.printArtifactManifestPanel("Lifecycle Task Artifact Manifest", payload)
+	return nil
+}
+
+func (c *runtimeChat) printTaskLineage(id string) error {
+	var payload runtimeTaskLineagePayload
+	if err := getJSONValue(c.cfg.addr+"/api/tasks/"+url.PathEscape(id)+"/lineage", &payload); err != nil {
+		return err
+	}
+	lines := []string{
+		"task      " + valueOr(payload.TaskID, id),
+		"root      " + valueOr(payload.RootID, "-"),
+		fmt.Sprintf("count     %d", payload.Count),
+		"",
+	}
+	for _, task := range payload.Lineage {
+		line := fmt.Sprintf("%s  %-12s %3d%% %s", valueOr(task.ID, "-"), valueOr(task.Status, "-"), task.ProgressPercent, valueOr(task.Type, "-"))
+		if task.ParentID != "" {
+			line += "  parent=" + task.ParentID
+		}
+		lines = append(lines, line)
+	}
+	c.printPanel("Lifecycle Task Lineage", lines, "yellow")
 	return nil
 }
 

@@ -85,6 +85,8 @@ export const apiClient = {
     request<TaskRecord>(`/api/tasks/${id}/logs?limit=${limit}`),
   taskManifest: async (id: string) =>
     request<ArtifactManifestPayload>(`/api/tasks/${id}/manifest`),
+  taskLineage: async (id: string) =>
+    request<{ task_id: string; root_id: string; count: number; lineage: TaskRecord[] }>(`/api/tasks/${id}/lineage`),
   listAgents: async () => request<{ agents: AgentSpec[] }>("/api/agents"),
   listAgentTools: async () => request<{ tools: AgentToolSpec[] }>("/api/tools"),
   listWorkflows: async () => request<{ workflows: WorkflowSpec[] }>("/api/workflows"),
@@ -101,6 +103,8 @@ export const apiClient = {
     request<RuntimeModelJobLogs>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/logs?limit=${limit}`),
   runtimeModelJobManifest: async (id: string) =>
     request<ArtifactManifestPayload>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/manifest`),
+  runtimeModelJobLineage: async (id: string) =>
+    request<{ job_id: string; root_id: string; count: number; lineage: RuntimeModelJob[] }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/lineage`),
   cancelRuntimeModelJob: async (id: string) =>
     request<{ job: RuntimeModelJob }>(`/api/runtime/model-jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   resumeRuntimeModelJob: async (id: string) =>

@@ -287,6 +287,7 @@ When labelserver 使用默认 `runtime-root/tasks.json` 重新启动并重载 qu
 Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`task_000002` 这类序号不会在重载后从头开始
 And 重启前仍处于 `pending/running` 的 task 会恢复为 `interrupted`、`resumable=true`
 And `POST /api/tasks/{id}/resume` 会重新排队同一 payload，并在新 task 上写入 `parent_id` / `resumed_from_task_id`
+And `GET /api/tasks/{id}/lineage` 会返回从 root task 到当前 child 的 resume/recovery 链
 And worker-backed lifecycle task 还应把 `running/completed/failed/canceled/interrupted`、heartbeat、logs、artifacts、stdout/stderr 写回同一份 task store，并通过 `GET /api/tasks/{id}/logs` / `/logs/stream` 暴露同一份状态，`metadata.artifact_manifest` 指向归档后的 `artifact-manifest/v1` 文件。
 
 证据：`internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go`。

@@ -140,6 +140,13 @@ func (s *Service) GetModelJob(id string) (ModelJob, bool) {
 	return ModelJob{}, false
 }
 
+func (s *Service) LineageModelJob(id string) []ModelJob {
+	if runner, ok := s.runner.(interface{ LineageModelJob(string) []ModelJob }); ok {
+		return runner.LineageModelJob(id)
+	}
+	return nil
+}
+
 func (s *Service) CancelModelJob(id string) (ModelJob, error) {
 	if runner, ok := s.runner.(interface {
 		CancelModelJob(string) (ModelJob, error)

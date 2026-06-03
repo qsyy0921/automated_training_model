@@ -23,6 +23,10 @@ func (g *NoopGateway) Status(ctx context.Context, id string) (*workflow.Task, er
 	return g.queue.Status(ctx, id)
 }
 
+func (g *NoopGateway) Lineage(ctx context.Context, id string) ([]workflow.Task, error) {
+	return g.queue.Lineage(ctx, id)
+}
+
 func (g *NoopGateway) Cancel(ctx context.Context, id string) error {
 	return g.queue.Cancel(ctx, id)
 }

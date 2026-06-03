@@ -120,6 +120,16 @@ func (s *JSONModelJobStore) List(limit int) []agentruntime.ModelJob {
 	return out
 }
 
+func (s *JSONModelJobStore) Lineage(id string) []agentruntime.ModelJob {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	items := make([]agentruntime.ModelJob, 0, len(s.jobs))
+	for _, job := range s.jobs {
+		items = append(items, job)
+	}
+	return modelJobLineage(items, id)
+}
+
 func (s *JSONModelJobStore) load() error {
 	var rows []agentruntime.ModelJob
 	if err := readJSONFile(s.path, &rows); err != nil {
@@ -237,4 +247,59 @@ func modelJobManifestEntries(items []agentruntime.ModelJobArtifact) []artifactma
 		})
 	}
 	return out
+}
+
+func modelJobLineage(items []agentruntime.ModelJob, id string) []agentruntime.ModelJob {
+	index := map[string]agentruntime.ModelJob{}
+	for _, item := range items {
+		if item.ID != "" {
+			index[item.ID] = item
+		}
+	}
+	current, ok := index[id]
+	if !ok {
+		return nil
+	}
+	rootID := current.ID
+	for {
+		parentID := strings.TrimSpace(index[rootID].ParentID)
+		if parentID == "" {
+			break
+		}
+		parent, ok := index[parentID]
+		if !ok {
+			break
+		}
+		rootID = parent.ID
+	}
+	out := make([]agentruntime.ModelJob, 0, len(items))
+	for _, item := range items {
+		if modelJobRootID(index, item.ID) == rootID {
+			out = append(out, item)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			if out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+				return out[i].ID < out[j].ID
+			}
+			return out[i].UpdatedAt.Before(out[j].UpdatedAt)
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out
+}
+
+func modelJobRootID(index map[string]agentruntime.ModelJob, id string) string {
+	currentID := strings.TrimSpace(id)
+	seen := map[string]bool{}
+	for currentID != "" && !seen[currentID] {
+		seen[currentID] = true
+		current, ok := index[currentID]
+		if !ok || strings.TrimSpace(current.ParentID) == "" {
+			break
+		}
+		currentID = strings.TrimSpace(current.ParentID)
+	}
+	return currentID
 }

@@ -26,6 +26,11 @@ export function AgentOverviewPage() {
     enabled: selectedJobId !== "",
     refetchInterval: selectedJobId ? 3000 : false
   });
+  const modelJobLineage = useQuery({
+    queryKey: ["runtime-model-job-lineage", selectedJobId],
+    queryFn: () => apiClient.runtimeModelJobLineage(selectedJobId),
+    enabled: selectedJobId !== ""
+  });
   const taskLogs = useQuery({
     queryKey: ["lifecycle-task-logs", selectedTaskId],
     queryFn: () => apiClient.taskLogs(selectedTaskId, 30),
@@ -37,6 +42,11 @@ export function AgentOverviewPage() {
     queryFn: () => apiClient.taskManifest(selectedTaskId),
     enabled: selectedTaskId !== "",
     refetchInterval: selectedTaskId ? 3000 : false
+  });
+  const taskLineage = useQuery({
+    queryKey: ["lifecycle-task-lineage", selectedTaskId],
+    queryFn: () => apiClient.taskLineage(selectedTaskId),
+    enabled: selectedTaskId !== ""
   });
   const intakeWorkflows = useQuery({ queryKey: ["runtime-intake-workflows"], queryFn: () => apiClient.runtimeIntakeWorkflows(6), refetchInterval: 3000 });
   const desktop = useQuery({ queryKey: ["desktop-status"], queryFn: () => apiClient.desktopStatus() });
@@ -246,6 +256,13 @@ export function AgentOverviewPage() {
                 <small>{artifactSummaryText(modelJobManifest.data.manifest.artifact_summary)}</small>
               </div>
             ) : null}
+            {selectedJobId !== "" && (modelJobLineage.data?.lineage?.length ?? 0) > 0 ? (
+              <div className="overviewRow">
+                <strong>lineage</strong>
+                <span>{modelJobLineage.data?.count ?? 0} jobs</span>
+                <small>{(modelJobLineage.data?.lineage ?? []).map((job) => `${job.id}:${job.status}`).join(" -> ")}</small>
+              </div>
+            ) : null}
             {selectedJobId !== "" && modelJobLogs.data?.stdout ? (
               <pre className="jsonPreview">{modelJobLogs.data.stdout}</pre>
             ) : null}
@@ -335,6 +352,13 @@ export function AgentOverviewPage() {
                 <strong>summary</strong>
                 <span>{taskManifest.data.manifest.artifact_summary.artifact_count ?? 0} artifacts</span>
                 <small>{artifactSummaryText(taskManifest.data.manifest.artifact_summary)}</small>
+              </div>
+            ) : null}
+            {selectedTaskId !== "" && (taskLineage.data?.lineage?.length ?? 0) > 0 ? (
+              <div className="overviewRow">
+                <strong>lineage</strong>
+                <span>{taskLineage.data?.count ?? 0} tasks</span>
+                <small>{(taskLineage.data?.lineage ?? []).map((task) => `${task.id}:${task.status}`).join(" -> ")}</small>
               </div>
             ) : null}
             {selectedTaskId !== "" && taskLogs.data?.stdout ? (

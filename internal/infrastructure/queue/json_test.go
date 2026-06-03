@@ -214,3 +214,34 @@ func TestJSONQueueListReturnsLatestFirst(t *testing.T) {
 		t.Fatalf("unexpected task order: %+v", rows)
 	}
 }
+
+func TestJSONQueueLineageReturnsResumeFamily(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "tasks.json")
+	now := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+	q, err := NewJSONQueue(path, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Update(context.Background(), second, func(task *workflow.Task) {
+		task.ParentID = first
+		task.Status = workflow.TaskPending
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lineage, err := q.Lineage(context.Background(), second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lineage) != 2 || lineage[0].ID != first || lineage[1].ParentID != first {
+		t.Fatalf("unexpected lineage: %+v", lineage)
+	}
+}

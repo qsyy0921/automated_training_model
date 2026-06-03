@@ -258,6 +258,12 @@ func runRuntime(cfg Config, args []string) error {
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/manifest")
 	}
+	if args[0] == "job-lineage" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime job-lineage <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/lineage")
+	}
 	if args[0] == "job-logs-stream" || args[0] == "follow-job" {
 		if len(args) < 2 {
 			return errors.New("usage: labelctl runtime job-logs-stream <job_id>")
@@ -284,6 +290,12 @@ func runRuntime(cfg Config, args []string) error {
 			return errors.New("usage: labelctl runtime task-manifest <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/manifest")
+	}
+	if args[0] == "task-lineage" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime task-lineage <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/lineage")
 	}
 	if args[0] == "task-logs-stream" || args[0] == "follow-task" {
 		if len(args) < 2 {
@@ -990,7 +1002,7 @@ func usage() {
   workflows
   runs
   audit
-  runtime [status|sessions|traces|model-jobs|job <id>|job-logs <id>|job-manifest <id>|task <id>|task-logs <id>|task-manifest <id>|cancel-job <id>|resume-job <id>|resume-task <id>|cancel-task <id>|intake|intake-workflow <id>|approve-intake <id>|register-intake <id>|send <message>|chat]
+  runtime [status|sessions|traces|model-jobs|job <id>|job-logs <id>|job-manifest <id>|job-lineage <id>|task <id>|task-logs <id>|task-manifest <id>|task-lineage <id>|cancel-job <id>|resume-job <id>|resume-task <id>|cancel-task <id>|intake|intake-workflow <id>|approve-intake <id>|register-intake <id>|send <message>|chat]
   desktop [status|sessions|traces|jobs|send <message>|json]
   channels
   channel qq status

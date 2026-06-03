@@ -64,6 +64,19 @@ func (q *MemoryQueue) List(ctx context.Context, limit int) ([]workflow.Task, err
 	return rows, nil
 }
 
+func (q *MemoryQueue) Lineage(ctx context.Context, id string) ([]workflow.Task, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.tasks[id] == nil {
+		return nil, fmt.Errorf("task not found: %s", id)
+	}
+	rows := make([]workflow.Task, 0, len(q.tasks))
+	for _, task := range q.tasks {
+		rows = append(rows, cloneTask(*task))
+	}
+	return workflowTaskLineage(rows, id)
+}
+
 func (q *MemoryQueue) Cancel(ctx context.Context, id string) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()

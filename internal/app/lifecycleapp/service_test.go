@@ -15,6 +15,7 @@ type fakeGateway struct {
 	taskType string
 	payload  map[string]string
 	status   *workflow.Task
+	lineage  []workflow.Task
 	canceled string
 	resumed  string
 }
@@ -37,6 +38,13 @@ func (f *fakeGateway) Status(ctx context.Context, id string) (*workflow.Task, er
 		return f.status, nil
 	}
 	return &workflow.Task{ID: id, Type: "training.run", Status: workflow.TaskPending}, nil
+}
+
+func (f *fakeGateway) Lineage(ctx context.Context, id string) ([]workflow.Task, error) {
+	if len(f.lineage) > 0 {
+		return f.lineage, nil
+	}
+	return []workflow.Task{{ID: id, Type: "training.run", Status: workflow.TaskPending}}, nil
 }
 
 func (f *fakeGateway) Cancel(ctx context.Context, id string) error {
@@ -208,5 +216,22 @@ func TestListTasksProxyToGateway(t *testing.T) {
 	}
 	if len(tasks) != 1 || tasks[0].ID != "task_000001" || tasks[0].Type != "evaluation.run" {
 		t.Fatalf("unexpected tasks: %+v", tasks)
+	}
+}
+
+func TestTaskLineageProxyToGateway(t *testing.T) {
+	gateway := &fakeGateway{
+		lineage: []workflow.Task{
+			{ID: "task_000001", Type: "training.run", Status: workflow.TaskInterrupted},
+			{ID: "task_000002", ParentID: "task_000001", Type: "training.run", Status: workflow.TaskPending},
+		},
+	}
+	svc := NewService(gateway)
+	tasks, err := svc.TaskLineage(context.Background(), "task_000002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 2 || tasks[1].ParentID != "task_000001" {
+		t.Fatalf("unexpected lineage: %+v", tasks)
 	}
 }
