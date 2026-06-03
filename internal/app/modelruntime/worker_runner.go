@@ -1,19 +1,23 @@
 package modelruntime
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
 const defaultPythonModelWorkerTimeout = 5 * time.Minute
 const maxWorkerOutputBytes = 64 * 1024
+const workerEventPrefix = "ATM_EVENT "
 
 type WorkerJobRequest struct {
 	TaskID     string            `json:"task_id"`
@@ -63,6 +67,16 @@ type WorkerJobResult struct {
 	Stderr      string             `json:"stderr,omitempty"`
 }
 
+type WorkerRuntimeEvent struct {
+	Type    string `json:"type"`
+	At      string `json:"at,omitempty"`
+	Level   string `json:"level,omitempty"`
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
+	Stream  string `json:"stream,omitempty"`
+	Text    string `json:"text,omitempty"`
+}
+
 type WorkerRunError struct {
 	Kind          string
 	Message       string
@@ -99,7 +113,7 @@ func NewPythonModelWorkerRunner() *PythonModelWorkerRunner {
 	}
 }
 
-func (r *PythonModelWorkerRunner) Run(ctx context.Context, req WorkerJobRequest) (WorkerJobResult, error) {
+func (r *PythonModelWorkerRunner) Run(ctx context.Context, req WorkerJobRequest, emit func(WorkerRuntimeEvent)) (WorkerJobResult, error) {
 	if r == nil {
 		return WorkerJobResult{}, fmt.Errorf("python model worker runner is not configured")
 	}
@@ -116,12 +130,31 @@ func (r *PythonModelWorkerRunner) Run(ctx context.Context, req WorkerJobRequest)
 		baseEnv = os.Environ()
 	}
 	cmd.Env = withPythonPath(baseEnv, r.pythonPath())
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return WorkerJobResult{}, fmt.Errorf("pipe python worker stdout: %w", err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return WorkerJobResult{}, fmt.Errorf("pipe python worker stderr: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return WorkerJobResult{}, fmt.Errorf("start python worker: %w", err)
+	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	runErr := cmd.Run()
+	var ioWG sync.WaitGroup
+	ioWG.Add(2)
+	go func() {
+		defer ioWG.Done()
+		_, _ = io.Copy(&stdout, stdoutPipe)
+	}()
+	go func() {
+		defer ioWG.Done()
+		consumeWorkerStderr(stderrPipe, &stderr, emit)
+	}()
+	runErr := cmd.Wait()
+	ioWG.Wait()
 	stdoutText := truncateWorkerOutput(stdout.String())
 	stderrText := truncateWorkerOutput(stderr.String())
 	if runCtx.Err() == context.DeadlineExceeded {
@@ -166,6 +199,42 @@ func (r *PythonModelWorkerRunner) Run(ctx context.Context, req WorkerJobRequest)
 		result.Message = runErr.Error()
 	}
 	return result, nil
+}
+
+func consumeWorkerStderr(src io.Reader, stderr *bytes.Buffer, emit func(WorkerRuntimeEvent)) {
+	scanner := bufio.NewScanner(src)
+	scanner.Buffer(make([]byte, 0, 4096), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if event, ok := parseWorkerRuntimeEvent(trimmed); ok {
+			if emit != nil {
+				emit(event)
+			}
+			continue
+		}
+		if stderr.Len() > 0 {
+			stderr.WriteByte('\n')
+		}
+		stderr.WriteString(line)
+	}
+}
+
+func parseWorkerRuntimeEvent(line string) (WorkerRuntimeEvent, bool) {
+	if !strings.HasPrefix(line, workerEventPrefix) {
+		return WorkerRuntimeEvent{}, false
+	}
+	var event WorkerRuntimeEvent
+	if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(line, workerEventPrefix))), &event); err != nil {
+		return WorkerRuntimeEvent{}, false
+	}
+	if strings.TrimSpace(event.Type) == "" {
+		return WorkerRuntimeEvent{}, false
+	}
+	return event, true
 }
 
 func pythonModelWorkerTimeoutFromEnv() time.Duration {

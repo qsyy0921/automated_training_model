@@ -316,7 +316,7 @@ func TestModelDownloadDefaultPolicyAllowsExecution(t *testing.T) {
 func TestModelDownloadDefaultPolicyQueuesAsyncJob(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -386,7 +386,7 @@ func TestModelJobCancelAndResume(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
 	var startOnce sync.Once
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		startOnce.Do(func() { close(started) })
 		<-ctx.Done()
 		return modelruntime.WorkerJobResult{}, ctx.Err()
@@ -505,7 +505,7 @@ func TestModelDownloadCanFallbackToServiceRunner(t *testing.T) {
 func TestModelDownloadDryRunQueuesPythonWorkerJob(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -581,7 +581,7 @@ func TestModelDownloadDryRunQueuesPythonWorkerJob(t *testing.T) {
 func TestModelVerifyCanQueuePythonWorkerJob(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -658,7 +658,7 @@ func TestBotVerifyHFJobCommandQueuesWorkerJobThroughRuntime(t *testing.T) {
 	plane := &fakeAgentPlane{}
 	executor := NewGoToolExecutor(plane, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -719,7 +719,7 @@ func TestBotVerifyHFJobCommandQueuesWorkerJobThroughRuntime(t *testing.T) {
 func TestLocateAnythingSmokeCanQueuePythonWorkerJob(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -800,7 +800,7 @@ func TestLocateAnythingSmokeCanQueuePythonWorkerJob(t *testing.T) {
 func TestTrainingDryRunCanQueuePythonWorkerJob(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -878,10 +878,90 @@ func TestTrainingDryRunCanQueuePythonWorkerJob(t *testing.T) {
 	}
 }
 
+func TestPythonWorkerRuntimeEventsPersistWhileJobIsRunning(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		if emit != nil {
+			emit(modelruntime.WorkerRuntimeEvent{Type: "heartbeat", At: "2026-06-03T00:00:00Z", Status: "running", Message: "download started"})
+			emit(modelruntime.WorkerRuntimeEvent{Type: "stream", At: "2026-06-03T00:00:01Z", Stream: "stdout", Text: "fetching config.json"})
+			emit(modelruntime.WorkerRuntimeEvent{Type: "stream", At: "2026-06-03T00:00:02Z", Stream: "stderr", Text: "network retry pending"})
+		}
+		<-release
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "worker download completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 3,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:03Z", Status: "completed", Message: "done"},
+			Stdout:      "{\"status\":\"completed\"}",
+		}, nil
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "model-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "queued" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected python worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "running" &&
+			job.WorkerHeartbeat != nil &&
+			job.WorkerHeartbeat.Status == "running" &&
+			strings.Contains(job.Stdout, "fetching config.json") &&
+			strings.Contains(job.Stderr, "network retry pending") {
+			if len(job.Logs) < 5 {
+				t.Fatalf("expected running logs from worker events, got %+v", job.Logs)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected running job with worker events, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	close(release)
+}
+
 func TestPythonWorkerTimeoutFailurePersistsObservability(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		result := modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -967,7 +1047,7 @@ func TestPythonWorkerTimeoutFailurePersistsObservability(t *testing.T) {
 func TestPythonWorkerDecodeFailurePersistsObservability(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		result := modelruntime.WorkerJobResult{
 			TaskID:    req.TaskID,
@@ -1044,7 +1124,7 @@ func TestPythonWorkerArtifactManifestPathPersistedToMetadata(t *testing.T) {
 	store := &manifestRecordingStore{InMemoryModelJobStore: NewInMemoryModelJobStore(time.Now)}
 	executor := NewGoToolExecutorWithModelJobs(&fakeAgentPlane{}, nil, store)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,
@@ -1123,7 +1203,7 @@ func TestBotTrainDryCommandQueuesWorkerJobThroughRuntime(t *testing.T) {
 	plane := &fakeAgentPlane{}
 	executor := NewGoToolExecutor(plane, nil)
 	started := make(chan struct{})
-	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
 		close(started)
 		return modelruntime.WorkerJobResult{
 			TaskID:      req.TaskID,

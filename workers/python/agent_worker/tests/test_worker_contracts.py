@@ -4,7 +4,7 @@ import io
 import json
 import subprocess
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from agent_worker.contracts import JobEnvelope
@@ -12,8 +12,12 @@ from agent_worker.main import main, run_job
 
 
 class WorkerContractTests(unittest.TestCase):
+    def run_job_quiet(self, envelope: JobEnvelope) -> dict[str, object]:
+        with redirect_stderr(io.StringIO()):
+            return run_job(envelope).to_dict()
+
     def test_dry_run_result_contains_observability_contract(self) -> None:
-        result = run_job(
+        result = self.run_job_quiet(
             JobEnvelope(
                 task_id="task_000001",
                 workflow_id="data-to-deployment-lifecycle",
@@ -23,7 +27,7 @@ class WorkerContractTests(unittest.TestCase):
                 dataset_id="shanghaitech-original",
                 dry_run=True,
             )
-        ).to_dict()
+        )
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["heartbeat"]["status"], "completed")
@@ -33,7 +37,7 @@ class WorkerContractTests(unittest.TestCase):
         self.assertFalse(result["retryable"])
 
     def test_missing_task_id_is_non_retryable_failure(self) -> None:
-        result = run_job(JobEnvelope(task_id="", workflow_id="wf", agent_id="agent", tool_id="tool", action="run")).to_dict()
+        result = self.run_job_quiet(JobEnvelope(task_id="", workflow_id="wf", agent_id="agent", tool_id="tool", action="run"))
         self.assertEqual(result["status"], "failed")
         self.assertEqual(result["heartbeat"]["status"], "failed")
         self.assertFalse(result["retryable"])
@@ -50,7 +54,7 @@ class WorkerContractTests(unittest.TestCase):
         self.assertEqual(payload["heartbeat"]["status"], "ok")
         self.assertIn("artifacts", payload["capabilities"])
 
-    @patch("agent_worker.main.subprocess.run")
+    @patch("agent_worker.main.run_command_with_events")
     def test_download_hf_action_runs_snapshot_script(self, run_mock) -> None:
         run_mock.return_value = subprocess.CompletedProcess(
             args=["python"],
@@ -58,7 +62,7 @@ class WorkerContractTests(unittest.TestCase):
             stdout=json.dumps({"complete": True}),
             stderr="",
         )
-        result = run_job(
+        result = self.run_job_quiet(
             JobEnvelope(
                 task_id="task_000001",
                 workflow_id="data-to-deployment-lifecycle",
@@ -72,14 +76,14 @@ class WorkerContractTests(unittest.TestCase):
                     "manifest": "data_lake/catalog/models/sshleifer_tiny-gpt2.download.json",
                 },
             )
-        ).to_dict()
+        )
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["heartbeat"]["status"], "completed")
         self.assertEqual(result["artifacts"][0]["kind"], "manifest")
         self.assertFalse(result["retryable"])
 
-    @patch("agent_worker.main.subprocess.run")
+    @patch("agent_worker.main.run_command_with_events")
     def test_verify_hf_action_runs_snapshot_script_with_verify_only(self, run_mock) -> None:
         run_mock.return_value = subprocess.CompletedProcess(
             args=["python"],
@@ -87,7 +91,7 @@ class WorkerContractTests(unittest.TestCase):
             stdout=json.dumps({"complete": True}),
             stderr="",
         )
-        result = run_job(
+        result = self.run_job_quiet(
             JobEnvelope(
                 task_id="task_000001",
                 workflow_id="data-to-deployment-lifecycle",
@@ -101,7 +105,7 @@ class WorkerContractTests(unittest.TestCase):
                     "manifest": "data_lake/catalog/models/sshleifer_tiny-gpt2.download.json",
                 },
             )
-        ).to_dict()
+        )
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["heartbeat"]["status"], "completed")
@@ -109,7 +113,7 @@ class WorkerContractTests(unittest.TestCase):
         called_args = run_mock.call_args.args[0]
         self.assertIn("--verify-only", called_args)
 
-    @patch("agent_worker.main.subprocess.run")
+    @patch("agent_worker.main.run_command_with_events")
     def test_smoke_locateanything_action_runs_smoke_script(self, run_mock) -> None:
         run_mock.return_value = subprocess.CompletedProcess(
             args=["python"],
@@ -117,7 +121,7 @@ class WorkerContractTests(unittest.TestCase):
             stdout=json.dumps({"status": "ok", "completed": {"model_load": True, "real_inference": False}}),
             stderr="",
         )
-        result = run_job(
+        result = self.run_job_quiet(
             JobEnvelope(
                 task_id="task_000001",
                 workflow_id="data-to-deployment-lifecycle",
@@ -131,7 +135,7 @@ class WorkerContractTests(unittest.TestCase):
                     "output": "data_lake/catalog/models/nvidia_LocateAnything-3B.smoke.json",
                 },
             )
-        ).to_dict()
+        )
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["heartbeat"]["status"], "completed")
@@ -139,10 +143,10 @@ class WorkerContractTests(unittest.TestCase):
         called_args = run_mock.call_args.args[0]
         self.assertIn("locateanything_smoke.py", " ".join(called_args))
 
-    @patch("agent_worker.main.subprocess.run")
+    @patch("agent_worker.main.run_command_with_events")
     def test_download_hf_timeout_is_retryable_failure(self, run_mock) -> None:
         run_mock.side_effect = subprocess.TimeoutExpired(cmd=["python"], timeout=1)
-        result = run_job(
+        result = self.run_job_quiet(
             JobEnvelope(
                 task_id="task_000001",
                 workflow_id="data-to-deployment-lifecycle",
@@ -156,7 +160,7 @@ class WorkerContractTests(unittest.TestCase):
                     "manifest": "data_lake/catalog/models/sshleifer_tiny-gpt2.download.json",
                 },
             )
-        ).to_dict()
+        )
 
         self.assertEqual(result["status"], "failed")
         self.assertEqual(result["heartbeat"]["status"], "failed")

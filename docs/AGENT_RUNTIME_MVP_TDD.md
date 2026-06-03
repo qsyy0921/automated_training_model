@@ -39,7 +39,7 @@ Integration / Smoke Tests
 | Data intake fast-path | `internal/app/agentruntime/service_test.go` | `规划 ShanghaiTech 数据接入` 直接进入 `data-intake-agent` + `intake.plan`，trace 记录 dataset/workflow metadata |
 | Mandatory tool guard | `internal/app/agentruntime/session_test.go` | data-intake / vision 附件场景下，外部 Mimo planner 缺少必需 tool-call 或扩展额外工具链时回退本地计划并保留 sub-agent delegation |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
-| Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、默认 Python worker 路径、`model.verify_hf job=true` / `model.smoke_locateanything job=true` / `training.run(dry_run)` worker 路径、service fallback、取消请求、`canceled/resumable` 状态、手动 resume child job、生命周期日志裁剪和终态判断，以及 worker timeout / decode failure 的 stdout/stderr + retryable/error-kind 落库；artifact manifest 路径回填 |
+| Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、默认 Python worker 路径、`model.verify_hf job=true` / `model.smoke_locateanything job=true` / `training.run(dry_run)` worker 路径、service fallback、取消请求、`canceled/resumable` 状态、手动 resume child job、生命周期日志裁剪和终态判断，以及 worker timeout / decode failure 的 stdout/stderr + retryable/error-kind 落库；运行中 heartbeat / `stdout>` / `stderr>` 事件写回 store；artifact manifest 路径回填 |
 | Tool schema/preflight | `internal/app/toolapp/schema_test.go` | 注册工具、参数白名单、高风险审批、未注册工具拦截 |
 | Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error、ExecuteStream 输出 preflight/tool progress 事件 |
 | Runtime stream | `internal/app/agentruntime/session_test.go`、`internal/app/agentruntime/errors_test.go`、`internal/cli/labelctl/runtime_chat_test.go` | `RunStream` 能把工具进度事件带上 session 输出到 NDJSON；planner/tool 失败输出 `error_envelope`；CLI 能解析 runtime stream event 和结构化错误消息 |
@@ -52,7 +52,7 @@ Integration / Smoke Tests
 | Runtime HTTP API | `internal/api/httpapi/runtime_handlers_test.go` | model job logs JSON 和 NDJSON stream 入口；Gateway JSON error 保留 `error` 并返回 `error_envelope` |
 | Channel domain | `internal/domain/channel/*_test.go` | approval policy |
 | QQ adapter | `internal/infrastructure/qqbot/*_test.go` | OneBot normalize/outbound envelope；fake OneBot WebSocket reader 读取 message event 并回写 `send_msg` |
-| CLI agent | `internal/cli/labelctl/runtime_chat_test.go`、`internal/cli/labelctl/domain_commands_test.go`、`labelctl agent` smoke | PowerShell BOM 输入归一化、trace metadata 渲染、交互式 `/status`、`/doctor`、`/ping`、`/job`、`/job-logs`、`/follow-job` 和自然语言消息进入同一 Runtime；`/follow-job` 终态事件会显示 retry、heartbeat、artifact、manifest、stdout/stderr 摘要；dataset/models/deploy/logs/doctor 领域命令组路由到正确 Gateway API 并携带 token；`runtime/models/logs job-logs` 路由到 model job logs API |
+| CLI agent | `internal/cli/labelctl/runtime_chat_test.go`、`internal/cli/labelctl/domain_commands_test.go`、`labelctl agent` smoke | PowerShell BOM 输入归一化、trace metadata 渲染、交互式 `/status`、`/doctor`、`/ping`、`/job`、`/job-logs`、`/follow-job` 和自然语言消息进入同一 Runtime；`/follow-job` 终态事件会显示 retry、heartbeat、artifact、manifest、stdout/stderr 摘要，运行中则复用 job log stream 输出 worker heartbeat 与 `stdout>` / `stderr>` 行；dataset/models/deploy/logs/doctor 领域命令组路由到正确 Gateway API 并携带 token；`runtime/models/logs job-logs` 路由到 model job logs API |
 | Skill drafts | `internal/app/skillapp/service_test.go`、`internal/cli/labelctl/skill_commands_test.go` | 草稿创建、列表、approve/reject 人工审批记录、secret-like 内容拦截；审批不自动启用 skill |
 
 命令：
@@ -178,7 +178,7 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 
 ## 10. 当前测试缺口
 
-- ModelJob 逐文件字节级进度、真实 worker stdout/stderr 实时 NDJSON 流和自动 resume 测试；当前已覆盖 `model.download_hf` 的默认 Python worker 调度、`model.verify_hf job=true`、`model.smoke_locateanything job=true` 与 `training.run(dry_run)` 的 worker 调度、worker stdout/stderr 摘要入库、timeout / decode failure 的错误落库和生命周期日志查询，但不覆盖逐文件流式输出。
+- ModelJob 逐文件字节级进度、原始 stdout/stderr 字节流直通和自动 resume 测试；当前已覆盖 `model.download_hf` 的默认 Python worker 调度、`model.verify_hf job=true`、`model.smoke_locateanything job=true` 与 `training.run(dry_run)` 的 worker 调度、worker stdout/stderr 摘要入库、运行中 heartbeat / `stdout>` / `stderr>` 写回、timeout / decode failure 的错误落库和生命周期日志查询，但不覆盖逐文件流式输出。
 - `modelruntime` 接入统一 task/model worker 和 workflow repository 后的集成测试；当前 artifact manifest 归档只覆盖 JSON runtime store。
 - QQ OneBot WebSocket reader 长连接测试。
 - Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。

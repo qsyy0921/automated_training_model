@@ -67,6 +67,7 @@ Model & Data Training Platform
 - Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令、runtime self-description、`规划 ShanghaiTech 数据接入` 和已知 LocateAnything 固定流程走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
 - Python model worker 已具备最小可观测执行契约：`python -m agent_worker.main --health` 输出 heartbeat/capabilities；job 结果包含 heartbeat、logs、artifact 引用、attempt/max_attempts 和 retryable；`download_hf` 失败、超时和参数错误都能返回稳定 JSON。
 - Go 控制面已接入 Python model worker 的最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；`dry_run=true` 和真实下载共用同一条 worker 路径。worker timeout、坏 JSON 和显式 failed 结果也会把部分 stdout/stderr、retryable 和 `worker_error_kind` 落回 job store，便于 CLI/Web/API 统一排障。`model.verify_hf` 支持显式 `job=true` 的 Python worker job 模式；`model.smoke_locateanything` 也支持显式 `job=true` 的 worker smoke 模式，默认仍保持同步 smoke，避免打断现有 ShanghaiTech dry-run 链。若需回退旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`；若需同步执行旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_SYNC=true`。
+- Python worker 运行中事件已通过 `stderr` 结构化桥接回 Go：worker 在执行期间会持续回写 heartbeat、stdout/stderr 行和运行日志到同一份 `ModelJobStore`；`/api/runtime/model-jobs/{id}/logs/stream` 与 `labelctl agent /follow-job` 会直接看到这些中间态，而不是只能等终态摘要。
 - `labelctl agent /follow-job <job_id>` 终态事件现在会直接显示 retry、heartbeat、artifact、manifest 和 stdout/stderr 摘要，不必再手动补一次 `/job-logs`。
 - `training-agent` 已有最小可运行入口：`/bot-train-dry <dataset_id> [target_task] [model_family]` 会直接创建 `training.run` 的 Python worker `ModelJob`，并把 heartbeat、logs、artifacts、stdout/stderr 摘要写回同一份 runtime store；当前先支持 dry-run 计划，不直接执行真实训练。
 
@@ -128,7 +129,7 @@ atm:03 planner-agent> /exit
 /exit        退出
 ```
 
-等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。长任务观测也在交互 CLI 内闭环：`/job`、`/job-logs` 和 `/follow-job` 复用 Gateway 的 model job API / NDJSON stream，不直接读取本地 data_lake 文件。
+等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。长任务观测也在交互 CLI 内闭环：`/job`、`/job-logs` 和 `/follow-job` 复用 Gateway 的 model job API / NDJSON stream，不直接读取本地 data_lake 文件；worker 正在运行时的 heartbeat、`stdout>`、`stderr>` 行也会持续出现在同一条 job 日志流里。
 
 也可以使用一次性命令：
 

@@ -12,7 +12,7 @@ import (
 
 func TestPythonModelWorkerRunnerSuccess(t *testing.T) {
 	runner := helperPythonModelWorkerRunner("success")
-	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1", DryRun: true})
+	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1", DryRun: true}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestPythonModelWorkerRunnerSuccess(t *testing.T) {
 
 func TestPythonModelWorkerRunnerFailedResult(t *testing.T) {
 	runner := helperPythonModelWorkerRunner("failed")
-	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1", DryRun: false})
+	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1", DryRun: false}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestPythonModelWorkerRunnerFailedResult(t *testing.T) {
 
 func TestPythonModelWorkerRunnerRejectsInvalidJSON(t *testing.T) {
 	runner := helperPythonModelWorkerRunner("badjson")
-	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"})
+	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"}, nil)
 	if err == nil || !containsAll(err.Error(), "decode python model worker result", "stdout") {
 		t.Fatalf("expected decode error, got %v", err)
 	}
@@ -49,12 +49,32 @@ func TestPythonModelWorkerRunnerRejectsInvalidJSON(t *testing.T) {
 func TestPythonModelWorkerRunnerTimeout(t *testing.T) {
 	runner := helperPythonModelWorkerRunner("sleep")
 	runner.timeout = func() time.Duration { return 50 * time.Millisecond }
-	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"})
+	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1"}, nil)
 	if err == nil || !containsAll(err.Error(), "timed out") {
 		t.Fatalf("expected timeout error, got %v", err)
 	}
 	if result.Status != "failed" || !result.Retryable || !containsAll(result.Stderr, "worker still running") {
 		t.Fatalf("expected retryable failed partial result, got %+v", result)
+	}
+}
+
+func TestPythonModelWorkerRunnerEmitsStructuredRuntimeEvents(t *testing.T) {
+	runner := helperPythonModelWorkerRunner("success")
+	var events []WorkerRuntimeEvent
+	result, err := runner.Run(context.Background(), WorkerJobRequest{TaskID: "job1", DryRun: true}, func(event WorkerRuntimeEvent) {
+		events = append(events, event)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "completed" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if len(events) < 2 {
+		t.Fatalf("expected structured worker events, got %+v", events)
+	}
+	if events[0].Type != "heartbeat" || events[1].Type != "stream" {
+		t.Fatalf("unexpected event sequence: %+v", events)
 	}
 }
 
@@ -65,9 +85,12 @@ func TestPythonModelWorkerRunnerHelperProcess(t *testing.T) {
 	mode := os.Getenv("MODEL_WORKER_HELPER_MODE")
 	switch mode {
 	case "success":
+		fmt.Fprintln(os.Stderr, `ATM_EVENT {"type":"heartbeat","at":"2026-06-03T00:00:00Z","status":"running","message":"worker started"}`)
+		fmt.Fprintln(os.Stderr, `ATM_EVENT {"type":"stream","at":"2026-06-03T00:00:00Z","stream":"stdout","text":"download started"}`)
 		fmt.Fprint(os.Stdout, `{"task_id":"job1","status":"completed","artifacts":[{"name":"plan","uri":"artifact://dry-run/job1","kind":"dry-run-plan"}],"logs":[{"at":"2026-06-03T00:00:00Z","level":"info","message":"ok"}],"heartbeat":{"at":"2026-06-03T00:00:01Z","status":"completed","message":"done"},"attempt":1,"max_attempts":1,"retryable":false,"message":"dry-run completed","started_at":"2026-06-03T00:00:00Z","finished_at":"2026-06-03T00:00:01Z"}`)
 		os.Exit(0)
 	case "failed":
+		fmt.Fprintln(os.Stderr, `ATM_EVENT {"type":"heartbeat","at":"2026-06-03T00:00:00Z","status":"running","message":"worker started"}`)
 		fmt.Fprint(os.Stdout, `{"task_id":"job1","status":"failed","logs":[{"at":"2026-06-03T00:00:00Z","level":"error","message":"boom"}],"heartbeat":{"at":"2026-06-03T00:00:01Z","status":"failed","message":"boom"},"attempt":2,"max_attempts":3,"retryable":true,"message":"worker failed"}`)
 		os.Exit(1)
 	case "badjson":

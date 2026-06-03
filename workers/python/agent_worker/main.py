@@ -6,13 +6,17 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 
 from agent_worker.contracts import JobArtifact, JobEnvelope, JobLog, JobResult, WorkerHeartbeat, utc_now_iso
+
+WORKER_EVENT_PREFIX = "ATM_EVENT "
 
 
 def run_job(job: JobEnvelope) -> JobResult:
     started = utc_now_iso()
     logs = [JobLog(at=started, level="info", message=f"accepted job action={job.action or '-'} tool={job.tool_id or '-'}")]
+    emit_worker_log("info", f"accepted job action={job.action or '-'} tool={job.tool_id or '-'}", started)
     if not job.task_id:
         finished = utc_now_iso()
         return JobResult(
@@ -106,17 +110,14 @@ def run_hf_snapshot_job(job: JobEnvelope, verify_only: bool, logs: list[JobLog],
     try:
         env = os.environ.copy()
         env.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
-        completed = subprocess.run(
+        completed = run_command_with_events(
             command,
             cwd=str(repo_root()),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=hf_worker_timeout_seconds(),
             env=env,
+            label=f"huggingface {'verify' if verify_only else 'download'} {repo_id}",
         )
-    except subprocess.TimeoutExpired as exc:
+    except subprocess.TimeoutExpired:
         finished = utc_now_iso()
         timeout_message = f"huggingface worker timed out after {hf_worker_timeout_seconds()}s"
         return JobResult(
@@ -218,15 +219,12 @@ def run_locateanything_smoke_job(job: JobEnvelope, logs: list[JobLog], started: 
         output,
     ]
     try:
-        completed = subprocess.run(
+        completed = run_command_with_events(
             command,
             cwd=str(repo_root()),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=hf_worker_timeout_seconds(),
             env=os.environ.copy(),
+            label="locateanything smoke",
         )
     except subprocess.TimeoutExpired:
         finished = utc_now_iso()
@@ -342,6 +340,70 @@ def main(argv: list[str] | None = None) -> int:
     return 0 if result.status != "failed" else 1
 
 
+def run_command_with_events(
+    command: list[str],
+    cwd: str,
+    timeout: int,
+    env: dict[str, str],
+    label: str,
+) -> subprocess.CompletedProcess[str]:
+    emit_worker_log("info", f"spawn command label={label}", utc_now_iso())
+    emit_worker_heartbeat("running", f"{label} started", utc_now_iso())
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+        env=env,
+    )
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+    stop_heartbeat = threading.Event()
+
+    def pump(stream, sink: list[str], stream_name: str) -> None:
+        try:
+            for raw in iter(stream.readline, ""):
+                if raw == "":
+                    break
+                sink.append(raw)
+                text = raw.strip()
+                if text:
+                    emit_worker_stream(stream_name, text, utc_now_iso())
+        finally:
+            stream.close()
+
+    def heartbeat_loop() -> None:
+        while not stop_heartbeat.wait(5):
+            emit_worker_heartbeat("running", f"{label} still running", utc_now_iso())
+
+    stdout_thread = threading.Thread(target=pump, args=(process.stdout, stdout_chunks, "stdout"), daemon=True)
+    stderr_thread = threading.Thread(target=pump, args=(process.stderr, stderr_chunks, "stderr"), daemon=True)
+    pulse_thread = threading.Thread(target=heartbeat_loop, daemon=True)
+    stdout_thread.start()
+    stderr_thread.start()
+    pulse_thread.start()
+    try:
+        returncode = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        raise
+    finally:
+        stop_heartbeat.set()
+        stdout_thread.join(timeout=1)
+        stderr_thread.join(timeout=1)
+        pulse_thread.join(timeout=1)
+    return subprocess.CompletedProcess(
+        args=command,
+        returncode=returncode,
+        stdout="".join(stdout_chunks),
+        stderr="".join(stderr_chunks),
+    )
+
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
@@ -426,6 +488,43 @@ def summary_bool(summary: dict[str, object], key: str) -> str:
     if isinstance(completed, dict) and key in completed:
         return str(completed.get(key)).lower()
     return "unknown"
+
+
+def emit_worker_event(payload: dict[str, object]) -> None:
+    print(WORKER_EVENT_PREFIX + json.dumps(payload, ensure_ascii=False), file=sys.stderr, flush=True)
+
+
+def emit_worker_log(level: str, message: str, at: str | None = None) -> None:
+    emit_worker_event(
+        {
+            "type": "log",
+            "at": at or utc_now_iso(),
+            "level": level,
+            "message": message,
+        }
+    )
+
+
+def emit_worker_heartbeat(status: str, message: str, at: str | None = None) -> None:
+    emit_worker_event(
+        {
+            "type": "heartbeat",
+            "at": at or utc_now_iso(),
+            "status": status,
+            "message": message,
+        }
+    )
+
+
+def emit_worker_stream(stream: str, text: str, at: str | None = None) -> None:
+    emit_worker_event(
+        {
+            "type": "stream",
+            "at": at or utc_now_iso(),
+            "stream": stream,
+            "text": text,
+        }
+    )
 
 
 if __name__ == "__main__":

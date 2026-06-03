@@ -27,7 +27,7 @@ type GoToolExecutor struct {
 	workerRunner   modelWorkerRunner
 	workflows      *runtimeworkflow.Service
 	runHFModelTool func(context.Context, ToolCall, bool) (ToolExecutionResult, error)
-	runHFWorkerJob func(context.Context, modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error)
+	runHFWorkerJob func(context.Context, modelruntime.WorkerJobRequest, func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error)
 	jobMu          sync.Mutex
 	jobCancels     map[string]context.CancelFunc
 }
@@ -42,7 +42,7 @@ type hfWorkerJobOptions struct {
 }
 
 type modelWorkerRunner interface {
-	Run(context.Context, modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error)
+	Run(context.Context, modelruntime.WorkerJobRequest, func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error)
 }
 
 func NewGoToolExecutor(agents AgentControlPlane, now func() time.Time) *GoToolExecutor {
@@ -607,7 +607,9 @@ func (e *GoToolExecutor) runHFModelWorkerJob(jobID string, req modelruntime.Work
 	defer cancel()
 	defer e.clearModelJobCancel(jobID)
 
-	result, err := e.runHFWorkerJob(ctx, req)
+	result, err := e.runHFWorkerJob(ctx, req, func(event modelruntime.WorkerRuntimeEvent) {
+		e.applyWorkerRuntimeEvent(jobID, event)
+	})
 	finished := e.now()
 	e.modelJobs.Update(jobID, func(job *ModelJob) {
 		job.FinishedAt = &finished
@@ -796,8 +798,8 @@ func (e *GoToolExecutor) runHFModelViaService(ctx context.Context, call ToolCall
 	}, nil
 }
 
-func (e *GoToolExecutor) runPythonModelWorkerJob(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
-	return e.workerRunner.Run(ctx, req)
+func (e *GoToolExecutor) runPythonModelWorkerJob(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
+	return e.workerRunner.Run(ctx, req, emit)
 }
 
 func (e *GoToolExecutor) smokeLocateAnythingModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {
@@ -1002,6 +1004,70 @@ func mergeStringMaps(base map[string]string, overlay map[string]string) map[stri
 		}
 	}
 	return out
+}
+
+func (e *GoToolExecutor) applyWorkerRuntimeEvent(jobID string, event modelruntime.WorkerRuntimeEvent) {
+	now := e.now()
+	e.modelJobs.Update(jobID, func(job *ModelJob) {
+		switch strings.ToLower(strings.TrimSpace(event.Type)) {
+		case "heartbeat":
+			job.WorkerHeartbeat = &ModelJobHeartbeat{
+				At:      firstNonEmpty(event.At, now.Format(time.RFC3339Nano)),
+				Status:  firstNonEmpty(event.Status, "running"),
+				Message: strings.TrimSpace(event.Message),
+			}
+			job.Metadata = mergeStringMaps(job.Metadata, map[string]string{
+				"worker_heartbeat_status": firstNonEmpty(event.Status, "running"),
+			})
+			job.Logs = appendModelJobLog(job.Logs, parseWorkerEventTime(event.At, now), "info", "worker heartbeat: "+firstNonEmpty(event.Status, "running")+" "+strings.TrimSpace(event.Message))
+		case "log":
+			level := firstNonEmpty(strings.TrimSpace(event.Level), "info")
+			job.Logs = appendModelJobLog(job.Logs, parseWorkerEventTime(event.At, now), level, strings.TrimSpace(event.Message))
+		case "stream":
+			stream := strings.ToLower(strings.TrimSpace(event.Stream))
+			text := strings.TrimSpace(event.Text)
+			if text == "" {
+				return
+			}
+			switch stream {
+			case "stdout":
+				job.Stdout = appendModelJobOutput(job.Stdout, text)
+				job.Logs = appendModelJobLog(job.Logs, parseWorkerEventTime(event.At, now), "info", "stdout> "+text)
+			case "stderr":
+				job.Stderr = appendModelJobOutput(job.Stderr, text)
+				job.Logs = appendModelJobLog(job.Logs, parseWorkerEventTime(event.At, now), "warn", "stderr> "+text)
+			default:
+				job.Logs = appendModelJobLog(job.Logs, parseWorkerEventTime(event.At, now), "info", text)
+			}
+		}
+	})
+}
+
+func parseWorkerEventTime(value string, fallback time.Time) time.Time {
+	if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value)); err == nil {
+		return parsed
+	}
+	return fallback
+}
+
+func appendModelJobOutput(current string, line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return current
+	}
+	if strings.TrimSpace(current) == "" {
+		return truncateModelJobOutput(line)
+	}
+	return truncateModelJobOutput(current + "\n" + line)
+}
+
+func truncateModelJobOutput(value string) string {
+	value = strings.TrimSpace(strings.ReplaceAll(value, "\r\n", "\n"))
+	const limit = 64 * 1024
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit] + "\n...[truncated]"
 }
 
 func isPythonWorkerRetryable(err error) bool {

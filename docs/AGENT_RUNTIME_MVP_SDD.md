@@ -28,7 +28,7 @@ MVP 必须覆盖：
 
 - 完整训练、评估、压缩、发布和线上监控闭环已经真实运行。
 - QQ 真实账号群聊 @Bot 尚未完成端到端实测；当前仓库测试先覆盖 webhook/test-message/fake WebSocket，OneBot WebSocket reader 已有组件测试。
-- `ModelJobStore` 已具备 JSON MVP 持久化、阶段进度、生命周期日志、日志查询/最小 NDJSON stream、取消请求和手动 resume；尚未具备逐文件字节级进度、真实 worker stdout/stderr 日志流和自动后台恢复。
+- `ModelJobStore` 已具备 JSON MVP 持久化、阶段进度、生命周期日志、日志查询/最小 NDJSON stream、取消请求和手动 resume；Python worker 运行中 heartbeat 和结构化 `stdout/stderr` 行现已桥接回同一份 store，但逐文件字节级进度、原始字节流直通和自动后台恢复仍未完成。
 - LocateAnything-3B 已完成真实 ShanghaiTech 推理；当前只完成下载、verify-only 和模型加载 smoke。
 - skill 自进化默认关闭；当前支持手动生成草稿、列出草稿、写入 approve/reject 人工审批记录，但仍不会自动启用。
 
@@ -71,7 +71,7 @@ Workers and Providers
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Web Agent Overview | `web/src/pages/agent-overview/AgentOverviewPage.tsx` | 展示 runtime status、sessions、traces、model jobs、model job logs、intake workflows 和 QQ test-message 入口 | 不直接写 Data Lake，不绕过 Gateway API |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
-| Python Model Worker | `workers/python/agent_worker`、`internal/app/modelruntime/worker_runner.go` | 模型/数据任务的 worker envelope、`--health`、heartbeat、logs、artifact 引用、attempt/max_attempts/retryable 契约；当前 `model.download_hf` 默认经由 Go `ModelJob` 启动 `python -m agent_worker.main`，`dry_run=true` 与真实下载共用同一条 worker 路径；`model.verify_hf`、`model.smoke_locateanything` 和 `training.run(dry_run)` 也支持 worker job 模式，并把 worker 结果写回同一份 job store；timeout / decode failure 也会回写 stdout、stderr 和错误类型 metadata | 不拥有 Go task lifecycle；不直接写 runtime session/trace；真实训练/评估任务后续仍需统一迁移到 task runner |
+| Python Model Worker | `workers/python/agent_worker`、`internal/app/modelruntime/worker_runner.go` | 模型/数据任务的 worker envelope、`--health`、heartbeat、logs、artifact 引用、attempt/max_attempts/retryable 契约；当前 `model.download_hf` 默认经由 Go `ModelJob` 启动 `python -m agent_worker.main`，`dry_run=true` 与真实下载共用同一条 worker 路径；`model.verify_hf`、`model.smoke_locateanything` 和 `training.run(dry_run)` 也支持 worker job 模式，并把 worker 结果写回同一份 job store；worker 执行期间还会通过 `stderr` 结构化事件回写 heartbeat、`stdout/stderr` 行和运行日志；timeout / decode failure 也会回写 stdout、stderr 和错误类型 metadata | 不拥有 Go task lifecycle；不直接写 runtime session/trace；真实训练/评估任务后续仍需统一迁移到 task runner |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
 ## 6. Sub-agent 使用规则
@@ -118,7 +118,7 @@ Go `PythonPlanner` 默认使用常驻 `python -m agent_runtime.worker`，通过 
 
 Go `RuntimeRouter` 会在进入 PlannerPort 前选择 `local_control`、`local_semantic` 或 `external_planner`。Go 计算出的 `go_intent` 会随 metadata 传给 Python worker，Python 不再盲目重算入口意图，只在需要 Mimo 二级规划时继续细化参数。复杂任务仍走受控 planner/tool-call JSON。当前 stream 已覆盖 `status`、`tool_start`、`tool_progress` 和 `final`；`tool_progress` 来自 `internal/app/toolapp.Runner` 的 preflight、handler start/done、blocked/error 事件，再由 `GoToolExecutor` 映射为 runtime NDJSON。下一步需要把审批确认、model job 日志和会话恢复继续事件化，才能完全接近 `ccb` / Claude Code 的体感速度。
 
-交互式 `labelctl agent` 也必须能在同一 shell 内观测长任务，避免用户离开 Agent CLI 再开第二套命令。`/job <id>`、`/job-logs <id>` 和 `/follow-job <id>` 只访问 Gateway 的 `/api/runtime/model-jobs/*` 与 `/logs/stream`，不直接读取 `data_lake`，不绕过 runtime store 和权限中间件。`/follow-job` 的终态事件现在会直接携带 retry、heartbeat、artifact、manifest 路径和 stdout/stderr 摘要，便于在单次跟随里完成排障。
+交互式 `labelctl agent` 也必须能在同一 shell 内观测长任务，避免用户离开 Agent CLI 再开第二套命令。`/job <id>`、`/job-logs <id>` 和 `/follow-job <id>` 只访问 Gateway 的 `/api/runtime/model-jobs/*` 与 `/logs/stream`，不直接读取 `data_lake`，不绕过 runtime store 和权限中间件。`/follow-job` 的终态事件现在会直接携带 retry、heartbeat、artifact、manifest 路径和 stdout/stderr 摘要；worker 运行中的 heartbeat 与 `stdout>` / `stderr>` 行也会作为同一条 job 日志流持续输出，便于在单次跟随里完成排障。
 
 错误契约采用兼容扩展：HTTP JSON 错误保留 `error` 字符串并新增 `error_envelope`；runtime NDJSON `error` 事件同样携带 `error_envelope`。CLI 优先显示 envelope 中的 `message`，而自动化测试可以使用 `code`、`source` 和 `retryable` 做稳定断言。
 
@@ -146,7 +146,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - 默认下载：调用 `huggingface_hub.snapshot_download`，支持 resume。
 - `--verify-only`：对比远端文件清单和本地文件大小，缺失或大小不一致时失败。
 - `GET /api/runtime/model-jobs/{job_id}/logs`：读取已持久化的模型任务生命周期日志，并返回 `metadata.artifact_manifest` 以定位归档后的 artifact manifest。
-- `GET /api/runtime/model-jobs/{job_id}/logs/stream`：以 NDJSON 输出已有日志和终态事件，为后续真实 worker 日志流保留兼容入口。
+- `GET /api/runtime/model-jobs/{job_id}/logs/stream`：以 NDJSON 输出已有日志和终态事件；当前 worker 运行中的 heartbeat 与结构化 `stdout/stderr` 行已经通过写回 store 间接进入这条流，后续再补原始字节级直通。
 - Web Agent Overview 可点击 model job 并查询 `/logs`，与 CLI/API 共用同一 Gateway 边界。
 
 ## 9. 当前可验收证据
@@ -173,7 +173,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 ## 10. 未完成项
 
 - ShanghaiTech original 真实推理。
-- model job 逐文件字节级进度、实时 worker stdout/stderr NDJSON 流和自动 resume；当前 `model.download_hf` 已默认通过 Go `ModelJob` 启动 Python worker，`model.verify_hf` 与 `model.smoke_locateanything` 也支持显式 worker job，并把 heartbeat/log/artifact/retry/stdout/stderr 摘要写入 store，同时把 artifact 摘要归档到 `runtime-root/artifacts/*.artifact_manifest.json`；timeout / decode failure 也会保留部分 stdout/stderr 和错误类型，但仍未提供逐文件流式输出和自动恢复执行。
+- model job 逐文件字节级进度、原始 stdout/stderr 字节级直通 NDJSON 流和自动 resume；当前 `model.download_hf` 已默认通过 Go `ModelJob` 启动 Python worker，`model.verify_hf` 与 `model.smoke_locateanything` 也支持显式 worker job，并把 heartbeat/log/artifact/retry/stdout/stderr 摘要写入 store，同时把运行中的 heartbeat 和结构化 `stdout/stderr` 行持续写回 store，并把 artifact 摘要归档到 `runtime-root/artifacts/*.artifact_manifest.json`；timeout / decode failure 也会保留部分 stdout/stderr 和错误类型，但仍未提供逐文件字节级流式输出和自动恢复执行。
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`；`model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析已迁移到 `internal/app/modelruntime`。后续仍需把 model job 生命周期和 workflow run 接入正式 task repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、审批确认、model job 日志流和会话恢复；最小 tool progress streaming 已完成。
