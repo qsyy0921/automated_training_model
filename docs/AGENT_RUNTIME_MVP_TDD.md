@@ -145,6 +145,7 @@ npm run build
 | `smoke-evaluation-dry-worker.ps1` | Runtime 发送 `/bot-eval-dry`，验证 `evaluation.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-deployment-dry-worker.ps1` | Runtime 发送 `/bot-deploy-dry`，验证 `deployment.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-lifecycle-execution-worker.ps1` | 直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交带 `execution_command` 的 `dry_run=false` 请求，验证 lifecycle task 会真实执行命令并落地 `request/plan/result`、heartbeat、task logs 和 artifact manifest |
+| `smoke-lifecycle-cli-execution-worker.ps1` | 通过 `labelctl training/evaluation/deploy submit` 提交带 `-exec` / `-exec-arg` / `-exec-timeout` 的任务，验证 CLI 可把 execution command 透传给 Python worker |
 | `smoke-locateanything-model.ps1` | Runtime 触发 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run`，验证模型可加载但真实推理仍未完成 |
 
 ## 8. Red / Green / Refactor 规则

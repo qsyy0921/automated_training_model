@@ -239,6 +239,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locatean
 
 `smoke-lifecycle-execution-worker.ps1` 会直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交带 `execution_command` 的 `dry_run=false` lifecycle task，验证 Go `WorkerGateway` -> Python worker 会真实执行命令、落地 `request.json` / `plan.json` / `result.json`、并把 task logs、heartbeat 和 artifact manifest 写回同一份 task store。
 
+`smoke-lifecycle-cli-execution-worker.ps1` 会先通过 `labelctl training/evaluation/deploy submit` 提交带 `-exec` / `-exec-arg` / `-exec-timeout` 的 lifecycle 任务，再通过 task API 验证 CLI 已把 execution command 正确透传到 Python worker。
+
 `smoke-locateanything-model.ps1` 会通过 Runtime 执行 `model.verify_hf`、`model.smoke_locateanything` 和 `workflow.submit_run(dry_run=true)`。当前本机已完成 LocateAnything-3B 加载 smoke：`AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 均通过；由于当前 PyTorch 是 CPU-only，真实 ShanghaiTech 推理仍未标记完成。
 
 ### 什么时候使用 Sub-Agent

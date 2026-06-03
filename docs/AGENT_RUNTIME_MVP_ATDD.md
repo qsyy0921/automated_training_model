@@ -286,6 +286,15 @@ And `result.json.execution_mode=command-executed`
 
 证据：`ops/scripts/smoke-lifecycle-execution-worker.ps1`、`workers/python/agent_worker/tests/test_worker_contracts.py`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/app/lifecycleapp/service_test.go`。
 
+### ATDD-024 lifecycle CLI submit 透传 execution command
+
+Given operator 使用 `labelctl training submit`、`labelctl evaluation submit`、`labelctl deploy submit`
+When 显式传入 `-exec`、`-exec-arg`、`-exec-timeout`
+Then CLI 提交的 JSON body 必须包含 `execution_command`、`execution_timeout_seconds`
+And 任务完成后 `result.json.execution_mode=command-executed`
+
+证据：`internal/cli/labelctl/domain_commands_test.go`、`ops/scripts/smoke-lifecycle-cli-execution-worker.ps1`。
+
 ## 4. 验收矩阵
 
 | 场景 | 当前状态 | 证据 |
@@ -315,3 +324,4 @@ And `result.json.execution_mode=command-executed`
 | ATDD-021 | 每次提交前执行 | rg + git status |
 | ATDD-022 | 已覆盖 | `json_test.go` + `service_test.go` |
 | ATDD-023 | 已覆盖 | `smoke-lifecycle-execution-worker.ps1` + worker/service/gateway tests |
+| ATDD-024 | 已覆盖 | `domain_commands_test.go` + `smoke-lifecycle-cli-execution-worker.ps1` |

@@ -91,25 +91,34 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		t.Fatalf("unexpected autolabel body: %+v", autolabelBody)
 	}
 
-	if err := runTraining(cfg, []string{"submit", "-dataset", "ds1", "-target-task", "detection", "-model-family", "yolo11n"}); err != nil {
+	if err := runTraining(cfg, []string{"submit", "-dataset", "ds1", "-target-task", "detection", "-model-family", "yolo11n", "-exec", "python", "-exec-arg=-c", "-exec-arg=print('train')", "-exec-cwd", "tmp/train", "-exec-env", "ATM_TEST=1", "-exec-timeout", "30"}); err != nil {
 		t.Fatal(err)
 	}
 	if trainingBody["dataset_id"] != "ds1" || trainingBody["target_task"] != "detection" || trainingBody["model_family"] != "yolo11n" || trainingBody["dry_run"] != false {
 		t.Fatalf("unexpected training body: %+v", trainingBody)
 	}
+	if len(trainingBody["execution_command"].([]any)) != 3 || trainingBody["execution_timeout_seconds"].(float64) != 30 || trainingBody["execution_cwd"] != "tmp/train" {
+		t.Fatalf("unexpected training execution body: %+v", trainingBody)
+	}
 
-	if err := runEvaluation(cfg, []string{"submit", "-dataset", "ds1", "-model", "model1", "-metrics", "mAP,recall"}); err != nil {
+	if err := runEvaluation(cfg, []string{"submit", "-dataset", "ds1", "-model", "model1", "-metrics", "mAP,recall", "-exec", "python", "-exec-arg=-c", "-exec-arg=print('eval')", "-exec-timeout", "31"}); err != nil {
 		t.Fatal(err)
 	}
 	if evaluationBody["dataset_id"] != "ds1" || evaluationBody["model_id"] != "model1" || evaluationBody["dry_run"] != false {
 		t.Fatalf("unexpected evaluation body: %+v", evaluationBody)
 	}
+	if len(evaluationBody["execution_command"].([]any)) != 3 || evaluationBody["execution_timeout_seconds"].(float64) != 31 {
+		t.Fatalf("unexpected evaluation execution body: %+v", evaluationBody)
+	}
 
-	if err := runDeploy(cfg, []string{"submit", "-model", "model1", "-target", "local", "-replicas", "2"}); err != nil {
+	if err := runDeploy(cfg, []string{"submit", "-model", "model1", "-target", "local", "-replicas", "2", "-exec", "powershell", "-exec-arg=-NoProfile", "-exec-arg=-Command", "-exec-arg=Write-Output hi", "-exec-timeout", "32"}); err != nil {
 		t.Fatal(err)
 	}
 	if deployBody["model_id"] != "model1" || deployBody["target"] != "local" || deployBody["replicas"].(float64) != 2 {
 		t.Fatalf("unexpected deploy body: %+v", deployBody)
+	}
+	if len(deployBody["execution_command"].([]any)) != 4 || deployBody["execution_timeout_seconds"].(float64) != 32 {
+		t.Fatalf("unexpected deploy execution body: %+v", deployBody)
 	}
 
 	if err := runDesktop(cfg, []string{"send", "/bot-ping"}); err != nil {
@@ -166,6 +175,24 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		if seen[key] != want {
 			t.Fatalf("expected %s %d times, got %d", key, want, seen[key])
 		}
+	}
+}
+
+func TestRunAutoLabelSupportsExecutionFlags(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		writeCLIJSON(t, w, map[string]any{"job": map[string]string{"task_id": "task-auto"}})
+	}))
+	defer server.Close()
+
+	if err := runAutoLabel(Config{addr: server.URL}, []string{"submit", "-dataset", "ds1", "-task-types", "label", "-exec", "python", "-exec-arg=-c", "-exec-arg=print('auto')", "-exec-cwd", "tmp/auto", "-exec-env", "AUTO=1", "-exec-timeout", "45"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(body["execution_command"].([]any)) != 3 || body["execution_cwd"] != "tmp/auto" || body["execution_timeout_seconds"].(float64) != 45 {
+		t.Fatalf("unexpected autolabel execution body: %+v", body)
 	}
 }
 

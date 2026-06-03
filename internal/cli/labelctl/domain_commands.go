@@ -62,7 +62,7 @@ func runDataset(cfg Config, args []string) error {
 
 func runAutoLabel(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -74,13 +74,14 @@ func runAutoLabel(cfg Config, args []string) error {
 		prompt := fs.String("prompt", "", "operator prompt")
 		requireReview := fs.Bool("require-review", false, "require human review")
 		dryRun := fs.Bool("dry-run", true, "submit as dry-run recipe only")
+		execSpec := registerExecutionFlags(fs)
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		if strings.TrimSpace(*datasetID) == "" || strings.TrimSpace(*taskTypes) == "" {
-			return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true]")
+			return errors.New("usage: labelctl autolabel submit -dataset <id> -task-types a,b [-video-ids x,y] [-model-profile p] [-require-review] [-dry-run=true] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec]")
 		}
-		return postJSON(cfg.addr+"/api/autolabel/jobs", compactBody(map[string]any{
+		body := compactBody(map[string]any{
 			"dataset_id":     *datasetID,
 			"video_ids":      splitCSV(*videoIDs),
 			"task_types":     splitCSV(*taskTypes),
@@ -88,7 +89,9 @@ func runAutoLabel(cfg Config, args []string) error {
 			"prompt":         *prompt,
 			"require_review": *requireReview,
 			"dry_run":        *dryRun,
-		}))
+		})
+		mergeExecutionBody(body, execSpec)
+		return postJSON(cfg.addr+"/api/autolabel/jobs", body)
 	case "task", "status":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl autolabel task <task_id>")
@@ -116,7 +119,7 @@ func runAutoLabel(cfg Config, args []string) error {
 
 func runTraining(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -129,13 +132,14 @@ func runTraining(cfg Config, args []string) error {
 		splitConfig := fs.String("split-config", "", "split config")
 		outputRegistry := fs.String("output-registry", "", "output registry")
 		dryRun := fs.Bool("dry-run", false, "submit as dry-run recipe only")
+		execSpec := registerExecutionFlags(fs)
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		if strings.TrimSpace(*datasetID) == "" || strings.TrimSpace(*targetTask) == "" || strings.TrimSpace(*modelFamily) == "" {
-			return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false]")
+			return errors.New("usage: labelctl training submit -dataset <id> -target-task <task> -model-family <family> [-annotation-version v] [-split-config name] [-output-registry uri] [-dry-run=false] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec]")
 		}
-		return postJSON(cfg.addr+"/api/training/runs", compactBody(map[string]any{
+		body := compactBody(map[string]any{
 			"dataset_id":         *datasetID,
 			"annotation_version": *annotationVersion,
 			"target_task":        *targetTask,
@@ -144,7 +148,9 @@ func runTraining(cfg Config, args []string) error {
 			"split_config":       *splitConfig,
 			"output_registry":    *outputRegistry,
 			"dry_run":            *dryRun,
-		}))
+		})
+		mergeExecutionBody(body, execSpec)
+		return postJSON(cfg.addr+"/api/training/runs", body)
 	case "task", "status":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl training task <task_id>")
@@ -172,7 +178,7 @@ func runTraining(cfg Config, args []string) error {
 
 func runEvaluation(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -184,13 +190,14 @@ func runEvaluation(cfg Config, args []string) error {
 		saveVisuals := fs.Bool("save-visuals", false, "save visuals")
 		failureMining := fs.Bool("failure-mining", false, "enable failure mining")
 		dryRun := fs.Bool("dry-run", false, "submit as dry-run recipe only")
+		execSpec := registerExecutionFlags(fs)
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		if strings.TrimSpace(*datasetID) == "" || strings.TrimSpace(*modelID) == "" {
-			return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false]")
+			return errors.New("usage: labelctl evaluation submit -dataset <id> -model <id> [-split name] [-metrics a,b] [-save-visuals] [-failure-mining] [-dry-run=false] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec]")
 		}
-		return postJSON(cfg.addr+"/api/evaluation/runs", compactBody(map[string]any{
+		body := compactBody(map[string]any{
 			"dataset_id":     *datasetID,
 			"model_id":       *modelID,
 			"split":          *split,
@@ -198,7 +205,9 @@ func runEvaluation(cfg Config, args []string) error {
 			"save_visuals":   *saveVisuals,
 			"failure_mining": *failureMining,
 			"dry_run":        *dryRun,
-		}))
+		})
+		mergeExecutionBody(body, execSpec)
+		return postJSON(cfg.addr+"/api/evaluation/runs", body)
 	case "task", "status":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl evaluation task <task_id>")
@@ -289,7 +298,7 @@ func runModels(cfg Config, args []string) error {
 
 func runDeploy(cfg Config, args []string) error {
 	if len(args) == 0 || args[0] == "help" {
-		return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
+		return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec] | task <task_id> | task-logs <task_id> | follow-task <task_id> | cancel-task <task_id>")
 	}
 	switch args[0] {
 	case "submit":
@@ -304,13 +313,14 @@ func runDeploy(cfg Config, args []string) error {
 		strategy := fs.String("strategy", "dry-run", "deployment strategy")
 		canary := fs.Int("canary-percent", 0, "canary percent")
 		rollback := fs.String("rollback-policy", "", "rollback policy")
+		execSpec := registerExecutionFlags(fs)
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		if strings.TrimSpace(*modelID) == "" || strings.TrimSpace(*target) == "" {
-			return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime]")
+			return errors.New("usage: labelctl deploy submit -model <id> -target <target> [-version v] [-runtime runtime] [-exec cmd -exec-arg=arg -exec-cwd dir -exec-env KEY=VALUE -exec-timeout sec]")
 		}
-		return postJSON(cfg.addr+"/api/deployments", compactBody(map[string]any{
+		body := compactBody(map[string]any{
 			"model_id":        *modelID,
 			"model_version":   *version,
 			"target":          *target,
@@ -321,7 +331,9 @@ func runDeploy(cfg Config, args []string) error {
 			"strategy":        *strategy,
 			"canary_percent":  *canary,
 			"rollback_policy": *rollback,
-		}))
+		})
+		mergeExecutionBody(body, execSpec)
+		return postJSON(cfg.addr+"/api/deployments", body)
 	case "task", "status":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl deploy task <task_id>")
@@ -483,6 +495,98 @@ func splitCSV(value string) []string {
 		}
 	}
 	return out
+}
+
+type repeatedStringFlag []string
+
+func (f *repeatedStringFlag) String() string {
+	return strings.Join(*f, ",")
+}
+
+func (f *repeatedStringFlag) Set(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	*f = append(*f, value)
+	return nil
+}
+
+type kvPairsFlag map[string]string
+
+func (f *kvPairsFlag) String() string {
+	if f == nil || len(*f) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(*f))
+	for key, value := range *f {
+		parts = append(parts, key+"="+value)
+	}
+	return strings.Join(parts, ",")
+}
+
+func (f *kvPairsFlag) Set(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	key, raw, ok := strings.Cut(value, "=")
+	if !ok {
+		return fmt.Errorf("expected KEY=VALUE, got %q", value)
+	}
+	key = strings.TrimSpace(key)
+	raw = strings.TrimSpace(raw)
+	if key == "" || raw == "" {
+		return fmt.Errorf("expected KEY=VALUE, got %q", value)
+	}
+	if *f == nil {
+		*f = map[string]string{}
+	}
+	(*f)[key] = raw
+	return nil
+}
+
+type executionFlags struct {
+	command *string
+	args    *repeatedStringFlag
+	cwd     *string
+	env     *kvPairsFlag
+	timeout *int
+}
+
+func registerExecutionFlags(fs *flag.FlagSet) executionFlags {
+	command := fs.String("exec", "", "execution command for non-dry-run worker task")
+	args := repeatedStringFlag{}
+	fs.Var(&args, "exec-arg", "execution command argument; repeat as needed")
+	cwd := fs.String("exec-cwd", "", "working directory for non-dry-run worker task")
+	env := kvPairsFlag{}
+	fs.Var(&env, "exec-env", "execution environment override KEY=VALUE; repeat as needed")
+	timeout := fs.Int("exec-timeout", 0, "execution timeout seconds for non-dry-run worker task")
+	return executionFlags{
+		command: command,
+		args:    &args,
+		cwd:     cwd,
+		env:     &env,
+		timeout: timeout,
+	}
+}
+
+func mergeExecutionBody(body map[string]any, spec executionFlags) {
+	if spec.command == nil || strings.TrimSpace(*spec.command) == "" {
+		return
+	}
+	command := []string{strings.TrimSpace(*spec.command)}
+	command = append(command, []string(*spec.args)...)
+	body["execution_command"] = command
+	if spec.cwd != nil && strings.TrimSpace(*spec.cwd) != "" {
+		body["execution_cwd"] = strings.TrimSpace(*spec.cwd)
+	}
+	if spec.env != nil && len(*spec.env) > 0 {
+		body["execution_env"] = map[string]string(*spec.env)
+	}
+	if spec.timeout != nil && *spec.timeout > 0 {
+		body["execution_timeout_seconds"] = *spec.timeout
+	}
 }
 
 func tokenState(token string) string {

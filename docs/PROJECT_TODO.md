@@ -72,6 +72,7 @@
 ## 后端架构待办
 
 - [ ] 将 `lifecycleapp` 当前的 JSON task queue + `WorkerGateway` MVP 升级为统一 task repository：补真实训练/评估/部署 recipe、恢复、审批和更细粒度的状态机；当前 task logs / NDJSON stream、artifact manifest 归档和 `dry_run=false` command execution 已补齐，但仍未进入真实 GPU/部署 recipe。
+- [ ] 把 lifecycle CLI 的 execution flags 从“透传任意命令”继续收敛成受控 recipe 参数，避免长期把训练/评估/部署执行面停留在 operator 手写命令层。
 - [ ] 为 `providerapp` 增加加密 secret store。
 - [ ] 补充 CLI：数据集注册、任务提交、导出标注、检查服务健康。
 - [ ] 增加 OpenAPI 文档生成。
