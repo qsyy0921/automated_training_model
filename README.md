@@ -199,6 +199,7 @@ go run .\cmd\agentdesktop -addr http://127.0.0.1:7870 json
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1 -UseMimoPlanner
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-hf-verify-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
 ```
 
@@ -206,13 +207,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locatean
 
 `runtime-hf-install.ps1` 默认只做 Mimo -> Agent Runtime -> `model.download_hf` 预检，并通过审批边界停在 `approval_required`，不会下载权重；只有显式传入 `-StartDownload -WaitForCompletion` 才会开始真实 7GB 级模型下载。当前真实下载默认进入 Python worker `ModelJob` 路径，并把 worker logs / artifacts / retry metadata 回写到 runtime store；本机已通过 Agent Runtime 下载并 verify-only 校验 `nvidia/LocateAnything-3B`，本地路径为 `data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B`，该目录在 `data_lake/` 下，不进入 Git。
 
+`smoke-hf-verify-worker.ps1` 会通过 Runtime 发送 `/bot-verify-hf-job nvidia/LocateAnything-3B`，验证 Go fast-path 命令能直接生成 `model.verify_hf job=true` 的后台 worker job，并检查 trace、job 状态、worker heartbeat 和 artifacts。
+
 `smoke-locateanything-model.ps1` 会通过 Runtime 执行 `model.verify_hf`、`model.smoke_locateanything` 和 `workflow.submit_run(dry_run=true)`。当前本机已完成 LocateAnything-3B 加载 smoke：`AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 均通过；由于当前 PyTorch 是 CPU-only，真实 ShanghaiTech 推理仍未标记完成。
 
 ### 什么时候使用 Sub-Agent
 
 | 场景 | 默认处理 |
 | --- | --- |
-| `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` | Go control plane 直接处理，不使用 sub-agent |
+| `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job` | Go control plane 直接处理，不使用 sub-agent |
 | 项目身份/能力说明、已知 LocateAnything 固定流程 | Go 本地语义 fast-path；模型下载/测试仍通过 ToolExecutor 受控执行 |
 | 普通自然语言请求 | `planner-agent`，负责意图细化和 tool-call plan |
 | 高置信度数据接入规划 | `data-intake-agent`，Go `RuntimeRouter` 直接生成 `intake.plan`，保留审批和 trace |

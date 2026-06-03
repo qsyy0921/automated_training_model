@@ -65,6 +65,19 @@ func TestClassifyLocateAnythingShanghaiTechTest(t *testing.T) {
 	}
 }
 
+func TestClassifyVerifyHFJobCommand(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "/bot-verify-hf-job nvidia/LocateAnything-3B"})
+	if intent.Kind != IntentVerifyHFJob {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.ToolID != "model.verify_hf" {
+		t.Fatalf("unexpected tool: %s", intent.ToolID)
+	}
+	if len(intent.Args) != 1 || intent.Args[0] != "nvidia/LocateAnything-3B" {
+		t.Fatalf("unexpected args: %+v", intent.Args)
+	}
+}
+
 func TestClassifyDataIntakePlanningFastPath(t *testing.T) {
 	intent := ClassifyIntent(channel.InboundMessage{Text: "请帮我规划 ShanghaiTech 数据接入"})
 	if intent.Kind != IntentDataIntake {

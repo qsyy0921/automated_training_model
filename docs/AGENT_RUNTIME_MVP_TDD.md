@@ -139,6 +139,7 @@ npm run build
 | `smoke-mimo-api.ps1` | Mimo API 可用性 |
 | `smoke-mimo-planner.ps1` | Mimo planner 输出受控 tool-call |
 | `runtime-hf-install.ps1` | Runtime + Mimo 触发 HF 安装预检；显式 `-StartDownload -WaitForCompletion` 才真实下载并等待 job 完成 |
+| `smoke-hf-verify-worker.ps1` | Runtime 发送 `/bot-verify-hf-job`，验证 Go fast-path 命令可直接排队 `model.verify_hf job=true` 的 Python worker job，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-locateanything-model.ps1` | Runtime 触发 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run`，验证模型可加载但真实推理仍未完成 |
 
 ## 8. Red / Green / Refactor 规则
@@ -167,6 +168,7 @@ cd F:\automated_training_model
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-agent-entrypoints.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1 -UseMimoPlanner
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-hf-verify-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
 rg -n "tp-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|tp-c3" README.md docs internal workers web ops skills -S
 git status --short --ignored data_lake\models data_lake\catalog tmp

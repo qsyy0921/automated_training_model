@@ -639,6 +639,68 @@ func TestModelVerifyCanQueuePythonWorkerJob(t *testing.T) {
 	}
 }
 
+func TestBotVerifyHFJobCommandQueuesWorkerJobThroughRuntime(t *testing.T) {
+	plane := &fakeAgentPlane{}
+	executor := NewGoToolExecutor(plane, nil)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "worker verify completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:00Z", Status: "completed", Message: "verified"},
+		}, nil
+	}
+	svc := NewServiceWithPorts(NewRulePlanner(), executor, time.Now)
+	reply, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "/bot-verify-hf-job nvidia/LocateAnything-3B",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply.Text, "job=") {
+		t.Fatalf("expected queued job reply, got %q", reply.Text)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected runtime verify worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := svc.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "succeeded" {
+			if job.Kind != "model.verify_hf" || !job.VerifyOnly {
+				t.Fatalf("expected verify worker job, got %+v", job)
+			}
+			traces := svc.ListTraces(10)
+			if len(traces) != 1 || len(traces[0].ToolIDs) != 1 || traces[0].ToolIDs[0] != "model.verify_hf" {
+				t.Fatalf("expected verify trace, got %+v", traces)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected verify worker job to succeed, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 func TestRecentModelJobLogsAndTerminalStatus(t *testing.T) {
 	job := ModelJob{ID: "job1", Status: "succeeded", Logs: []ModelJobLog{
 		{At: time.Unix(1, 0), Level: "info", Message: "one"},

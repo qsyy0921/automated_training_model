@@ -18,6 +18,18 @@ func TestDecideSubAgentSkipsDeterministicCommands(t *testing.T) {
 	}
 }
 
+func TestDecideSubAgentSkipsVerifyHFJobCommand(t *testing.T) {
+	msg := channel.InboundMessage{Text: "/bot-verify-hf-job nvidia/LocateAnything-3B"}
+	intent := ClassifyIntent(msg)
+	decision := DecideSubAgent(intent, msg)
+	if decision.UseSubAgent {
+		t.Fatalf("expected Go control plane handling, got %+v", decision)
+	}
+	if decision.ToolID != "model.verify_hf" {
+		t.Fatalf("unexpected tool: %s", decision.ToolID)
+	}
+}
+
 func TestDecideSubAgentUsesVisionForImages(t *testing.T) {
 	msg := channel.InboundMessage{
 		Text:        "看一下这张图",

@@ -39,10 +39,10 @@ func DefaultSubAgents() []SubAgentSpec {
 
 func DecideSubAgent(intent Intent, msg channel.InboundMessage) DelegationDecision {
 	switch intent.Kind {
-	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun, IntentRuntimeAbout:
+	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun, IntentRuntimeAbout, IntentVerifyHFJob:
 		return DelegationDecision{
 			UseSubAgent: false,
-			Reason:      "low-risk deterministic runtime command handled by Go control plane",
+			Reason:      "deterministic runtime command handled by Go control plane",
 			SkillID:     intent.SkillID,
 			ToolID:      intent.ToolID,
 		}

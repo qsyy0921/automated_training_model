@@ -19,6 +19,7 @@ const (
 	IntentRuntimeAbout  IntentKind = "runtime_about"
 	IntentModelInstall  IntentKind = "model_install"
 	IntentModelTest     IntentKind = "model_test"
+	IntentVerifyHFJob   IntentKind = "verify_hf_job"
 	IntentChat          IntentKind = "chat"
 )
 
@@ -122,6 +123,10 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 				intent.DatasetID = fields[2]
 			}
 		}
+	case "/bot-verify-hf-job":
+		intent.Kind = IntentVerifyHFJob
+		intent.SkillID = "huggingface-model-downloader"
+		intent.ToolID = "model.verify_hf"
 	default:
 		intent.Kind = IntentUnknown
 	}

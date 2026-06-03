@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/runtimeworkflow"
@@ -30,6 +31,8 @@ func (p *RulePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 		return p.locateAnythingInstallPlan(req), nil
 	case IntentModelTest:
 		return p.locateAnythingTestPlan(req), nil
+	case IntentVerifyHFJob:
+		return p.locateAnythingVerifyJobPlan(req), nil
 	case IntentChat:
 		result.ReplyText = fmt.Sprintf("已收到。意图会先交给 %s 做规划；当前最小运行时已支持 /bot-status、/bot-runs 和 /bot-run dry。", req.Delegation.AgentID)
 		return result, nil
@@ -42,6 +45,7 @@ func (p *RulePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 				"/bot-status",
 				"/bot-runs",
 				"/bot-run dry [dataset_id]",
+				"/bot-verify-hf-job [repo_id]",
 				"普通文本 -> planner-agent",
 				"图片/附件 -> vision-agent 或 data-intake-agent",
 			}, "\n")
@@ -119,6 +123,31 @@ func (p *RulePlanner) locateAnythingTestPlan(req PlanRequest) PlanResult {
 				},
 			},
 		},
+	}
+}
+
+func (p *RulePlanner) locateAnythingVerifyJobPlan(req PlanRequest) PlanResult {
+	repoID := "nvidia/LocateAnything-3B"
+	if len(req.Intent.Args) >= 1 && strings.TrimSpace(req.Intent.Args[0]) != "" {
+		repoID = strings.TrimSpace(req.Intent.Args[0])
+	}
+	return PlanResult{
+		Intent:     req.Intent,
+		Delegation: req.Delegation,
+		Status:     "tool_planned_with_guard",
+		ReplyText:  "已识别为 HuggingFace verify worker 请求，使用本地确定性命令生成后台校验任务。",
+		ToolCalls: []ToolCall{{
+			ID:      "call-1",
+			ToolID:  "model.verify_hf",
+			SkillID: "huggingface-model-downloader",
+			Params: map[string]string{
+				"repo_id":     repoID,
+				"local_dir":   filepath.Join("data_lake", "models", "artifacts", "huggingface", strings.ReplaceAll(repoID, "/", string(filepath.Separator))),
+				"manifest":    filepath.Join("data_lake", "catalog", "models", strings.ReplaceAll(repoID, "/", "_")+".download.json"),
+				"verify_only": "true",
+				"job":         "true",
+			},
+		}},
 	}
 }
 

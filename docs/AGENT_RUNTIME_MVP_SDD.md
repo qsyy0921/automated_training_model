@@ -13,7 +13,7 @@ MVP 必须覆盖：
 
 - 四入口统一：Web、CLI、桌面端、QQ/NapCat 都进入同一个 runtime；QQ 支持 test-message、HTTP webhook/outbound 和可选 OneBot WebSocket reader。
 - Mimo 模型路由：文本规划走 `mimo-v2.5-pro`，视觉理解走 `mimo-v2.5`。
-- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
+- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
 - 本地语义 fast-path：自我介绍/能力说明、已知 `LocateAnything-3B` 下载、`LocateAnything-3B + ShanghaiTech` smoke 这类高置信度固定意图由 Go 直接生成受控计划，避免为了意图识别单独等待模型。
 - Sub-agent 决策：普通文本、视觉附件、数据附件分别进入不同 agent 角色。
 - ToolExecutor：所有副作用都通过工具出口，不能让 channel 或 UI 直接写数据湖、下载模型或提交训练。
@@ -165,6 +165,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | Python worker ModelJob | `go test ./internal/app/agentruntime` |
 | HF real download | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1 -StartDownload -WaitForCompletion` |
 | HF verify-only | `python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py --repo-id nvidia/LocateAnything-3B --local-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B --manifest data_lake\catalog\models\nvidia_LocateAnything-3B.download.json --verify-only` |
+| HF verify worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-hf-verify-worker.ps1` |
 | LocateAnything load smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1` |
 | Gateway auth 单元测试 | `go test ./internal/infrastructure/middleware` |
 
