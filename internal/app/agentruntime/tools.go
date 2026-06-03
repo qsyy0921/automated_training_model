@@ -272,7 +272,93 @@ func (e *GoToolExecutor) downloadHFModel(ctx context.Context, call ToolCall) (To
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_HF_DOWNLOAD_SYNC")), "true") {
 		return e.runHFModelTool(ctx, call, false)
 	}
-	return e.enqueueHFModelDownload(call)
+	if hfDownloadRunnerModeFromEnv() == "service" {
+		return e.enqueueHFModelDownload(call)
+	}
+	return e.enqueueHFModelWorkerDownload(call)
+}
+
+func hfDownloadRunnerModeFromEnv() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_HF_DOWNLOAD_RUNNER"))) {
+	case "", "python-worker", "worker", "python":
+		return "python-worker"
+	case "service":
+		return "service"
+	default:
+		return "python-worker"
+	}
+}
+
+func (e *GoToolExecutor) enqueueHFModelWorkerDownload(call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareHFModelRequest(call, false)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	return e.enqueueHFModelWorkerJob(req, "", call, false)
+}
+
+func (e *GoToolExecutor) enqueueHFModelWorkerDryRun(call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareHFModelRequest(call, false)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	return e.enqueueHFModelWorkerJob(req, "", call, true)
+}
+
+func (e *GoToolExecutor) enqueueHFModelWorkerJob(req hfModelRequest, parentID string, call ToolCall, dryRun bool) (ToolExecutionResult, error) {
+	created := e.now()
+	modeText := "python worker"
+	if dryRun {
+		modeText = "python worker dry-run"
+	}
+	job := e.modelJobs.Create(ModelJob{
+		ID:              fmt.Sprintf("model-job-%d", created.UnixNano()),
+		ParentID:        parentID,
+		Kind:            "model.download_hf",
+		RepoID:          req.RepoID,
+		LocalDir:        req.LocalDir,
+		Manifest:        req.Manifest,
+		Status:          "queued",
+		Message:         "queued " + modeText,
+		ProgressPercent: 0,
+		Resumable:       true,
+		Retryable:       false,
+		Logs:            []ModelJobLog{{At: created, Level: "info", Message: "queued " + modeText}},
+		Metadata: map[string]string{
+			"execution_path": "python-worker",
+			"dry_run":        strconv.FormatBool(dryRun),
+		},
+	})
+	go e.runHFModelWorkerJob(job.ID, modelruntime.WorkerJobRequest{
+		TaskID:     job.ID,
+		WorkflowID: "runtime-model-worker",
+		AgentID:    "model-agent",
+		ToolID:     "model.download_hf",
+		Action:     "download_hf",
+		DatasetID:  strings.TrimSpace(call.Params["dataset_id"]),
+		DryRun:     dryRun,
+		Params: map[string]string{
+			"repo_id":   req.RepoID,
+			"local_dir": req.LocalDir,
+			"manifest":  req.Manifest,
+		},
+	})
+	replyText := fmt.Sprintf("Python worker 任务已排队：job=%s repo=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", job.ID, req.RepoID)
+	if dryRun {
+		replyText = fmt.Sprintf("Python worker dry-run 已排队：job=%s repo=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", job.ID, req.RepoID)
+	}
+	return ToolExecutionResult{
+		ReplyText: replyText,
+		Status:    "queued",
+		Metadata: map[string]string{
+			"job_id":         job.ID,
+			"repo_id":        req.RepoID,
+			"local_dir":      req.LocalDir,
+			"manifest":       req.Manifest,
+			"execution_path": "python-worker",
+			"dry_run":        strconv.FormatBool(dryRun),
+		},
+	}, nil
 }
 
 func (e *GoToolExecutor) verifyHFModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {
@@ -302,57 +388,6 @@ func (e *GoToolExecutor) enqueueHFModelDownload(call ToolCall) (ToolExecutionRes
 	return e.enqueueHFModelDownloadRequest(req, "", call)
 }
 
-func (e *GoToolExecutor) enqueueHFModelWorkerDryRun(call ToolCall) (ToolExecutionResult, error) {
-	req, err := prepareHFModelRequest(call, false)
-	if err != nil {
-		return ToolExecutionResult{}, err
-	}
-	created := e.now()
-	job := e.modelJobs.Create(ModelJob{
-		ID:              fmt.Sprintf("model-job-%d", created.UnixNano()),
-		Kind:            "model.download_hf",
-		RepoID:          req.RepoID,
-		LocalDir:        req.LocalDir,
-		Manifest:        req.Manifest,
-		Status:          "queued",
-		Message:         "queued python worker dry-run",
-		ProgressPercent: 0,
-		Resumable:       true,
-		Retryable:       false,
-		Logs:            []ModelJobLog{{At: created, Level: "info", Message: "queued python worker dry-run"}},
-		Metadata: map[string]string{
-			"execution_path": "python-worker",
-			"dry_run":        "true",
-		},
-	})
-	go e.runHFModelWorkerJob(job.ID, modelruntime.WorkerJobRequest{
-		TaskID:     job.ID,
-		WorkflowID: "runtime-model-worker",
-		AgentID:    "model-agent",
-		ToolID:     "model.download_hf",
-		Action:     "download_hf",
-		DatasetID:  strings.TrimSpace(call.Params["dataset_id"]),
-		DryRun:     true,
-		Params: map[string]string{
-			"repo_id":   req.RepoID,
-			"local_dir": req.LocalDir,
-			"manifest":  req.Manifest,
-		},
-	})
-	return ToolExecutionResult{
-		ReplyText: fmt.Sprintf("Python worker dry-run 已排队：job=%s repo=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", job.ID, req.RepoID),
-		Status:    "queued",
-		Metadata: map[string]string{
-			"job_id":         job.ID,
-			"repo_id":        req.RepoID,
-			"local_dir":      req.LocalDir,
-			"manifest":       req.Manifest,
-			"execution_path": "python-worker",
-			"dry_run":        "true",
-		},
-	}, nil
-}
-
 func (e *GoToolExecutor) enqueueHFModelDownloadRequest(req hfModelRequest, parentID string, call ToolCall) (ToolExecutionResult, error) {
 	created := e.now()
 	job := e.modelJobs.Create(ModelJob{
@@ -373,10 +408,11 @@ func (e *GoToolExecutor) enqueueHFModelDownloadRequest(req hfModelRequest, paren
 		ReplyText: fmt.Sprintf("HuggingFace 模型下载任务已排队：job=%s repo=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", job.ID, req.RepoID),
 		Status:    "queued",
 		Metadata: map[string]string{
-			"job_id":    job.ID,
-			"repo_id":   req.RepoID,
-			"local_dir": req.LocalDir,
-			"manifest":  req.Manifest,
+			"job_id":         job.ID,
+			"repo_id":        req.RepoID,
+			"local_dir":      req.LocalDir,
+			"manifest":       req.Manifest,
+			"execution_path": "service",
 		},
 	}, nil
 }
@@ -571,7 +607,12 @@ func (e *GoToolExecutor) ResumeModelJob(id string) (ModelJob, error) {
 	if err != nil {
 		return ModelJob{}, err
 	}
-	result, err := e.enqueueHFModelDownloadRequest(req, id, call)
+	var result ToolExecutionResult
+	if hfDownloadRunnerModeFromEnv() == "service" {
+		result, err = e.enqueueHFModelDownloadRequest(req, id, call)
+	} else {
+		result, err = e.enqueueHFModelWorkerJob(req, id, call, false)
+	}
 	if err != nil {
 		return ModelJob{}, err
 	}

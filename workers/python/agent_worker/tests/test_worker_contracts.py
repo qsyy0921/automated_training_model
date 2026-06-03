@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 
 from agent_worker.contracts import JobEnvelope
 from agent_worker.main import main, run_job
@@ -47,6 +49,59 @@ class WorkerContractTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["heartbeat"]["status"], "ok")
         self.assertIn("artifacts", payload["capabilities"])
+
+    @patch("agent_worker.main.subprocess.run")
+    def test_download_hf_action_runs_snapshot_script(self, run_mock) -> None:
+        run_mock.return_value = subprocess.CompletedProcess(
+            args=["python"],
+            returncode=0,
+            stdout=json.dumps({"complete": True}),
+            stderr="",
+        )
+        result = run_job(
+            JobEnvelope(
+                task_id="task_000001",
+                workflow_id="data-to-deployment-lifecycle",
+                agent_id="model-agent",
+                tool_id="model.download_hf",
+                action="download_hf",
+                dry_run=False,
+                params={
+                    "repo_id": "sshleifer/tiny-gpt2",
+                    "local_dir": "data_lake/models/artifacts/huggingface/sshleifer/tiny-gpt2",
+                    "manifest": "data_lake/catalog/models/sshleifer_tiny-gpt2.download.json",
+                },
+            )
+        ).to_dict()
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["heartbeat"]["status"], "completed")
+        self.assertEqual(result["artifacts"][0]["kind"], "manifest")
+        self.assertFalse(result["retryable"])
+
+    @patch("agent_worker.main.subprocess.run")
+    def test_download_hf_timeout_is_retryable_failure(self, run_mock) -> None:
+        run_mock.side_effect = subprocess.TimeoutExpired(cmd=["python"], timeout=1)
+        result = run_job(
+            JobEnvelope(
+                task_id="task_000001",
+                workflow_id="data-to-deployment-lifecycle",
+                agent_id="model-agent",
+                tool_id="model.download_hf",
+                action="download_hf",
+                dry_run=False,
+                params={
+                    "repo_id": "sshleifer/tiny-gpt2",
+                    "local_dir": "data_lake/models/artifacts/huggingface/sshleifer/tiny-gpt2",
+                    "manifest": "data_lake/catalog/models/sshleifer_tiny-gpt2.download.json",
+                },
+            )
+        ).to_dict()
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["heartbeat"]["status"], "failed")
+        self.assertTrue(result["retryable"])
+        self.assertIn("timed out", result["message"])
 
 
 if __name__ == "__main__":

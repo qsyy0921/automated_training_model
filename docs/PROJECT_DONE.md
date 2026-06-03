@@ -1,7 +1,7 @@
 # Project Done
 
 版本：v0.2  
-日期：2026-06-01
+日期：2026-06-03
 
 ## 已完成
 
@@ -128,4 +128,5 @@
 - [x] 交互式 `labelctl agent` 增加 `/job <id>`、`/job-logs <id>` 和 `/follow-job <id>`，在 Claude Code 风格 CLI 内直接查看模型长任务详情、生命周期日志和 NDJSON 日志流，仍只通过 Gateway API。
 - [x] 增加 Agent Runtime / Gateway 统一错误信封：runtime NDJSON `error` 事件和 HTTP JSON error 都包含 `error_envelope.code/message/source/retryable`，并保留旧 `error` 字符串兼容；CLI 优先显示 envelope message。
 - [x] 新增 Python model worker 可观测执行契约：`python -m agent_worker.main --health` 可返回 heartbeat/capabilities，dry-run job 结果包含 heartbeat、ordered logs、artifact 引用、attempt/max_attempts 和 retryable，缺少 `task_id` 的 job 会失败且标记 non-retryable。
-- [x] 新增 Go -> Python model worker 最小调度链路：`model.download_hf dry_run=true` 会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 ModelJobStore；CLI/Web/API 已能读取这些字段。
+- [x] 新增 Go -> Python model worker 最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，`dry_run=true` 与真实下载共用同一条 worker 路径，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 ModelJobStore；CLI/Web/API 已能读取这些字段。
+- [x] 为 Python model worker 增加真实 HuggingFace 下载执行：worker 支持 `download_hf` job envelope、超时/非零退出的 retryable 失败、stdout/stderr 摘要回写、artifact 引用和 service fallback；Go 默认走 Python worker，设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service` 可显式回退旧 service runner。

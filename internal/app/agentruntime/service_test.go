@@ -301,14 +301,16 @@ func TestModelDownloadDefaultPolicyAllowsExecution(t *testing.T) {
 func TestModelDownloadDefaultPolicyQueuesAsyncJob(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
-	release := make(chan struct{})
-	executor.runHFModelTool = func(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
 		close(started)
-		<-release
-		return ToolExecutionResult{
-			ReplyText: "fake download completed",
-			Status:    "ok",
-			Metadata:  map[string]string{"repo_id": call.Params["repo_id"]},
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "fake download completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 3,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:00Z", Status: "completed", Message: "done"},
 		}, nil
 	}
 	msg := channel.InboundMessage{
@@ -336,6 +338,9 @@ func TestModelDownloadDefaultPolicyQueuesAsyncJob(t *testing.T) {
 	if result.Status != "queued" {
 		t.Fatalf("expected queued, got %s", result.Status)
 	}
+	if result.Metadata["execution_path"] != "python-worker" {
+		t.Fatalf("expected python-worker path, got %+v", result.Metadata)
+	}
 	if !strings.Contains(result.ReplyText, "model-job-") {
 		t.Fatalf("expected job id in reply, got %q", result.ReplyText)
 	}
@@ -344,7 +349,6 @@ func TestModelDownloadDefaultPolicyQueuesAsyncJob(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("expected background model job to start")
 	}
-	close(release)
 	deadline := time.After(time.Second)
 	for {
 		jobs := executor.ListModelJobs(10)
@@ -367,10 +371,10 @@ func TestModelJobCancelAndResume(t *testing.T) {
 	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
 	started := make(chan struct{})
 	var startOnce sync.Once
-	executor.runHFModelTool = func(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
 		startOnce.Do(func() { close(started) })
 		<-ctx.Done()
-		return ToolExecutionResult{}, ctx.Err()
+		return modelruntime.WorkerJobResult{}, ctx.Err()
 	}
 	msg := channel.InboundMessage{
 		ID:        "msg1",
@@ -434,6 +438,53 @@ func TestModelJobCancelAndResume(t *testing.T) {
 		t.Fatalf("unexpected resumed job: %+v", resumed)
 	}
 	_, _ = executor.CancelModelJob(resumed.ID)
+}
+
+func TestModelDownloadCanFallbackToServiceRunner(t *testing.T) {
+	t.Setenv("AGENT_RUNTIME_HF_DOWNLOAD_RUNNER", "service")
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	executor.runHFModelTool = func(ctx context.Context, call ToolCall, verifyOnly bool) (ToolExecutionResult, error) {
+		close(started)
+		<-release
+		return ToolExecutionResult{
+			ReplyText: "fake service download completed",
+			Status:    "ok",
+			Metadata:  map[string]string{"repo_id": call.Params["repo_id"]},
+		}, nil
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "download model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "planner-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.download_hf",
+			Params: map[string]string{"repo_id": "nvidia/LocateAnything-3B"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Metadata["execution_path"] != "service" {
+		t.Fatalf("expected service fallback metadata, got %+v", result.Metadata)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected service background model job to start")
+	}
+	close(release)
 }
 
 func TestModelDownloadDryRunQueuesPythonWorkerJob(t *testing.T) {

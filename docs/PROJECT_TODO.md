@@ -1,7 +1,7 @@
 # Project TODO
 
 版本：v0.2  
-日期：2026-06-02
+日期：2026-06-03
 
 ## 近期必须做
 
@@ -38,8 +38,8 @@
 - [x] 将 `intake.plan` / `vlm.inspect` 的 dry-run Data Intake Plan 构造外迁到 `internal/app/intakeapp`，runtime 只负责 tool handler 调用和 trace metadata。
 - [x] 为 JSON MVP model jobs 补齐阶段进度、生命周期日志、取消请求和手动 resume child job；CLI/Gateway 可查询详情、日志、取消和恢复。
 - [x] 新增 Python model worker 可观测执行契约：`--health`、heartbeat、ordered logs、artifact 引用、attempt/max_attempts 和 retryable，先覆盖 dry-run 与参数错误。
-- [x] 新增 Go -> Python model worker 最小调度链路：`model.download_hf dry_run=true` 会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回 job store。
-- [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、真实 worker stdout/stderr 日志流、取消幂等性和自动 resume 状态。
+- [x] 新增 Go -> Python model worker 最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，`dry_run=true` 与真实下载共用同一条 worker 路径，并把 heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回 job store。
+- [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、真实 worker stdout/stderr 日志流、取消幂等性和自动 resume 状态；当前 `model.download_hf` 已默认接入 Python worker，但训练/评估和 `model.verify_hf` 仍未统一迁移。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [x] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [x] 在 Web Agent Overview 中接入 model job logs 查询，与 CLI/API 共用 `/api/runtime/model-jobs/{id}/logs`。
@@ -83,5 +83,5 @@
 - [ ] 在检测 recall 稳定后重新开启 Q_track / MOTR-lite。
 - [ ] 设计 anomaly query 训练数据格式和评估协议。
 - [ ] Replace the in-memory workflow queue with Redis/NATS and persist workflow state across server restarts.
-- [ ] Wire Go workflow tasks to Python worker runners；worker heartbeat/logs/retries/artifact 输出契约已完成，仍需 Go task runner、stdout/stderr stream、artifact manifest 持久化和失败重试调度。
+- [ ] Wire Go workflow tasks to Python worker runners；`model.download_hf` 的 Go `ModelJob` -> Python worker MVP 已完成，仍需把 workflow/训练/评估任务接入统一 task runner，并补 stdout/stderr stream、artifact manifest 持久化和失败重试调度。
 - [ ] Add data/model lineage catalogs for dataset -> labels -> training run -> checkpoint -> evaluation report.

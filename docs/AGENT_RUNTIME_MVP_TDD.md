@@ -1,7 +1,7 @@
 # Agent Runtime MVP TDD
 
 版本：v0.1  
-日期：2026-06-02
+日期：2026-06-03
 
 ## 1. TDD 目标
 
@@ -39,7 +39,7 @@ Integration / Smoke Tests
 | Data intake fast-path | `internal/app/agentruntime/service_test.go` | `规划 ShanghaiTech 数据接入` 直接进入 `data-intake-agent` + `intake.plan`，trace 记录 dataset/workflow metadata |
 | Mandatory tool guard | `internal/app/agentruntime/session_test.go` | data-intake / vision 附件场景下，外部 Mimo planner 缺少必需 tool-call 或扩展额外工具链时回退本地计划并保留 sub-agent delegation |
 | Session Runner | `internal/app/agentruntime/service_test.go` | workflow dry-run、附件 data intake trace、vision trace、model download policy |
-| Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、取消请求、`canceled/resumable` 状态、手动 resume child job、生命周期日志裁剪和终态判断 |
+| Model Jobs | `internal/app/agentruntime/service_test.go` | 异步下载排队、默认 Python worker 路径、service fallback、取消请求、`canceled/resumable` 状态、手动 resume child job、生命周期日志裁剪和终态判断 |
 | Tool schema/preflight | `internal/app/toolapp/schema_test.go` | 注册工具、参数白名单、高风险审批、未注册工具拦截 |
 | Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error、ExecuteStream 输出 preflight/tool progress 事件 |
 | Runtime stream | `internal/app/agentruntime/session_test.go`、`internal/app/agentruntime/errors_test.go`、`internal/cli/labelctl/runtime_chat_test.go` | `RunStream` 能把工具进度事件带上 session 输出到 NDJSON；planner/tool 失败输出 `error_envelope`；CLI 能解析 runtime stream event 和结构化错误消息 |
@@ -174,10 +174,10 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 
 ## 10. 当前测试缺口
 
-- ModelJob 逐文件字节级进度、真实 worker stdout/stderr 实时 NDJSON 流和自动 resume 测试；当前已覆盖 `model.download_hf dry_run=true` 的 worker 调度、worker stdout/stderr 摘要入库和生命周期日志查询，但不覆盖逐文件流式输出。
+- ModelJob 逐文件字节级进度、真实 worker stdout/stderr 实时 NDJSON 流和自动 resume 测试；当前已覆盖 `model.download_hf` 的默认 Python worker 调度、worker stdout/stderr 摘要入库和生命周期日志查询，但不覆盖逐文件流式输出。
 - `modelruntime` 接入统一 task/model worker 和 workflow repository 后的集成测试。
 - QQ OneBot WebSocket reader 长连接测试。
 - Mimo 启用后的 fast-path smoke：`/bot-ping`、`/bot-status`、`你好你是谁`、`规划 ShanghaiTech 数据接入`、已知 LocateAnything 安装请求应保持 Go 本地即时返回或排队，不等待 Python/Mimo planner。
 - Gateway auth 集成 smoke：非 loopback 模拟、CLI `-token`、桌面端 `-token` 和前端 token profile。
 - ShanghaiTech original 真实推理 smoke。
-- Python worker 到统一 Go task repository 的真实调度集成测试；当前已覆盖 worker 自身 envelope、health、heartbeat、logs、artifact、retry metadata，以及 `model.download_hf dry_run=true` 的 Go `ModelJob` 调度链。
+- Python worker 到统一 Go task repository 的真实调度集成测试；当前已覆盖 worker 自身 envelope、health、heartbeat、logs、artifact、retry metadata，以及 `model.download_hf` 的 Go `ModelJob` 调度链和 service fallback。
