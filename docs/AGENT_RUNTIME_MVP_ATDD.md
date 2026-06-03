@@ -249,6 +249,14 @@ rg -n "tp-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|tp-c3" README.md docs internal 
 git status --short --ignored data_lake\models data_lake\catalog tmp
 ```
 
+### ATDD-022 lifecycle HTTP 任务 JSON 持久化
+
+Given 通过 `/api/training/runs`、`/api/evaluation/runs` 或 `/api/deployments` 创建任务
+When labelserver 使用默认 `runtime-root/tasks.json` 重新启动并重载 queue
+Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`task_000002` 这类序号不会在重载后从头开始。
+
+证据：`internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`。
+
 ## 4. 验收矩阵
 
 | 场景 | 当前状态 | 证据 |
@@ -274,3 +282,4 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-019 | 已覆盖 | `smoke-hf-verify-worker.ps1` + `service_test.go` |
 | ATDD-020 | 已覆盖 | `smoke-training-dry-worker.ps1` + `service_test.go` |
 | ATDD-021 | 每次提交前执行 | rg + git status |
+| ATDD-022 | 已覆盖 | `json_test.go` + `service_test.go` |

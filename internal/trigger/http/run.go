@@ -47,7 +47,10 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	mediaSvc := mediaapp.NewMediaService(repo)
 	annotationSvc := annotationapp.NewAnnotationService(annRepo)
 	datasetSvc := datasetapp.NewDatasetService(datasetrepo.NewJSONRepository(cfg.DataRoot))
-	taskQueue := queue.NewMemoryQueue()
+	taskQueue, err := queue.NewJSONQueue(filepath.Join(cfg.RuntimeRoot, "tasks.json"), time.Now)
+	if err != nil {
+		return err
+	}
 	modelGateway := modelgateway.NewNoopGateway(taskQueue)
 	lifecycleSvc := lifecycleapp.NewServiceWithModelRepository(modelGateway, modelrepo.NewJSONRepository(cfg.ModelRoot))
 	agentSvc := agentapp.NewService(agentrepo.NewJSONRepository(cfg.AgentRoot), modelGateway)

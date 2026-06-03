@@ -71,7 +71,7 @@
 
 ## 后端架构待办
 
-- [ ] 为 `lifecycleapp` 增加真实 task repository，保存任务状态而不是只依赖内存队列。
+- [ ] 将 `lifecycleapp` 当前的 JSON task queue MVP 升级为统一 task repository：补 running/completed/failed 状态流转、worker 日志、artifact、retry 和恢复，而不是只保存基础 `queued/canceled` 状态。
 - [ ] 为 `providerapp` 增加加密 secret store。
 - [ ] 补充 CLI：数据集注册、任务提交、导出标注、检查服务健康。
 - [ ] 增加 OpenAPI 文档生成。
