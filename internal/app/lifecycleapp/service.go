@@ -159,7 +159,16 @@ func (s *Service) submit(ctx context.Context, taskType string, req any) (string,
 	if err != nil {
 		return "", err
 	}
-	return s.gateway.Submit(ctx, taskType, map[string]string{"request_json": string(raw)})
+	payload := map[string]string{"request_json": string(raw)}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err == nil {
+		for _, key := range []string{"dataset_id", "model_id", "target_task", "model_family", "target", "runtime"} {
+			if value := strings.TrimSpace(fmt.Sprint(fields[key])); value != "" && value != "<nil>" {
+				payload[key] = value
+			}
+		}
+	}
+	return s.gateway.Submit(ctx, taskType, payload)
 }
 
 func newModelID(name string) string {

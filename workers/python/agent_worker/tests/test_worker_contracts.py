@@ -36,6 +36,68 @@ class WorkerContractTests(unittest.TestCase):
         self.assertEqual(result["artifacts"][0]["metadata"]["dataset_id"], "shanghaitech-original")
         self.assertFalse(result["retryable"])
 
+    def test_training_run_dry_run_builds_explicit_recipe_artifact(self) -> None:
+        result = self.run_job_quiet(
+            JobEnvelope(
+                task_id="task_000010",
+                workflow_id="data-to-deployment-lifecycle",
+                agent_id="training-agent",
+                tool_id="training.run",
+                action="training.run",
+                dry_run=True,
+                params={
+                    "request_json": json.dumps(
+                        {
+                            "dataset_id": "shanghaitech-original",
+                            "target_task": "detection",
+                            "model_family": "yolo11n",
+                            "split_config": "official-split",
+                        }
+                    )
+                },
+            )
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertIn("training dry-run recipe ready", result["message"])
+        self.assertEqual(result["artifacts"][0]["kind"], "training.run.plan")
+        self.assertEqual(result["artifacts"][0]["metadata"]["dataset_id"], "shanghaitech-original")
+        self.assertGreaterEqual(len(result["logs"]), 3)
+
+    def test_deployment_run_validates_required_fields(self) -> None:
+        result = self.run_job_quiet(
+            JobEnvelope(
+                task_id="task_000011",
+                workflow_id="data-to-deployment-lifecycle",
+                agent_id="deployment-agent",
+                tool_id="deployment.run",
+                action="deployment.run",
+                dry_run=True,
+                params={"request_json": json.dumps({"model_id": "model-1"})},
+            )
+        )
+
+        self.assertEqual(result["status"], "failed")
+        self.assertFalse(result["retryable"])
+        self.assertIn("target is required", result["message"])
+
+    def test_evaluation_run_dry_run_uses_default_metrics(self) -> None:
+        result = self.run_job_quiet(
+            JobEnvelope(
+                task_id="task_000012",
+                workflow_id="data-to-deployment-lifecycle",
+                agent_id="evaluation-agent",
+                tool_id="evaluation.run",
+                action="evaluation.run",
+                dry_run=True,
+                params={"request_json": json.dumps({"dataset_id": "shanghaitech-original", "model_id": "model-1"})},
+            )
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertIn("evaluation dry-run recipe ready", result["message"])
+        self.assertEqual(result["artifacts"][0]["kind"], "evaluation.run.plan")
+
     def test_missing_task_id_is_non_retryable_failure(self) -> None:
         result = self.run_job_quiet(JobEnvelope(task_id="", workflow_id="wf", agent_id="agent", tool_id="tool", action="run"))
         self.assertEqual(result["status"], "failed")

@@ -489,6 +489,21 @@ func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) 
 			params[key] = value
 		}
 	}
+	requestBody := map[string]any{
+		"dataset_id":   datasetID,
+		"target_task":  targetTask,
+		"model_family": modelFamily,
+	}
+	for _, key := range []string{"annotation_version", "split_config", "output_registry"} {
+		if value := strings.TrimSpace(call.Params[key]); value != "" {
+			requestBody[key] = value
+		}
+	}
+	raw, err := json.Marshal(requestBody)
+	if err != nil {
+		return trainingDryRunRequest{}, fmt.Errorf("marshal training dry-run request: %w", err)
+	}
+	params["request_json"] = string(raw)
 	return trainingDryRunRequest{DatasetID: datasetID, TargetTask: targetTask, ModelFamily: modelFamily, Params: params}, nil
 }
 
@@ -914,7 +929,7 @@ func (e *GoToolExecutor) submitTrainingDryRun(_ context.Context, call ToolCall) 
 		WorkflowID: "data-to-deployment-lifecycle",
 		AgentID:    "training-agent",
 		ToolID:     "training.run",
-		Action:     "train",
+		Action:     "training.run",
 		DatasetID:  req.DatasetID,
 		DryRun:     true,
 		Params:     req.Params,

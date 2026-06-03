@@ -9,6 +9,7 @@ import sys
 import threading
 
 from agent_worker.contracts import JobArtifact, JobEnvelope, JobLog, JobResult, WorkerHeartbeat, utc_now_iso
+from agent_worker.lifecycle import run_lifecycle_dry_run
 
 WORKER_EVENT_PREFIX = "ATM_EVENT "
 
@@ -35,6 +36,8 @@ def run_job(job: JobEnvelope) -> JobResult:
         return run_hf_snapshot_job(job, verify_only=True, logs=logs, started=started)
     if job.action == "smoke_locateanything":
         return run_locateanything_smoke_job(job, logs=logs, started=started)
+    if job.action in {"autolabel.run", "training.run", "evaluation.run", "deployment.run"} and job.dry_run:
+        return run_lifecycle_dry_run(job, logs=logs, started=started)
     if job.dry_run:
         finished = utc_now_iso()
         artifact_metadata = {
@@ -298,7 +301,20 @@ def health_payload() -> dict[str, object]:
         "worker": "automated-training-python-worker",
         "status": "ok",
         "heartbeat": WorkerHeartbeat(at=utc_now_iso(), status="ok", message="worker process started").__dict__,
-        "capabilities": ["dry-run", "heartbeat", "logs", "artifacts", "retry-contract", "download_hf", "verify_hf", "smoke_locateanything"],
+        "capabilities": [
+            "dry-run",
+            "heartbeat",
+            "logs",
+            "artifacts",
+            "retry-contract",
+            "download_hf",
+            "verify_hf",
+            "smoke_locateanything",
+            "autolabel.run",
+            "training.run",
+            "evaluation.run",
+            "deployment.run",
+        ],
     }
 
 

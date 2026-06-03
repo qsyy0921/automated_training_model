@@ -52,6 +52,9 @@ func TestSubmitTrainingUsesGateway(t *testing.T) {
 	if gateway.payload["request_json"] == "" {
 		t.Fatalf("expected request_json payload, got %+v", gateway.payload)
 	}
+	if gateway.payload["dataset_id"] != "shanghaitech-original" || gateway.payload["target_task"] != "detection" || gateway.payload["model_family"] != "yolo11n" {
+		t.Fatalf("expected normalized training payload fields, got %+v", gateway.payload)
+	}
 }
 
 func TestSubmitEvaluationUsesGateway(t *testing.T) {
@@ -67,6 +70,9 @@ func TestSubmitEvaluationUsesGateway(t *testing.T) {
 	if run.TaskID != "task_000001" || gateway.taskType != "evaluation.run" {
 		t.Fatalf("unexpected evaluation run/gateway state: run=%+v gateway=%+v", run, gateway)
 	}
+	if gateway.payload["dataset_id"] != "shanghaitech-original" || gateway.payload["model_id"] != "model-1" {
+		t.Fatalf("expected normalized evaluation payload fields, got %+v", gateway.payload)
+	}
 }
 
 func TestSubmitDeploymentUsesGateway(t *testing.T) {
@@ -81,6 +87,9 @@ func TestSubmitDeploymentUsesGateway(t *testing.T) {
 	}
 	if dep.TaskID != "task_000001" || gateway.taskType != "deployment.run" {
 		t.Fatalf("unexpected deployment/gateway state: dep=%+v gateway=%+v", dep, gateway)
+	}
+	if gateway.payload["model_id"] != "model-1" || gateway.payload["target"] != "local-dry-run" {
+		t.Fatalf("expected normalized deployment payload fields, got %+v", gateway.payload)
 	}
 }
 

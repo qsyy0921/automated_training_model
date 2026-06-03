@@ -27,7 +27,7 @@ func TestWorkerGatewayRunsTrainingTaskThroughPythonWorkerDryRun(t *testing.T) {
 	now := time.Date(2026, 6, 3, 15, 0, 0, 0, time.UTC)
 	gateway := NewWorkerGatewayWithRunner(q, fakeWorkerRunner{
 		run: func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
-			if req.ToolID != "training.run" || !req.DryRun {
+			if req.ToolID != "training.run" || !req.DryRun || req.DatasetID != "shanghaitech-original" {
 				t.Fatalf("unexpected worker request: %+v", req)
 			}
 			emit(modelruntime.WorkerRuntimeEvent{Type: "heartbeat", At: "2026-06-03T15:00:01Z", Status: "running", Message: "worker booted"})
