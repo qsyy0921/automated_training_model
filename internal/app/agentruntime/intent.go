@@ -9,18 +9,19 @@ import (
 type IntentKind string
 
 const (
-	IntentUnknown       IntentKind = "unknown"
-	IntentHealthCheck   IntentKind = "health_check"
-	IntentIdentifyActor IntentKind = "identify_actor"
-	IntentRuntimeStatus IntentKind = "runtime_status"
-	IntentListRuns      IntentKind = "list_runs"
-	IntentSubmitDryRun  IntentKind = "submit_dry_run"
-	IntentDataIntake    IntentKind = "data_intake"
-	IntentRuntimeAbout  IntentKind = "runtime_about"
-	IntentModelInstall  IntentKind = "model_install"
-	IntentModelTest     IntentKind = "model_test"
-	IntentVerifyHFJob   IntentKind = "verify_hf_job"
-	IntentChat          IntentKind = "chat"
+	IntentUnknown        IntentKind = "unknown"
+	IntentHealthCheck    IntentKind = "health_check"
+	IntentIdentifyActor  IntentKind = "identify_actor"
+	IntentRuntimeStatus  IntentKind = "runtime_status"
+	IntentListRuns       IntentKind = "list_runs"
+	IntentSubmitDryRun   IntentKind = "submit_dry_run"
+	IntentDataIntake     IntentKind = "data_intake"
+	IntentRuntimeAbout   IntentKind = "runtime_about"
+	IntentModelInstall   IntentKind = "model_install"
+	IntentModelTest      IntentKind = "model_test"
+	IntentVerifyHFJob    IntentKind = "verify_hf_job"
+	IntentTrainingDryRun IntentKind = "training_dry_run"
+	IntentChat           IntentKind = "chat"
 )
 
 type Intent struct {
@@ -127,6 +128,13 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 		intent.Kind = IntentVerifyHFJob
 		intent.SkillID = "huggingface-model-downloader"
 		intent.ToolID = "model.verify_hf"
+	case "/bot-train-dry":
+		intent.Kind = IntentTrainingDryRun
+		intent.SkillID = "data-to-deployment-lifecycle"
+		intent.ToolID = "training.run"
+		if len(fields) >= 2 {
+			intent.DatasetID = fields[1]
+		}
 	default:
 		intent.Kind = IntentUnknown
 	}

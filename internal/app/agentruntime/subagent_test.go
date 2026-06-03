@@ -30,6 +30,18 @@ func TestDecideSubAgentSkipsVerifyHFJobCommand(t *testing.T) {
 	}
 }
 
+func TestDecideSubAgentSkipsTrainingDryRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{Text: "/bot-train-dry shanghaitech-original detection yolo11n"}
+	intent := ClassifyIntent(msg)
+	decision := DecideSubAgent(intent, msg)
+	if decision.UseSubAgent {
+		t.Fatalf("expected Go control plane handling, got %+v", decision)
+	}
+	if decision.ToolID != "training.run" {
+		t.Fatalf("unexpected tool: %s", decision.ToolID)
+	}
+}
+
 func TestDecideSubAgentUsesVisionForImages(t *testing.T) {
 	msg := channel.InboundMessage{
 		Text:        "看一下这张图",

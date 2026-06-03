@@ -33,6 +33,15 @@ def run_job(job: JobEnvelope) -> JobResult:
         return run_locateanything_smoke_job(job, logs=logs, started=started)
     if job.dry_run:
         finished = utc_now_iso()
+        artifact_metadata = {
+            "workflow_id": job.workflow_id,
+            "agent_id": job.agent_id,
+            "tool_id": job.tool_id,
+            "dataset_id": job.dataset_id,
+        }
+        for key, value in (job.params or {}).items():
+            if key and value:
+                artifact_metadata[str(key)] = str(value)
         return JobResult(
             task_id=job.task_id,
             status="completed",
@@ -43,12 +52,7 @@ def run_job(job: JobEnvelope) -> JobResult:
                     name=f"{job.task_id}-dry-run-plan",
                     uri=f"artifact://dry-run/{job.task_id}",
                     kind="dry-run-plan",
-                    metadata={
-                        "workflow_id": job.workflow_id,
-                        "agent_id": job.agent_id,
-                        "tool_id": job.tool_id,
-                        "dataset_id": job.dataset_id,
-                    },
+                    metadata=artifact_metadata,
                 )
             ],
             heartbeat=WorkerHeartbeat(at=finished, status="completed", message="dry-run completed"),

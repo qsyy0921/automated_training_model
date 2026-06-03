@@ -95,6 +95,21 @@ func TestPreflightRejectsUnregisteredTool(t *testing.T) {
 	}
 }
 
+func TestPreflightAllowsTrainingDryRunTool(t *testing.T) {
+	result := Preflight(DefaultCatalog(), PreflightPolicy{}, ToolCall{
+		ToolID: "training.run",
+		Params: map[string]string{
+			"dataset_id":   "shanghaitech-original",
+			"target_task":  "detection",
+			"model_family": "yolo11n",
+			"dry_run":      "true",
+		},
+	})
+	if !result.Allowed {
+		t.Fatalf("expected training dry-run tool to pass preflight, got %+v", result)
+	}
+}
+
 func defaultWorkflowForTest() string {
 	return "data-to-deployment-lifecycle"
 }

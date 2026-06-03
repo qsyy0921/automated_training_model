@@ -782,6 +782,149 @@ func TestLocateAnythingSmokeCanQueuePythonWorkerJob(t *testing.T) {
 	}
 }
 
+func TestTrainingDryRunCanQueuePythonWorkerJob(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "training dry-run completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:00Z", Status: "completed", Message: "planned"},
+			Artifacts:   []modelruntime.WorkerArtifact{{Name: "plan", URI: "artifact://dry-run/" + req.TaskID, Kind: "dry-run-plan", Metadata: map[string]string{"target_task": "detection", "model_family": "yolo11n"}}},
+			Logs:        []modelruntime.WorkerLog{{At: "2026-06-03T00:00:00Z", Level: "info", Message: "training dry-run accepted"}},
+			Stdout:      "{\"status\":\"completed\"}",
+		}, nil
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "train model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "training-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentTrainingDryRun, DatasetID: "shanghaitech-original"},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "training.run",
+			Params: map[string]string{
+				"dataset_id":   "shanghaitech-original",
+				"target_task":  "detection",
+				"model_family": "yolo11n",
+				"dry_run":      "true",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "queued" || result.Metadata["execution_path"] != "python-worker" {
+		t.Fatalf("unexpected training result: %+v", result)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected python training worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "succeeded" {
+			if job.Kind != "training.run" {
+				t.Fatalf("expected training job kind, got %+v", job)
+			}
+			if job.WorkerHeartbeat == nil || job.WorkerHeartbeat.Message != "planned" {
+				t.Fatalf("expected training heartbeat, got %+v", job)
+			}
+			if len(job.Artifacts) != 1 || job.Artifacts[0].Metadata["model_family"] != "yolo11n" {
+				t.Fatalf("expected training artifacts/metadata, got %+v", job)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected training worker job to succeed, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func TestBotTrainDryCommandQueuesWorkerJobThroughRuntime(t *testing.T) {
+	plane := &fakeAgentPlane{}
+	executor := NewGoToolExecutor(plane, nil)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "training dry-run completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:00Z", Status: "completed", Message: "planned"},
+		}, nil
+	}
+	svc := NewServiceWithPorts(NewRulePlanner(), executor, time.Now)
+	reply, err := svc.HandleChannelMessage(context.Background(), channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "/bot-train-dry shanghaitech-original detection yolo11n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply.Text, "job=") {
+		t.Fatalf("expected queued job reply, got %q", reply.Text)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected runtime training worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := svc.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "succeeded" {
+			if job.Kind != "training.run" {
+				t.Fatalf("expected training worker job, got %+v", job)
+			}
+			traces := svc.ListTraces(10)
+			if len(traces) != 1 || len(traces[0].ToolIDs) != 1 || traces[0].ToolIDs[0] != "training.run" {
+				t.Fatalf("expected training trace, got %+v", traces)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected training worker job to succeed, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 func TestRecentModelJobLogsAndTerminalStatus(t *testing.T) {
 	job := ModelJob{ID: "job1", Status: "succeeded", Logs: []ModelJobLog{
 		{At: time.Unix(1, 0), Level: "info", Message: "one"},

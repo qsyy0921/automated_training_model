@@ -82,6 +82,13 @@ func DefaultCatalog() Catalog {
 			Risk:             RiskMedium,
 			AllowedParamKeys: []string{"model_repo_id", "model_dir", "data_root", "output", "job", "dataset_id"},
 		},
+		{
+			ID:                "training.run",
+			Name:              "Training Dry Run",
+			Risk:              RiskMedium,
+			AllowedParamKeys:  []string{"dataset_id", "target_task", "model_family", "annotation_version", "split_config", "output_registry", "dry_run"},
+			RequiredParamKeys: []string{"dataset_id", "target_task", "model_family"},
+		},
 	})
 }
 

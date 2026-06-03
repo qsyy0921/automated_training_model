@@ -228,7 +228,15 @@ Then Go fast-path 应直接生成 `model.verify_hf` 且 `job=true` 的后台 wor
 
 证据：`ops/scripts/smoke-hf-verify-worker.ps1`、`internal/app/agentruntime/service_test.go`。
 
-### ATDD-020 Git 安全边界
+### ATDD-020 Runtime 命令触发 training dry-run worker job
+
+Given Runtime 运行在 rule planner 模式
+When 发送 `/bot-train-dry shanghaitech-original detection yolo11n`
+Then Go fast-path 应直接生成 `training.run` 的后台 worker dry-run 任务，不等待 Python/Mimo planner；trace 应包含 `training.run`，job logs 应包含 worker heartbeat 和 dry-run artifact。
+
+证据：`ops/scripts/smoke-training-dry-worker.ps1`、`internal/app/agentruntime/service_test.go`。
+
+### ATDD-021 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -264,4 +272,5 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 | ATDD-017 | 已覆盖 | `test_worker_contracts.py` |
 | ATDD-018 | 已覆盖 | `service_test.go` + `runtime_handlers_test.go` + `runtime_chat_test.go` |
 | ATDD-019 | 已覆盖 | `smoke-hf-verify-worker.ps1` + `service_test.go` |
-| ATDD-020 | 每次提交前执行 | rg + git status |
+| ATDD-020 | 已覆盖 | `smoke-training-dry-worker.ps1` + `service_test.go` |
+| ATDD-021 | 每次提交前执行 | rg + git status |

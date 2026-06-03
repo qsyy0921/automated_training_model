@@ -13,7 +13,7 @@ MVP 必须覆盖：
 
 - 四入口统一：Web、CLI、桌面端、QQ/NapCat 都进入同一个 runtime；QQ 支持 test-message、HTTP webhook/outbound 和可选 OneBot WebSocket reader。
 - Mimo 模型路由：文本规划走 `mimo-v2.5-pro`，视觉理解走 `mimo-v2.5`。
-- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
+- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job`、`/bot-train-dry` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
 - 本地语义 fast-path：自我介绍/能力说明、已知 `LocateAnything-3B` 下载、`LocateAnything-3B + ShanghaiTech` smoke 这类高置信度固定意图由 Go 直接生成受控计划，避免为了意图识别单独等待模型。
 - Sub-agent 决策：普通文本、视觉附件、数据附件分别进入不同 agent 角色。
 - ToolExecutor：所有副作用都通过工具出口，不能让 channel 或 UI 直接写数据湖、下载模型或提交训练。
@@ -71,7 +71,7 @@ Workers and Providers
 | CLI Agent Shell | `internal/cli/labelctl/runtime_chat.go` | 参考 `ccb` / Claude Code / Hermes 的结构化 REPL：运行态面板、session、runtime snapshot、trace tree、doctor、raw JSON escape hatch、状态芯片和消息面板 | 不直接执行业务副作用；自然语言和 `/ping` 都进入同一个 Gateway runtime path |
 | Web Agent Overview | `web/src/pages/agent-overview/AgentOverviewPage.tsx` | 展示 runtime status、sessions、traces、model jobs、model job logs、intake workflows 和 QQ test-message 入口 | 不直接写 Data Lake，不绕过 Gateway API |
 | Python Runtime | `workers/python/agent_runtime` | Mimo fast chat、Mimo planner、guard plan、VLM 路由 | 不保存密钥到仓库 |
-| Python Model Worker | `workers/python/agent_worker`、`internal/app/modelruntime/worker_runner.go` | 模型/数据任务的 worker envelope、`--health`、heartbeat、logs、artifact 引用、attempt/max_attempts/retryable 契约；当前 `model.download_hf` 默认经由 Go `ModelJob` 启动 `python -m agent_worker.main`，`dry_run=true` 与真实下载共用同一条 worker 路径；`model.verify_hf` 与 `model.smoke_locateanything` 也支持显式 `job=true` 的 worker job 模式，并把 worker 结果写回同一份 job store | 不拥有 Go task lifecycle；不直接写 runtime session/trace；训练/评估任务后续仍需统一迁移到 task runner |
+| Python Model Worker | `workers/python/agent_worker`、`internal/app/modelruntime/worker_runner.go` | 模型/数据任务的 worker envelope、`--health`、heartbeat、logs、artifact 引用、attempt/max_attempts/retryable 契约；当前 `model.download_hf` 默认经由 Go `ModelJob` 启动 `python -m agent_worker.main`，`dry_run=true` 与真实下载共用同一条 worker 路径；`model.verify_hf`、`model.smoke_locateanything` 和 `training.run(dry_run)` 也支持 worker job 模式，并把 worker 结果写回同一份 job store | 不拥有 Go task lifecycle；不直接写 runtime session/trace；真实训练/评估任务后续仍需统一迁移到 task runner |
 | Skills | `skills/*` | 可复用操作说明和脚本 | 不提交权重或 token |
 
 ## 6. Sub-agent 使用规则
@@ -166,6 +166,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | HF real download | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1 -StartDownload -WaitForCompletion` |
 | HF verify-only | `python skills\huggingface-model-downloader\scripts\download_hf_snapshot.py --repo-id nvidia/LocateAnything-3B --local-dir data_lake\models\artifacts\huggingface\nvidia\LocateAnything-3B --manifest data_lake\catalog\models\nvidia_LocateAnything-3B.download.json --verify-only` |
 | HF verify worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-hf-verify-worker.ps1` |
+| Training dry-run worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-training-dry-worker.ps1` |
 | LocateAnything load smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1` |
 | Gateway auth 单元测试 | `go test ./internal/infrastructure/middleware` |
 
@@ -176,4 +177,4 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 - Tool runner 分发已迁移到 `internal/app/toolapp`；`intake.plan` / `vlm.inspect` 的 quarantine/scan/plan/workflow 构造已迁移到 `internal/app/intakeapp`，并通过 `internal/infrastructure/intakerepo.JSONRepository` 写入 `runtime-root/intake/intake_plans.json` 和 `intake_workflows.json`；`workflow.list_runs` / `workflow.submit_run` 的 dry-run 规则和 RunRequest 构造已迁移到 `internal/app/runtimeworkflow`；`model.download_hf` / `model.verify_hf` / `model.smoke_locateanything` 的参数规范化、路径安全、脚本执行和 smoke 解析已迁移到 `internal/app/modelruntime`。后续仍需把 model job 生命周期和 workflow run 接入正式 task repository。
 - QQ 真实账号群聊 @Bot 实测。
 - CLI / Gateway 的复杂 planner 分步流式、审批确认、model job 日志流和会话恢复；最小 tool progress streaming 已完成。
-- Python worker 已有 heartbeat、logs、retries、artifacts 的最小 health/job 契约，且 `model.download_hf` 默认、`model.verify_hf` 显式 `job=true`、`model.smoke_locateanything` 显式 `job=true` 已接入 Go `ModelJob`；后续仍需把训练/评估统一接到 task repository、artifact manifest 和失败重试调度。
+- Python worker 已有 heartbeat、logs、retries、artifacts 的最小 health/job 契约，且 `model.download_hf` 默认、`model.verify_hf` 显式 `job=true`、`model.smoke_locateanything` 显式 `job=true`、`training.run(dry_run)` 已接入 Go `ModelJob`；后续仍需把真实训练/评估统一接到 task repository、artifact manifest 和失败重试调度。

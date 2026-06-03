@@ -67,6 +67,7 @@ Model & Data Training Platform
 - Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令、runtime self-description、`规划 ShanghaiTech 数据接入` 和已知 LocateAnything 固定流程走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
 - Python model worker 已具备最小可观测执行契约：`python -m agent_worker.main --health` 输出 heartbeat/capabilities；job 结果包含 heartbeat、logs、artifact 引用、attempt/max_attempts 和 retryable；`download_hf` 失败、超时和参数错误都能返回稳定 JSON。
 - Go 控制面已接入 Python model worker 的最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；`dry_run=true` 和真实下载共用同一条 worker 路径。`model.verify_hf` 支持显式 `job=true` 的 Python worker job 模式；`model.smoke_locateanything` 也支持显式 `job=true` 的 worker smoke 模式，默认仍保持同步 smoke，避免打断现有 ShanghaiTech dry-run 链。若需回退旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`；若需同步执行旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_SYNC=true`。
+- `training-agent` 已有最小可运行入口：`/bot-train-dry <dataset_id> [target_task] [model_family]` 会直接创建 `training.run` 的 Python worker `ModelJob`，并把 heartbeat、logs、artifacts、stdout/stderr 摘要写回同一份 runtime store；当前先支持 dry-run 计划，不直接执行真实训练。
 
 ## Agent 生命周期
 
@@ -200,6 +201,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1 -UseMimoPlanner
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-hf-verify-worker.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-training-dry-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
 ```
 
@@ -209,13 +211,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locatean
 
 `smoke-hf-verify-worker.ps1` 会通过 Runtime 发送 `/bot-verify-hf-job nvidia/LocateAnything-3B`，验证 Go fast-path 命令能直接生成 `model.verify_hf job=true` 的后台 worker job，并检查 trace、job 状态、worker heartbeat 和 artifacts。
 
+`smoke-training-dry-worker.ps1` 会通过 Runtime 发送 `/bot-train-dry shanghaitech-original detection yolo11n`，验证 `training-agent` 的最小 dry-run 路径已经进入 Python worker `ModelJob`，并检查 trace、worker heartbeat 和 dry-run artifact。
+
 `smoke-locateanything-model.ps1` 会通过 Runtime 执行 `model.verify_hf`、`model.smoke_locateanything` 和 `workflow.submit_run(dry_run=true)`。当前本机已完成 LocateAnything-3B 加载 smoke：`AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 均通过；由于当前 PyTorch 是 CPU-only，真实 ShanghaiTech 推理仍未标记完成。
 
 ### 什么时候使用 Sub-Agent
 
 | 场景 | 默认处理 |
 | --- | --- |
-| `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job` | Go control plane 直接处理，不使用 sub-agent |
+| `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job`、`/bot-train-dry` | Go control plane 直接处理，不使用 sub-agent |
 | 项目身份/能力说明、已知 LocateAnything 固定流程 | Go 本地语义 fast-path；模型下载/测试仍通过 ToolExecutor 受控执行 |
 | 普通自然语言请求 | `planner-agent`，负责意图细化和 tool-call plan |
 | 高置信度数据接入规划 | `data-intake-agent`，Go `RuntimeRouter` 直接生成 `intake.plan`，保留审批和 trace |

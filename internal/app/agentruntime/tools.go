@@ -160,6 +160,9 @@ func (e *GoToolExecutor) registerToolHandlers() {
 	e.toolRunner.Register("model.smoke_locateanything", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.smokeLocateAnythingModel(ctx, call)
 	})
+	e.toolRunner.Register("training.run", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
+		return e.submitTrainingDryRun(ctx, call)
+	})
 }
 
 func (e *GoToolExecutor) planDataIntake(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
@@ -439,12 +442,53 @@ type locateAnythingSmokeRequest struct {
 	Output   string
 }
 
+type genericWorkerJobOptions struct {
+	Kind          string
+	ReplyLabel    string
+	QueuedMessage string
+	Resumable     bool
+	Metadata      map[string]string
+}
+
 func prepareLocateAnythingSmokeRequest(call ToolCall) (locateAnythingSmokeRequest, error) {
 	req, err := modelruntime.PrepareLocateAnythingSmokeRequest(call.Params)
 	if err != nil {
 		return locateAnythingSmokeRequest{}, err
 	}
 	return locateAnythingSmokeRequest{ModelDir: req.ModelDir, DataRoot: req.DataRoot, Output: req.Output}, nil
+}
+
+type trainingDryRunRequest struct {
+	DatasetID   string
+	TargetTask  string
+	ModelFamily string
+	Params      map[string]string
+}
+
+func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) {
+	datasetID := strings.TrimSpace(call.Params["dataset_id"])
+	if datasetID == "" {
+		return trainingDryRunRequest{}, fmt.Errorf("dataset_id is required")
+	}
+	targetTask := strings.TrimSpace(call.Params["target_task"])
+	if targetTask == "" {
+		targetTask = "detection"
+	}
+	modelFamily := strings.TrimSpace(call.Params["model_family"])
+	if modelFamily == "" {
+		modelFamily = "yolo11n"
+	}
+	params := map[string]string{
+		"dataset_id":   datasetID,
+		"target_task":  targetTask,
+		"model_family": modelFamily,
+	}
+	for _, key := range []string{"annotation_version", "split_config", "output_registry"} {
+		if value := strings.TrimSpace(call.Params[key]); value != "" {
+			params[key] = value
+		}
+	}
+	return trainingDryRunRequest{DatasetID: datasetID, TargetTask: targetTask, ModelFamily: modelFamily, Params: params}, nil
 }
 
 type hfModelRequest struct {
@@ -816,6 +860,70 @@ func (e *GoToolExecutor) enqueueLocateAnythingSmokeWorkerJob(call ToolCall) (Too
 			"execution_path": "python-worker",
 		},
 	}, nil
+}
+
+func (e *GoToolExecutor) enqueueGenericWorkerJob(req modelruntime.WorkerJobRequest, opts genericWorkerJobOptions) (ToolExecutionResult, error) {
+	created := e.now()
+	if strings.TrimSpace(opts.Kind) == "" {
+		opts.Kind = req.ToolID
+	}
+	if strings.TrimSpace(opts.ReplyLabel) == "" {
+		opts.ReplyLabel = "Python worker 任务已排队"
+	}
+	if strings.TrimSpace(opts.QueuedMessage) == "" {
+		opts.QueuedMessage = "queued python worker"
+	}
+	job := e.modelJobs.Create(ModelJob{
+		ID:              fmt.Sprintf("model-job-%d", created.UnixNano()),
+		Kind:            opts.Kind,
+		Status:          "queued",
+		Message:         opts.QueuedMessage,
+		ProgressPercent: 0,
+		Resumable:       opts.Resumable,
+		Retryable:       false,
+		Logs:            []ModelJobLog{{At: created, Level: "info", Message: opts.QueuedMessage}},
+		Metadata: mergeStringMaps(map[string]string{
+			"execution_path": "python-worker",
+			"dry_run":        strconv.FormatBool(req.DryRun),
+		}, opts.Metadata),
+	})
+	req.TaskID = job.ID
+	go e.runHFModelWorkerJob(job.ID, req)
+	return ToolExecutionResult{
+		ReplyText: fmt.Sprintf("%s：job=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", opts.ReplyLabel, job.ID),
+		Status:    "queued",
+		Metadata: mergeStringMaps(map[string]string{
+			"job_id":         job.ID,
+			"execution_path": "python-worker",
+			"dry_run":        strconv.FormatBool(req.DryRun),
+		}, opts.Metadata),
+	}, nil
+}
+
+func (e *GoToolExecutor) submitTrainingDryRun(_ context.Context, call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareTrainingDryRunRequest(call)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	return e.enqueueGenericWorkerJob(modelruntime.WorkerJobRequest{
+		WorkflowID: "data-to-deployment-lifecycle",
+		AgentID:    "training-agent",
+		ToolID:     "training.run",
+		Action:     "train",
+		DatasetID:  req.DatasetID,
+		DryRun:     true,
+		Params:     req.Params,
+	}, genericWorkerJobOptions{
+		Kind:          "training.run",
+		ReplyLabel:    fmt.Sprintf("Python worker 训练 dry-run 已排队：dataset=%s target=%s model=%s", req.DatasetID, req.TargetTask, req.ModelFamily),
+		QueuedMessage: "queued python training dry-run",
+		Resumable:     false,
+		Metadata: map[string]string{
+			"dataset_id":   req.DatasetID,
+			"target_task":  req.TargetTask,
+			"model_family": req.ModelFamily,
+		},
+	})
 }
 
 func appendWorkerLogs(job *ModelJob, logs []modelruntime.WorkerLog, fallback time.Time) {

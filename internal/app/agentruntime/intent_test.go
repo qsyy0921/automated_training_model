@@ -78,6 +78,22 @@ func TestClassifyVerifyHFJobCommand(t *testing.T) {
 	}
 }
 
+func TestClassifyTrainingDryRunCommand(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "/bot-train-dry shanghaitech-original detection yolo11n"})
+	if intent.Kind != IntentTrainingDryRun {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.ToolID != "training.run" {
+		t.Fatalf("unexpected tool: %s", intent.ToolID)
+	}
+	if intent.DatasetID != "shanghaitech-original" {
+		t.Fatalf("unexpected dataset: %s", intent.DatasetID)
+	}
+	if len(intent.Args) != 3 || intent.Args[2] != "yolo11n" {
+		t.Fatalf("unexpected args: %+v", intent.Args)
+	}
+}
+
 func TestClassifyDataIntakePlanningFastPath(t *testing.T) {
 	intent := ClassifyIntent(channel.InboundMessage{Text: "请帮我规划 ShanghaiTech 数据接入"})
 	if intent.Kind != IntentDataIntake {

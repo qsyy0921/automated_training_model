@@ -33,6 +33,8 @@ func (p *RulePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 		return p.locateAnythingTestPlan(req), nil
 	case IntentVerifyHFJob:
 		return p.locateAnythingVerifyJobPlan(req), nil
+	case IntentTrainingDryRun:
+		return p.trainingDryRunPlan(req), nil
 	case IntentChat:
 		result.ReplyText = fmt.Sprintf("已收到。意图会先交给 %s 做规划；当前最小运行时已支持 /bot-status、/bot-runs 和 /bot-run dry。", req.Delegation.AgentID)
 		return result, nil
@@ -46,6 +48,7 @@ func (p *RulePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 				"/bot-runs",
 				"/bot-run dry [dataset_id]",
 				"/bot-verify-hf-job [repo_id]",
+				"/bot-train-dry <dataset_id> [target_task] [model_family]",
 				"普通文本 -> planner-agent",
 				"图片/附件 -> vision-agent 或 data-intake-agent",
 			}, "\n")
@@ -146,6 +149,35 @@ func (p *RulePlanner) locateAnythingVerifyJobPlan(req PlanRequest) PlanResult {
 				"manifest":    filepath.Join("data_lake", "catalog", "models", strings.ReplaceAll(repoID, "/", "_")+".download.json"),
 				"verify_only": "true",
 				"job":         "true",
+			},
+		}},
+	}
+}
+
+func (p *RulePlanner) trainingDryRunPlan(req PlanRequest) PlanResult {
+	datasetID := valueOrString(req.Intent.DatasetID, "shanghaitech-original")
+	targetTask := "detection"
+	modelFamily := "yolo11n"
+	if len(req.Intent.Args) >= 2 && strings.TrimSpace(req.Intent.Args[1]) != "" {
+		targetTask = strings.TrimSpace(req.Intent.Args[1])
+	}
+	if len(req.Intent.Args) >= 3 && strings.TrimSpace(req.Intent.Args[2]) != "" {
+		modelFamily = strings.TrimSpace(req.Intent.Args[2])
+	}
+	return PlanResult{
+		Intent:     req.Intent,
+		Delegation: req.Delegation,
+		Status:     "tool_planned_with_guard",
+		ReplyText:  "已识别为训练 dry-run 请求，使用本地确定性命令生成后台训练 worker 任务。",
+		ToolCalls: []ToolCall{{
+			ID:      "call-1",
+			ToolID:  "training.run",
+			SkillID: "data-to-deployment-lifecycle",
+			Params: map[string]string{
+				"dataset_id":   datasetID,
+				"target_task":  targetTask,
+				"model_family": modelFamily,
+				"dry_run":      "true",
 			},
 		}},
 	}
