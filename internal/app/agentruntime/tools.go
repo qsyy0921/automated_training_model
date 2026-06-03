@@ -307,6 +307,15 @@ func hfVerifyRunnerModeFromEnv() string {
 	}
 }
 
+func locateAnythingSmokeRunnerModeFromEnv() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_RUNTIME_LOCATEANYTHING_SMOKE_RUNNER"))) {
+	case "python-worker", "worker", "python":
+		return "python-worker"
+	default:
+		return "service"
+	}
+}
+
 func (e *GoToolExecutor) enqueueHFModelWorkerDownload(call ToolCall) (ToolExecutionResult, error) {
 	req, err := prepareHFModelRequest(call, false)
 	if err != nil {
@@ -422,6 +431,20 @@ func (e *GoToolExecutor) verifyHFModel(ctx context.Context, call ToolCall) (Tool
 		return e.enqueueHFVerifyWorkerJob(call)
 	}
 	return e.runHFModelTool(ctx, call, true)
+}
+
+type locateAnythingSmokeRequest struct {
+	ModelDir string
+	DataRoot string
+	Output   string
+}
+
+func prepareLocateAnythingSmokeRequest(call ToolCall) (locateAnythingSmokeRequest, error) {
+	req, err := modelruntime.PrepareLocateAnythingSmokeRequest(call.Params)
+	if err != nil {
+		return locateAnythingSmokeRequest{}, err
+	}
+	return locateAnythingSmokeRequest{ModelDir: req.ModelDir, DataRoot: req.DataRoot, Output: req.Output}, nil
 }
 
 type hfModelRequest struct {
@@ -731,6 +754,9 @@ func (e *GoToolExecutor) runPythonModelWorkerJob(ctx context.Context, req modelr
 }
 
 func (e *GoToolExecutor) smokeLocateAnythingModel(ctx context.Context, call ToolCall) (ToolExecutionResult, error) {
+	if strings.EqualFold(strings.TrimSpace(call.Params["job"]), "true") || locateAnythingSmokeRunnerModeFromEnv() == "python-worker" {
+		return e.enqueueLocateAnythingSmokeWorkerJob(call)
+	}
 	result, err := e.models.SmokeLocateAnything(ctx, call.Params)
 	if err != nil {
 		return ToolExecutionResult{}, err
@@ -739,6 +765,56 @@ func (e *GoToolExecutor) smokeLocateAnythingModel(ctx context.Context, call Tool
 		ReplyText: result.ReplyText,
 		Status:    result.Status,
 		Metadata:  result.Metadata,
+	}, nil
+}
+
+func (e *GoToolExecutor) enqueueLocateAnythingSmokeWorkerJob(call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareLocateAnythingSmokeRequest(call)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	const modelRepoID = "nvidia/LocateAnything-3B"
+	created := e.now()
+	job := e.modelJobs.Create(ModelJob{
+		ID:              fmt.Sprintf("model-job-%d", created.UnixNano()),
+		Kind:            "model.smoke_locateanything",
+		RepoID:          modelRepoID,
+		Status:          "queued",
+		Message:         "queued python worker smoke",
+		ProgressPercent: 0,
+		Resumable:       false,
+		Retryable:       false,
+		Logs:            []ModelJobLog{{At: created, Level: "info", Message: "queued python worker smoke"}},
+		Metadata: map[string]string{
+			"execution_path": "python-worker",
+			"model_dir":      req.ModelDir,
+			"data_root":      req.DataRoot,
+			"output":         req.Output,
+		},
+	})
+	go e.runHFModelWorkerJob(job.ID, modelruntime.WorkerJobRequest{
+		TaskID:     job.ID,
+		WorkflowID: "runtime-model-worker",
+		AgentID:    "model-agent",
+		ToolID:     "model.smoke_locateanything",
+		Action:     "smoke_locateanything",
+		DatasetID:  strings.TrimSpace(call.Params["dataset_id"]),
+		Params: map[string]string{
+			"model_dir": req.ModelDir,
+			"data_root": req.DataRoot,
+			"output":    req.Output,
+		},
+	})
+	return ToolExecutionResult{
+		ReplyText: fmt.Sprintf("Python worker smoke 任务已排队：job=%s model=%s。可通过 /api/runtime/model-jobs 或 `labelctl runtime model-jobs` 查看状态。", job.ID, modelRepoID),
+		Status:    "queued",
+		Metadata: map[string]string{
+			"job_id":         job.ID,
+			"model_dir":      req.ModelDir,
+			"data_root":      req.DataRoot,
+			"output":         req.Output,
+			"execution_path": "python-worker",
+		},
 	}, nil
 }
 

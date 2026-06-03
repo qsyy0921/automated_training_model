@@ -701,6 +701,87 @@ func TestBotVerifyHFJobCommandQueuesWorkerJobThroughRuntime(t *testing.T) {
 	}
 }
 
+func TestLocateAnythingSmokeCanQueuePythonWorkerJob(t *testing.T) {
+	executor := NewGoToolExecutor(&fakeAgentPlane{}, nil)
+	started := make(chan struct{})
+	executor.runHFWorkerJob = func(ctx context.Context, req modelruntime.WorkerJobRequest) (modelruntime.WorkerJobResult, error) {
+		close(started)
+		return modelruntime.WorkerJobResult{
+			TaskID:      req.TaskID,
+			Status:      "completed",
+			Message:     "worker smoke completed",
+			Retryable:   false,
+			Attempt:     1,
+			MaxAttempts: 1,
+			Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T00:00:00Z", Status: "completed", Message: "smoked"},
+			Artifacts:   []modelruntime.WorkerArtifact{{Name: "report", URI: "artifact://smoke/" + req.TaskID, Kind: "smoke-report"}},
+			Logs:        []modelruntime.WorkerLog{{At: "2026-06-03T00:00:00Z", Level: "info", Message: "worker smoke accepted"}},
+			Stdout:      "{\"status\":\"ok\",\"completed\":{\"model_load\":true,\"real_inference\":false}}",
+		}, nil
+	}
+	msg := channel.InboundMessage{
+		ID:        "msg1",
+		Channel:   channel.KindQQ,
+		AccountID: "default",
+		Peer:      channel.Peer{Channel: channel.KindQQ, AccountID: "default", Kind: channel.PeerKindDirect, ID: "10001"},
+		SenderID:  "10001",
+		Text:      "smoke model",
+	}
+	session := BuildSessionContext(msg, DelegationDecision{AgentID: "model-agent"})
+	result, err := executor.Execute(context.Background(), ToolExecutionRequest{
+		Message: msg,
+		Session: session,
+		Intent:  Intent{Kind: IntentChat},
+		ToolCalls: []ToolCall{{
+			ID:     "call-1",
+			ToolID: "model.smoke_locateanything",
+			Params: map[string]string{
+				"model_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+				"data_root": "data_lake/raw/datasets/shanghaitech/original",
+				"output":    "data_lake/catalog/models/nvidia_LocateAnything-3B.smoke.json",
+				"job":       "true",
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "queued" || result.Metadata["execution_path"] != "python-worker" {
+		t.Fatalf("unexpected smoke result: %+v", result)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("expected python smoke worker job to start")
+	}
+	deadline := time.After(time.Second)
+	for {
+		jobs := executor.ListModelJobs(10)
+		if len(jobs) != 1 {
+			t.Fatalf("expected one model job, got %d", len(jobs))
+		}
+		job := jobs[0]
+		if job.Status == "succeeded" {
+			if job.Kind != "model.smoke_locateanything" {
+				t.Fatalf("expected smoke job kind, got %+v", job)
+			}
+			if job.WorkerHeartbeat == nil || job.WorkerHeartbeat.Message != "smoked" {
+				t.Fatalf("expected smoke heartbeat, got %+v", job)
+			}
+			if len(job.Artifacts) != 1 || !strings.Contains(job.Stdout, "\"model_load\":true") {
+				t.Fatalf("expected smoke artifacts/stdout, got %+v", job)
+			}
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected smoke worker job to succeed, got %+v", job)
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 func TestRecentModelJobLogsAndTerminalStatus(t *testing.T) {
 	job := ModelJob{ID: "job1", Status: "succeeded", Logs: []ModelJobLog{
 		{At: time.Unix(1, 0), Level: "info", Message: "one"},

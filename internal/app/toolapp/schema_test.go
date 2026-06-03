@@ -49,6 +49,7 @@ func TestPreflightAllowsLocateAnythingPlannerContext(t *testing.T) {
 			"model_repo_id": "nvidia/LocateAnything-3B",
 			"model_dir":     "F:/automated_training_model/data_lake/models/huggingface/nvidia/LocateAnything-3B",
 			"data_root":     "F:/automated_training_model/data_lake/raw/datasets/shanghaitech/original",
+			"job":           "true",
 		},
 	})
 	if !result.Allowed {

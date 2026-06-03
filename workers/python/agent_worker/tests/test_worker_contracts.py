@@ -110,6 +110,36 @@ class WorkerContractTests(unittest.TestCase):
         self.assertIn("--verify-only", called_args)
 
     @patch("agent_worker.main.subprocess.run")
+    def test_smoke_locateanything_action_runs_smoke_script(self, run_mock) -> None:
+        run_mock.return_value = subprocess.CompletedProcess(
+            args=["python"],
+            returncode=0,
+            stdout=json.dumps({"status": "ok", "completed": {"model_load": True, "real_inference": False}}),
+            stderr="",
+        )
+        result = run_job(
+            JobEnvelope(
+                task_id="task_000001",
+                workflow_id="data-to-deployment-lifecycle",
+                agent_id="model-agent",
+                tool_id="model.smoke_locateanything",
+                action="smoke_locateanything",
+                dry_run=False,
+                params={
+                    "model_dir": "data_lake/models/artifacts/huggingface/nvidia/LocateAnything-3B",
+                    "data_root": "data_lake/raw/datasets/shanghaitech/original",
+                    "output": "data_lake/catalog/models/nvidia_LocateAnything-3B.smoke.json",
+                },
+            )
+        ).to_dict()
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["heartbeat"]["status"], "completed")
+        self.assertEqual(result["artifacts"][0]["kind"], "smoke-report")
+        called_args = run_mock.call_args.args[0]
+        self.assertIn("locateanything_smoke.py", " ".join(called_args))
+
+    @patch("agent_worker.main.subprocess.run")
     def test_download_hf_timeout_is_retryable_failure(self, run_mock) -> None:
         run_mock.side_effect = subprocess.TimeoutExpired(cmd=["python"], timeout=1)
         result = run_job(

@@ -80,7 +80,7 @@ func DefaultCatalog() Catalog {
 			ID:               "model.smoke_locateanything",
 			Name:             "LocateAnything Smoke",
 			Risk:             RiskMedium,
-			AllowedParamKeys: []string{"model_repo_id", "model_dir", "data_root", "output"},
+			AllowedParamKeys: []string{"model_repo_id", "model_dir", "data_root", "output", "job", "dataset_id"},
 		},
 	})
 }

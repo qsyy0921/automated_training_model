@@ -29,6 +29,8 @@ def run_job(job: JobEnvelope) -> JobResult:
         return run_hf_snapshot_job(job, verify_only=False, logs=logs, started=started)
     if job.action == "verify_hf":
         return run_hf_snapshot_job(job, verify_only=True, logs=logs, started=started)
+    if job.action == "smoke_locateanything":
+        return run_locateanything_smoke_job(job, logs=logs, started=started)
     if job.dry_run:
         finished = utc_now_iso()
         return JobResult(
@@ -183,12 +185,118 @@ def run_hf_snapshot_job(job: JobEnvelope, verify_only: bool, logs: list[JobLog],
     )
 
 
+def run_locateanything_smoke_job(job: JobEnvelope, logs: list[JobLog], started: str) -> JobResult:
+    model_dir = (job.params or {}).get("model_dir", "").strip()
+    data_root = (job.params or {}).get("data_root", "").strip()
+    output = (job.params or {}).get("output", "").strip()
+    if not model_dir or not data_root or not output:
+        finished = utc_now_iso()
+        message = "model_dir, data_root and output are required for LocateAnything smoke worker jobs"
+        return JobResult(
+            task_id=job.task_id,
+            status="failed",
+            message=message,
+            logs=logs + [JobLog(at=finished, level="error", message=message)],
+            heartbeat=WorkerHeartbeat(at=finished, status="failed", message="invalid LocateAnything smoke params"),
+            retryable=False,
+            started_at=started,
+            finished_at=finished,
+        )
+
+    command = [
+        sys.executable,
+        str(repo_locateanything_smoke_script()),
+        "--model-dir",
+        model_dir,
+        "--data-root",
+        data_root,
+        "--output",
+        output,
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(repo_root()),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=hf_worker_timeout_seconds(),
+            env=os.environ.copy(),
+        )
+    except subprocess.TimeoutExpired:
+        finished = utc_now_iso()
+        timeout_message = f"locateanything smoke worker timed out after {hf_worker_timeout_seconds()}s"
+        return JobResult(
+            task_id=job.task_id,
+            status="failed",
+            message=timeout_message,
+            logs=logs + [JobLog(at=finished, level="error", message=timeout_message)],
+            heartbeat=WorkerHeartbeat(at=finished, status="failed", message="LocateAnything smoke timed out"),
+            retryable=True,
+            attempt=1,
+            max_attempts=3,
+            started_at=started,
+            finished_at=finished,
+        )
+
+    finished = utc_now_iso()
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    base_logs = list(logs)
+    summary = parse_json_payload(stdout)
+    if summary:
+        base_logs.append(JobLog(at=finished, level="info", message=locateanything_summary_log_line(summary)))
+    elif stdout:
+        for line in summarize_process_output(stdout):
+            base_logs.append(JobLog(at=finished, level="info", message=f"smoke 输出: {line}"))
+    if stderr:
+        for line in summarize_process_output(stderr):
+            base_logs.append(JobLog(at=finished, level="warn", message=f"smoke 告警: {line}"))
+
+    if completed.returncode != 0:
+        message = first_line(stderr) or first_line(stdout) or "locateanything smoke failed"
+        return JobResult(
+            task_id=job.task_id,
+            status="failed",
+            message=message,
+            logs=base_logs + [JobLog(at=finished, level="error", message=message)],
+            heartbeat=WorkerHeartbeat(at=finished, status="failed", message="LocateAnything smoke failed"),
+            retryable=True,
+            attempt=1,
+            max_attempts=3,
+            started_at=started,
+            finished_at=finished,
+        )
+
+    message = (
+        f"LocateAnything-3B smoke 完成：status={summary.get('status', 'ok')} "
+        f"model_load={summary_bool(summary, 'model_load')} real_inference={summary_bool(summary, 'real_inference')}"
+    )
+    return JobResult(
+        task_id=job.task_id,
+        status="completed",
+        message=message,
+        logs=base_logs + [JobLog(at=finished, level="info", message=message)],
+        artifacts=[
+            JobArtifact(name=f"{job.task_id}-smoke-report", uri=output, kind="smoke-report", metadata={"model_dir": model_dir, "data_root": data_root}),
+            JobArtifact(name=f"{job.task_id}-model-dir", uri=model_dir, kind="model-dir", metadata={"model_dir": model_dir}),
+        ],
+        heartbeat=WorkerHeartbeat(at=finished, status="completed", message="LocateAnything smoke completed"),
+        retryable=False,
+        attempt=1,
+        max_attempts=3,
+        started_at=started,
+        finished_at=finished,
+    )
+
+
 def health_payload() -> dict[str, object]:
     return {
         "worker": "automated-training-python-worker",
         "status": "ok",
         "heartbeat": WorkerHeartbeat(at=utc_now_iso(), status="ok", message="worker process started").__dict__,
-        "capabilities": ["dry-run", "heartbeat", "logs", "artifacts", "retry-contract", "download_hf", "verify_hf"],
+        "capabilities": ["dry-run", "heartbeat", "logs", "artifacts", "retry-contract", "download_hf", "verify_hf", "smoke_locateanything"],
     }
 
 
@@ -236,6 +344,10 @@ def repo_root() -> Path:
 
 def repo_download_script() -> Path:
     return repo_root() / "skills" / "huggingface-model-downloader" / "scripts" / "download_hf_snapshot.py"
+
+
+def repo_locateanything_smoke_script() -> Path:
+    return repo_root() / "workers" / "python" / "agent_worker" / "locateanything_smoke.py"
 
 
 def hf_worker_timeout_seconds() -> int:
@@ -294,6 +406,22 @@ def summary_log_line(action_name: str, summary: dict[str, object]) -> str:
     if summary.get("complete") is not None:
         parts.append(f"complete={summary['complete']}")
     return " ".join(parts)
+
+
+def locateanything_summary_log_line(summary: dict[str, object]) -> str:
+    parts = ["smoke 摘要"]
+    if summary.get("status"):
+        parts.append(f"status={summary['status']}")
+    parts.append(f"model_load={summary_bool(summary, 'model_load')}")
+    parts.append(f"real_inference={summary_bool(summary, 'real_inference')}")
+    return " ".join(parts)
+
+
+def summary_bool(summary: dict[str, object], key: str) -> str:
+    completed = summary.get("completed")
+    if isinstance(completed, dict) and key in completed:
+        return str(completed.get(key)).lower()
+    return "unknown"
 
 
 if __name__ == "__main__":
