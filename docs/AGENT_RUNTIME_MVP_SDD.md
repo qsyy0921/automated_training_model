@@ -13,7 +13,7 @@ MVP 必须覆盖：
 
 - 四入口统一：Web、CLI、桌面端、QQ/NapCat 都进入同一个 runtime；QQ 支持 test-message、HTTP webhook/outbound 和可选 OneBot WebSocket reader。
 - Mimo 模型路由：文本规划走 `mimo-v2.5-pro`，视觉理解走 `mimo-v2.5`。
-- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job`、`/bot-train-dry`、`/bot-eval-dry`、`/bot-deploy-dry` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
+- 离线规则命令：`/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job`、`/bot-train-dry|run`、`/bot-eval-dry|run`、`/bot-deploy-dry|run` 不依赖模型即可测试；即使启用 Mimo，也会走 Go 本地 fast-path。
 - 本地语义 fast-path：自我介绍/能力说明、已知 `LocateAnything-3B` 下载、`LocateAnything-3B + ShanghaiTech` smoke 这类高置信度固定意图由 Go 直接生成受控计划，避免为了意图识别单独等待模型。
 - Sub-agent 决策：普通文本、视觉附件、数据附件分别进入不同 agent 角色。
 - ToolExecutor：所有副作用都通过工具出口，不能让 channel 或 UI 直接写数据湖、下载模型或提交训练。
@@ -158,7 +158,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | --- | --- |
 | Go 单元/集成测试 | `go test ./...` |
 | Python runtime/worker 编译 | `python -m compileall workers\python` |
-| Python model worker 契约 | `python -m unittest discover -s workers\python\agent_worker\tests` |
+| Python model worker 契约 | ``$env:PYTHONPATH=(Resolve-Path .\workers\python).Path; python -m unittest discover -s workers\python\agent_worker\tests`` |
 | Web 构建 | `npm run build` |
 | 四入口 smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-agent-entrypoints.ps1` |
 | Runtime MVP smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-mvp.ps1` |
@@ -172,6 +172,7 @@ data_lake/catalog/models/nvidia_LocateAnything-3B.download.json
 | Training dry-run worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-training-dry-worker.ps1` |
 | Evaluation dry-run worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-evaluation-dry-worker.ps1` |
 | Deployment dry-run worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-deployment-dry-worker.ps1` |
+| Runtime execution worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-execution-worker.ps1` |
 | Lifecycle execution worker smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-lifecycle-execution-worker.ps1` |
 | LocateAnything load smoke | `powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1` |
 | Gateway auth 单元测试 | `go test ./internal/infrastructure/middleware` |

@@ -21,8 +21,11 @@ const (
 	IntentModelTest        IntentKind = "model_test"
 	IntentVerifyHFJob      IntentKind = "verify_hf_job"
 	IntentTrainingDryRun   IntentKind = "training_dry_run"
+	IntentTrainingRun      IntentKind = "training_run"
 	IntentEvaluationDryRun IntentKind = "evaluation_dry_run"
+	IntentEvaluationRun    IntentKind = "evaluation_run"
 	IntentDeploymentDryRun IntentKind = "deployment_dry_run"
+	IntentDeploymentRun    IntentKind = "deployment_run"
 	IntentChat             IntentKind = "chat"
 )
 
@@ -141,6 +144,13 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 		if len(fields) >= 2 {
 			intent.DatasetID = fields[1]
 		}
+	case "/bot-train-run":
+		intent.Kind = IntentTrainingRun
+		intent.SkillID = "data-to-deployment-lifecycle"
+		intent.ToolID = "training.run"
+		if len(fields) >= 2 {
+			intent.DatasetID = fields[1]
+		}
 	case "/bot-eval-dry":
 		intent.Kind = IntentEvaluationDryRun
 		intent.SkillID = "data-to-deployment-lifecycle"
@@ -148,8 +158,19 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 		if len(fields) >= 2 {
 			intent.DatasetID = fields[1]
 		}
+	case "/bot-eval-run":
+		intent.Kind = IntentEvaluationRun
+		intent.SkillID = "data-to-deployment-lifecycle"
+		intent.ToolID = "evaluation.run"
+		if len(fields) >= 2 {
+			intent.DatasetID = fields[1]
+		}
 	case "/bot-deploy-dry":
 		intent.Kind = IntentDeploymentDryRun
+		intent.SkillID = "data-to-deployment-lifecycle"
+		intent.ToolID = "deployment.run"
+	case "/bot-deploy-run":
+		intent.Kind = IntentDeploymentRun
 		intent.SkillID = "data-to-deployment-lifecycle"
 		intent.ToolID = "deployment.run"
 	default:

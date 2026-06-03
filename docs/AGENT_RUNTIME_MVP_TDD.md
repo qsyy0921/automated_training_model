@@ -69,8 +69,8 @@ $go = Resolve-Go
 | 模块 | 当前测试 |
 | --- | --- |
 | Python 语法和 import | `python -m compileall workers\python` |
-| Fast chat / Go intent metadata 分流 | `python -m unittest discover -s workers\python\agent_runtime\tests` |
-| Model worker envelope / heartbeat / logs / artifacts / retry metadata | `python -m unittest discover -s workers\python\agent_worker\tests` |
+| Fast chat / Go intent metadata 分流 | ``$env:PYTHONPATH=(Resolve-Path .\workers\python).Path; python -m unittest discover -s workers\python\agent_runtime\tests`` |
+| Model worker envelope / heartbeat / logs / artifacts / retry metadata | ``$env:PYTHONPATH=(Resolve-Path .\workers\python).Path; python -m unittest discover -s workers\python\agent_worker\tests`` |
 | Go Python worker runner | `go test ./internal/app/modelruntime -run TestPythonModelWorkerRunner` |
 | Mimo API | `ops/scripts/smoke-mimo-api.ps1` |
 | Mimo planner / guard plan | `ops/scripts/smoke-mimo-planner.ps1` |
@@ -144,6 +144,7 @@ npm run build
 | `smoke-training-dry-worker.ps1` | Runtime 发送 `/bot-train-dry`，验证 `training.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-evaluation-dry-worker.ps1` | Runtime 发送 `/bot-eval-dry`，验证 `evaluation.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-deployment-dry-worker.ps1` | Runtime 发送 `/bot-deploy-dry`，验证 `deployment.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
+| `smoke-runtime-execution-worker.ps1` | Runtime 发送 `/bot-train-run`、`/bot-eval-run`、`/bot-deploy-run`，验证 `dry_run=false` 的 `training.run` / `evaluation.run` / `deployment.run` 已进入 Python worker `ModelJob`，默认执行 `execution_recipe=default` 并落回 trace / job logs / heartbeat / recipe artifacts |
 | `smoke-lifecycle-execution-worker.ps1` | 直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交带 `execution_recipe=default` 的 `dry_run=false` 请求，验证 lifecycle task 会真实执行 repo-owned recipe runner 并落地 `request/plan/result/recipe_report`、heartbeat、task logs 和 artifact manifest |
 | `smoke-lifecycle-cli-execution-worker.ps1` | 通过 `labelctl training/evaluation/deploy submit -exec-recipe default` 提交任务，验证 CLI 可把 repo-owned recipe 透传给 Python worker |
 | `smoke-locateanything-model.ps1` | Runtime 触发 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run`，验证模型可加载但真实推理仍未完成 |
@@ -164,8 +165,8 @@ $go = Resolve-Go
 & $go test ./...
 python -m compileall workers\python
 $env:PYTHONPATH=(Resolve-Path .\workers\python).Path
-python -m unittest discover -s workers\python\agent_worker\tests
-python -m unittest discover -s workers\python\agent_runtime\tests
+$env:PYTHONPATH=(Resolve-Path .\workers\python).Path; python -m unittest discover -s workers\python\agent_worker\tests
+$env:PYTHONPATH=(Resolve-Path .\workers\python).Path; python -m unittest discover -s workers\python\agent_runtime\tests
 & $go test ./internal/app/modelruntime -run TestPythonModelWorkerRunner
 & $go test ./internal/app/agentruntime -run TestModelDownloadDryRunQueuesPythonWorkerJob
 cd F:\automated_training_model\web
@@ -178,6 +179,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-hf-verif
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-training-dry-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-evaluation-dry-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-deployment-dry-worker.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-execution-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
 rg -n "tp-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|tp-c3" README.md docs internal workers web ops skills -S
 git status --short --ignored data_lake\models data_lake\catalog tmp

@@ -254,7 +254,19 @@ And trace 中包含 `deployment.run`
 And `/api/runtime/model-jobs/{id}/logs` 返回 completed heartbeat 和 artifact
 证据：`ops/scripts/smoke-deployment-dry-worker.ps1`、`internal/app/agentruntime/service_test.go`。
 
-### ATDD-021 Git 安全边界
+### ATDD-023 Runtime 命令触发 execution worker jobs
+
+Given Runtime 运行在 rule planner 模式
+When 发送 `/bot-train-run shanghaitech-original detection yolo11n`
+And 发送 `/bot-eval-run shanghaitech-original model-1 validation`
+And 发送 `/bot-deploy-run model-1 local-dry-run python-worker 2`
+Then Go fast-path 直接创建 `training.run` / `evaluation.run` / `deployment.run` 的 Python worker `ModelJob`
+And job metadata 包含 `dry_run=false` 与 `execution_recipe=default`
+And `/api/runtime/model-jobs/{id}/logs` 返回 completed heartbeat、recipe artifacts 与 `result.json.execution_mode=recipe-executed`
+
+证据：`ops/scripts/smoke-runtime-execution-worker.ps1`、`internal/app/agentruntime/service_test.go`。
+
+### ATDD-024 Git 安全边界
 
 Given 完成任意测试  
 When 执行安全检查  
@@ -267,7 +279,7 @@ rg -n "tp-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,}|tp-c3" README.md docs internal 
 git status --short --ignored data_lake\models data_lake\catalog tmp
 ```
 
-### ATDD-022 lifecycle HTTP 任务 JSON 持久化、worker dry-run 与 logs/manifest 归档
+### ATDD-025 lifecycle HTTP 任务 JSON 持久化、worker dry-run 与 logs/manifest 归档
 
 Given 通过 `/api/training/runs`、`/api/evaluation/runs` 或 `/api/deployments` 创建任务
 When labelserver 使用默认 `runtime-root/tasks.json` 重新启动并重载 queue
@@ -275,7 +287,7 @@ Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`
 
 证据：`internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go`。
 
-### ATDD-023 lifecycle HTTP 任务 `dry_run=false` command execution
+### ATDD-026 lifecycle HTTP 任务 `dry_run=false` command execution
 
 Given labelserver 正常启动并使用 Python worker `WorkerGateway`
 When 通过 `/api/training/runs`、`/api/evaluation/runs` 或 `/api/deployments` 提交 `dry_run=false`
@@ -286,7 +298,7 @@ And `result.json.execution_mode=recipe-executed`
 
 证据：`ops/scripts/smoke-lifecycle-execution-worker.ps1`、`workers/python/agent_worker/tests/test_worker_contracts.py`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/app/lifecycleapp/service_test.go`。
 
-### ATDD-024 lifecycle CLI submit 透传 execution recipe
+### ATDD-027 lifecycle CLI submit 透传 execution recipe
 
 Given operator 使用 `labelctl training submit`、`labelctl evaluation submit`、`labelctl deploy submit`
 When 显式传入 `-exec-recipe default`、`-exec-timeout`
@@ -321,7 +333,8 @@ And 任务完成后 `result.json.execution_mode=recipe-executed`
 | ATDD-020 | 已覆盖 | `smoke-training-dry-worker.ps1` + `service_test.go` |
 | ATDD-021 | 已覆盖 | `smoke-evaluation-dry-worker.ps1` + `service_test.go` |
 | ATDD-022 | 已覆盖 | `smoke-deployment-dry-worker.ps1` + `service_test.go` |
-| ATDD-021 | 每次提交前执行 | rg + git status |
-| ATDD-022 | 已覆盖 | `json_test.go` + `service_test.go` |
-| ATDD-023 | 已覆盖 | `smoke-lifecycle-execution-worker.ps1` + worker/service/gateway tests |
-| ATDD-024 | 已覆盖 | `domain_commands_test.go` + `smoke-lifecycle-cli-execution-worker.ps1` |
+| ATDD-023 | 已覆盖 | `smoke-runtime-execution-worker.ps1` + `service_test.go` |
+| ATDD-024 | 每次提交前执行 | rg + git status |
+| ATDD-025 | 已覆盖 | `json_test.go` + `service_test.go` |
+| ATDD-026 | 已覆盖 | `smoke-lifecycle-execution-worker.ps1` + worker/service/gateway tests |
+| ATDD-027 | 已覆盖 | `domain_commands_test.go` + `smoke-lifecycle-cli-execution-worker.ps1` |

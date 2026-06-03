@@ -465,32 +465,38 @@ func prepareLocateAnythingSmokeRequest(call ToolCall) (locateAnythingSmokeReques
 	return locateAnythingSmokeRequest{ModelDir: req.ModelDir, DataRoot: req.DataRoot, Output: req.Output}, nil
 }
 
-type trainingDryRunRequest struct {
+type trainingRunRequest struct {
 	DatasetID   string
 	TargetTask  string
 	ModelFamily string
+	DryRun      bool
+	Recipe      string
 	Params      map[string]string
 }
 
-type evaluationDryRunRequest struct {
+type evaluationRunRequest struct {
 	DatasetID string
 	ModelID   string
 	Split     string
+	DryRun    bool
+	Recipe    string
 	Params    map[string]string
 }
 
-type deploymentDryRunRequest struct {
+type deploymentRunRequest struct {
 	ModelID  string
 	Target   string
 	Runtime  string
 	Replicas string
+	DryRun   bool
+	Recipe   string
 	Params   map[string]string
 }
 
-func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) {
+func prepareTrainingRunRequest(call ToolCall) (trainingRunRequest, error) {
 	datasetID := strings.TrimSpace(call.Params["dataset_id"])
 	if datasetID == "" {
-		return trainingDryRunRequest{}, fmt.Errorf("dataset_id is required")
+		return trainingRunRequest{}, fmt.Errorf("dataset_id is required")
 	}
 	targetTask := strings.TrimSpace(call.Params["target_task"])
 	if targetTask == "" {
@@ -500,10 +506,19 @@ func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) 
 	if modelFamily == "" {
 		modelFamily = "yolo11n"
 	}
+	dryRun := !strings.EqualFold(strings.TrimSpace(call.Params["dry_run"]), "false")
+	recipe := strings.TrimSpace(call.Params["execution_recipe"])
+	if recipe == "" && !dryRun {
+		recipe = "default"
+	}
 	params := map[string]string{
 		"dataset_id":   datasetID,
 		"target_task":  targetTask,
 		"model_family": modelFamily,
+		"dry_run":      strconv.FormatBool(dryRun),
+	}
+	if recipe != "" {
+		params["execution_recipe"] = recipe
 	}
 	for _, key := range []string{"annotation_version", "split_config", "output_registry"} {
 		if value := strings.TrimSpace(call.Params[key]); value != "" {
@@ -514,6 +529,10 @@ func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) 
 		"dataset_id":   datasetID,
 		"target_task":  targetTask,
 		"model_family": modelFamily,
+		"dry_run":      dryRun,
+	}
+	if recipe != "" {
+		requestBody["execution_recipe"] = recipe
 	}
 	for _, key := range []string{"annotation_version", "split_config", "output_registry"} {
 		if value := strings.TrimSpace(call.Params[key]); value != "" {
@@ -522,29 +541,38 @@ func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) 
 	}
 	raw, err := json.Marshal(requestBody)
 	if err != nil {
-		return trainingDryRunRequest{}, fmt.Errorf("marshal training dry-run request: %w", err)
+		return trainingRunRequest{}, fmt.Errorf("marshal training request: %w", err)
 	}
 	params["request_json"] = string(raw)
-	return trainingDryRunRequest{DatasetID: datasetID, TargetTask: targetTask, ModelFamily: modelFamily, Params: params}, nil
+	return trainingRunRequest{DatasetID: datasetID, TargetTask: targetTask, ModelFamily: modelFamily, DryRun: dryRun, Recipe: recipe, Params: params}, nil
 }
 
-func prepareEvaluationDryRunRequest(call ToolCall) (evaluationDryRunRequest, error) {
+func prepareEvaluationRunRequest(call ToolCall) (evaluationRunRequest, error) {
 	datasetID := strings.TrimSpace(call.Params["dataset_id"])
 	if datasetID == "" {
-		return evaluationDryRunRequest{}, fmt.Errorf("dataset_id is required")
+		return evaluationRunRequest{}, fmt.Errorf("dataset_id is required")
 	}
 	modelID := strings.TrimSpace(call.Params["model_id"])
 	if modelID == "" {
-		return evaluationDryRunRequest{}, fmt.Errorf("model_id is required")
+		return evaluationRunRequest{}, fmt.Errorf("model_id is required")
 	}
 	split := strings.TrimSpace(call.Params["split"])
 	if split == "" {
 		split = "validation"
 	}
+	dryRun := !strings.EqualFold(strings.TrimSpace(call.Params["dry_run"]), "false")
+	recipe := strings.TrimSpace(call.Params["execution_recipe"])
+	if recipe == "" && !dryRun {
+		recipe = "default"
+	}
 	params := map[string]string{
 		"dataset_id": datasetID,
 		"model_id":   modelID,
 		"split":      split,
+		"dry_run":    strconv.FormatBool(dryRun),
+	}
+	if recipe != "" {
+		params["execution_recipe"] = recipe
 	}
 	for _, key := range []string{"metrics", "save_visuals", "failure_mining"} {
 		if value := strings.TrimSpace(call.Params[key]); value != "" {
@@ -555,6 +583,10 @@ func prepareEvaluationDryRunRequest(call ToolCall) (evaluationDryRunRequest, err
 		"dataset_id": datasetID,
 		"model_id":   modelID,
 		"split":      split,
+		"dry_run":    dryRun,
+	}
+	if recipe != "" {
+		requestBody["execution_recipe"] = recipe
 	}
 	if rawMetrics := strings.TrimSpace(call.Params["metrics"]); rawMetrics != "" {
 		requestBody["metrics"] = compactCSV(rawMetrics)
@@ -567,20 +599,20 @@ func prepareEvaluationDryRunRequest(call ToolCall) (evaluationDryRunRequest, err
 	}
 	raw, err := json.Marshal(requestBody)
 	if err != nil {
-		return evaluationDryRunRequest{}, fmt.Errorf("marshal evaluation dry-run request: %w", err)
+		return evaluationRunRequest{}, fmt.Errorf("marshal evaluation request: %w", err)
 	}
 	params["request_json"] = string(raw)
-	return evaluationDryRunRequest{DatasetID: datasetID, ModelID: modelID, Split: split, Params: params}, nil
+	return evaluationRunRequest{DatasetID: datasetID, ModelID: modelID, Split: split, DryRun: dryRun, Recipe: recipe, Params: params}, nil
 }
 
-func prepareDeploymentDryRunRequest(call ToolCall) (deploymentDryRunRequest, error) {
+func prepareDeploymentRunRequest(call ToolCall) (deploymentRunRequest, error) {
 	modelID := strings.TrimSpace(call.Params["model_id"])
 	if modelID == "" {
-		return deploymentDryRunRequest{}, fmt.Errorf("model_id is required")
+		return deploymentRunRequest{}, fmt.Errorf("model_id is required")
 	}
 	target := strings.TrimSpace(call.Params["target"])
 	if target == "" {
-		return deploymentDryRunRequest{}, fmt.Errorf("target is required")
+		return deploymentRunRequest{}, fmt.Errorf("target is required")
 	}
 	runtime := strings.TrimSpace(call.Params["runtime"])
 	if runtime == "" {
@@ -591,13 +623,22 @@ func prepareDeploymentDryRunRequest(call ToolCall) (deploymentDryRunRequest, err
 		replicas = "1"
 	}
 	if _, err := strconv.Atoi(replicas); err != nil {
-		return deploymentDryRunRequest{}, fmt.Errorf("replicas must be an integer")
+		return deploymentRunRequest{}, fmt.Errorf("replicas must be an integer")
+	}
+	dryRun := !strings.EqualFold(strings.TrimSpace(call.Params["dry_run"]), "false")
+	recipe := strings.TrimSpace(call.Params["execution_recipe"])
+	if recipe == "" && !dryRun {
+		recipe = "default"
 	}
 	params := map[string]string{
 		"model_id": modelID,
 		"target":   target,
 		"runtime":  runtime,
 		"replicas": replicas,
+		"dry_run":  strconv.FormatBool(dryRun),
+	}
+	if recipe != "" {
+		params["execution_recipe"] = recipe
 	}
 	for _, key := range []string{"model_version", "strategy", "resource_class", "rollback_policy"} {
 		if value := strings.TrimSpace(call.Params[key]); value != "" {
@@ -608,6 +649,10 @@ func prepareDeploymentDryRunRequest(call ToolCall) (deploymentDryRunRequest, err
 		"model_id": modelID,
 		"target":   target,
 		"runtime":  runtime,
+		"dry_run":  dryRun,
+	}
+	if recipe != "" {
+		requestBody["execution_recipe"] = recipe
 	}
 	if parsed, err := strconv.Atoi(replicas); err == nil {
 		requestBody["replicas"] = parsed
@@ -619,10 +664,10 @@ func prepareDeploymentDryRunRequest(call ToolCall) (deploymentDryRunRequest, err
 	}
 	raw, err := json.Marshal(requestBody)
 	if err != nil {
-		return deploymentDryRunRequest{}, fmt.Errorf("marshal deployment dry-run request: %w", err)
+		return deploymentRunRequest{}, fmt.Errorf("marshal deployment request: %w", err)
 	}
 	params["request_json"] = string(raw)
-	return deploymentDryRunRequest{ModelID: modelID, Target: target, Runtime: runtime, Replicas: replicas, Params: params}, nil
+	return deploymentRunRequest{ModelID: modelID, Target: target, Runtime: runtime, Replicas: replicas, DryRun: dryRun, Recipe: recipe, Params: params}, nil
 }
 
 type hfModelRequest struct {
@@ -1039,9 +1084,15 @@ func (e *GoToolExecutor) enqueueGenericWorkerJob(req modelruntime.WorkerJobReque
 }
 
 func (e *GoToolExecutor) submitTrainingDryRun(_ context.Context, call ToolCall) (ToolExecutionResult, error) {
-	req, err := prepareTrainingDryRunRequest(call)
+	req, err := prepareTrainingRunRequest(call)
 	if err != nil {
 		return ToolExecutionResult{}, err
+	}
+	replyLabel := fmt.Sprintf("Python worker 训练 dry-run 已排队：dataset=%s target=%s model=%s", req.DatasetID, req.TargetTask, req.ModelFamily)
+	queuedMessage := "queued python training dry-run"
+	if !req.DryRun {
+		replyLabel = fmt.Sprintf("Python worker 训练执行已排队：dataset=%s target=%s model=%s recipe=%s", req.DatasetID, req.TargetTask, req.ModelFamily, valueOrString(req.Recipe, "default"))
+		queuedMessage = "queued python training execution"
 	}
 	return e.enqueueGenericWorkerJob(modelruntime.WorkerJobRequest{
 		WorkflowID: "data-to-deployment-lifecycle",
@@ -1049,25 +1100,32 @@ func (e *GoToolExecutor) submitTrainingDryRun(_ context.Context, call ToolCall) 
 		ToolID:     "training.run",
 		Action:     "training.run",
 		DatasetID:  req.DatasetID,
-		DryRun:     true,
+		DryRun:     req.DryRun,
 		Params:     req.Params,
 	}, genericWorkerJobOptions{
 		Kind:          "training.run",
-		ReplyLabel:    fmt.Sprintf("Python worker 训练 dry-run 已排队：dataset=%s target=%s model=%s", req.DatasetID, req.TargetTask, req.ModelFamily),
-		QueuedMessage: "queued python training dry-run",
+		ReplyLabel:    replyLabel,
+		QueuedMessage: queuedMessage,
 		Resumable:     false,
 		Metadata: map[string]string{
-			"dataset_id":   req.DatasetID,
-			"target_task":  req.TargetTask,
-			"model_family": req.ModelFamily,
+			"dataset_id":       req.DatasetID,
+			"target_task":      req.TargetTask,
+			"model_family":     req.ModelFamily,
+			"execution_recipe": req.Recipe,
 		},
 	})
 }
 
 func (e *GoToolExecutor) submitEvaluationDryRun(_ context.Context, call ToolCall) (ToolExecutionResult, error) {
-	req, err := prepareEvaluationDryRunRequest(call)
+	req, err := prepareEvaluationRunRequest(call)
 	if err != nil {
 		return ToolExecutionResult{}, err
+	}
+	replyLabel := fmt.Sprintf("Python worker 评估 dry-run 已排队：dataset=%s model=%s split=%s", req.DatasetID, req.ModelID, req.Split)
+	queuedMessage := "queued python evaluation dry-run"
+	if !req.DryRun {
+		replyLabel = fmt.Sprintf("Python worker 评估执行已排队：dataset=%s model=%s split=%s recipe=%s", req.DatasetID, req.ModelID, req.Split, valueOrString(req.Recipe, "default"))
+		queuedMessage = "queued python evaluation execution"
 	}
 	return e.enqueueGenericWorkerJob(modelruntime.WorkerJobRequest{
 		WorkflowID: "data-to-deployment-lifecycle",
@@ -1075,43 +1133,51 @@ func (e *GoToolExecutor) submitEvaluationDryRun(_ context.Context, call ToolCall
 		ToolID:     "evaluation.run",
 		Action:     "evaluation.run",
 		DatasetID:  req.DatasetID,
-		DryRun:     true,
+		DryRun:     req.DryRun,
 		Params:     req.Params,
 	}, genericWorkerJobOptions{
 		Kind:          "evaluation.run",
-		ReplyLabel:    fmt.Sprintf("Python worker 评估 dry-run 已排队：dataset=%s model=%s split=%s", req.DatasetID, req.ModelID, req.Split),
-		QueuedMessage: "queued python evaluation dry-run",
+		ReplyLabel:    replyLabel,
+		QueuedMessage: queuedMessage,
 		Resumable:     false,
 		Metadata: map[string]string{
-			"dataset_id": req.DatasetID,
-			"model_id":   req.ModelID,
-			"split":      req.Split,
+			"dataset_id":       req.DatasetID,
+			"model_id":         req.ModelID,
+			"split":            req.Split,
+			"execution_recipe": req.Recipe,
 		},
 	})
 }
 
 func (e *GoToolExecutor) submitDeploymentDryRun(_ context.Context, call ToolCall) (ToolExecutionResult, error) {
-	req, err := prepareDeploymentDryRunRequest(call)
+	req, err := prepareDeploymentRunRequest(call)
 	if err != nil {
 		return ToolExecutionResult{}, err
+	}
+	replyLabel := fmt.Sprintf("Python worker 部署 dry-run 已排队：model=%s target=%s runtime=%s replicas=%s", req.ModelID, req.Target, req.Runtime, req.Replicas)
+	queuedMessage := "queued python deployment dry-run"
+	if !req.DryRun {
+		replyLabel = fmt.Sprintf("Python worker 部署执行已排队：model=%s target=%s runtime=%s replicas=%s recipe=%s", req.ModelID, req.Target, req.Runtime, req.Replicas, valueOrString(req.Recipe, "default"))
+		queuedMessage = "queued python deployment execution"
 	}
 	return e.enqueueGenericWorkerJob(modelruntime.WorkerJobRequest{
 		WorkflowID: "data-to-deployment-lifecycle",
 		AgentID:    "training-agent",
 		ToolID:     "deployment.run",
 		Action:     "deployment.run",
-		DryRun:     true,
+		DryRun:     req.DryRun,
 		Params:     req.Params,
 	}, genericWorkerJobOptions{
 		Kind:          "deployment.run",
-		ReplyLabel:    fmt.Sprintf("Python worker 部署 dry-run 已排队：model=%s target=%s runtime=%s replicas=%s", req.ModelID, req.Target, req.Runtime, req.Replicas),
-		QueuedMessage: "queued python deployment dry-run",
+		ReplyLabel:    replyLabel,
+		QueuedMessage: queuedMessage,
 		Resumable:     false,
 		Metadata: map[string]string{
-			"model_id": req.ModelID,
-			"target":   req.Target,
-			"runtime":  req.Runtime,
-			"replicas": req.Replicas,
+			"model_id":         req.ModelID,
+			"target":           req.Target,
+			"runtime":          req.Runtime,
+			"replicas":         req.Replicas,
+			"execution_recipe": req.Recipe,
 		},
 	})
 }

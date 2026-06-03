@@ -36,7 +36,7 @@ func (r *RuntimeRouter) Select(req PlanRequest) PlanningRoute {
 
 func isControlIntent(intent Intent) bool {
 	switch intent.Kind {
-	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun, IntentRuntimeAbout, IntentVerifyHFJob, IntentTrainingDryRun, IntentEvaluationDryRun, IntentDeploymentDryRun:
+	case IntentHealthCheck, IntentIdentifyActor, IntentRuntimeStatus, IntentListRuns, IntentSubmitDryRun, IntentRuntimeAbout, IntentVerifyHFJob, IntentTrainingDryRun, IntentTrainingRun, IntentEvaluationDryRun, IntentEvaluationRun, IntentDeploymentDryRun, IntentDeploymentRun:
 		return true
 	case IntentUnknown:
 		return intent.Command == "/bot-help"

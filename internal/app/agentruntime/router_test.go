@@ -37,6 +37,15 @@ func TestRuntimeRouterSelectsLocalControlForTrainingDryRunCommand(t *testing.T) 
 	}
 }
 
+func TestRuntimeRouterSelectsLocalControlForTrainingRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "/bot-train-run shanghaitech-original detection yolo11n"}
+	intent := ClassifyIntent(msg)
+	route := NewRuntimeRouter().Select(PlanRequest{Message: msg, Intent: intent})
+	if route.Mode != RouteLocalControl {
+		t.Fatalf("expected local control route, got %+v", route)
+	}
+}
+
 func TestRuntimeRouterSelectsLocalControlForEvaluationDryRunCommand(t *testing.T) {
 	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "/bot-eval-dry shanghaitech-original model-1 validation"}
 	intent := ClassifyIntent(msg)
@@ -46,8 +55,26 @@ func TestRuntimeRouterSelectsLocalControlForEvaluationDryRunCommand(t *testing.T
 	}
 }
 
+func TestRuntimeRouterSelectsLocalControlForEvaluationRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "/bot-eval-run shanghaitech-original model-1 validation"}
+	intent := ClassifyIntent(msg)
+	route := NewRuntimeRouter().Select(PlanRequest{Message: msg, Intent: intent})
+	if route.Mode != RouteLocalControl {
+		t.Fatalf("expected local control route, got %+v", route)
+	}
+}
+
 func TestRuntimeRouterSelectsLocalControlForDeploymentDryRunCommand(t *testing.T) {
 	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "/bot-deploy-dry model-1 local-dry-run python-worker 2"}
+	intent := ClassifyIntent(msg)
+	route := NewRuntimeRouter().Select(PlanRequest{Message: msg, Intent: intent})
+	if route.Mode != RouteLocalControl {
+		t.Fatalf("expected local control route, got %+v", route)
+	}
+}
+
+func TestRuntimeRouterSelectsLocalControlForDeploymentRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "/bot-deploy-run model-1 local-dry-run python-worker 2"}
 	intent := ClassifyIntent(msg)
 	route := NewRuntimeRouter().Select(PlanRequest{Message: msg, Intent: intent})
 	if route.Mode != RouteLocalControl {
