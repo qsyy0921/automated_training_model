@@ -236,6 +236,24 @@ Then Go fast-path 应直接生成 `training.run` 的后台 worker dry-run 任务
 
 证据：`ops/scripts/smoke-training-dry-worker.ps1`、`internal/app/agentruntime/service_test.go`。
 
+### ATDD-021 Runtime 命令触发 evaluation dry-run worker job
+
+Given Runtime Gateway 正常启动
+When 发送 `/bot-eval-dry shanghaitech-original model-1 validation`
+Then Go fast-path 直接创建 `evaluation.run` 的 Python worker `ModelJob`
+And trace 中包含 `evaluation.run`
+And `/api/runtime/model-jobs/{id}/logs` 返回 completed heartbeat 和 artifact
+证据：`ops/scripts/smoke-evaluation-dry-worker.ps1`、`internal/app/agentruntime/service_test.go`。
+
+### ATDD-022 Runtime 命令触发 deployment dry-run worker job
+
+Given Runtime Gateway 正常启动
+When 发送 `/bot-deploy-dry model-1 local-dry-run python-worker 2`
+Then Go fast-path 直接创建 `deployment.run` 的 Python worker `ModelJob`
+And trace 中包含 `deployment.run`
+And `/api/runtime/model-jobs/{id}/logs` 返回 completed heartbeat 和 artifact
+证据：`ops/scripts/smoke-deployment-dry-worker.ps1`、`internal/app/agentruntime/service_test.go`。
+
 ### ATDD-021 Git 安全边界
 
 Given 完成任意测试  
@@ -281,5 +299,7 @@ Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`
 | ATDD-018 | 已覆盖 | `service_test.go` + `runtime_handlers_test.go` + `runtime_chat_test.go` |
 | ATDD-019 | 已覆盖 | `smoke-hf-verify-worker.ps1` + `service_test.go` |
 | ATDD-020 | 已覆盖 | `smoke-training-dry-worker.ps1` + `service_test.go` |
+| ATDD-021 | 已覆盖 | `smoke-evaluation-dry-worker.ps1` + `service_test.go` |
+| ATDD-022 | 已覆盖 | `smoke-deployment-dry-worker.ps1` + `service_test.go` |
 | ATDD-021 | 每次提交前执行 | rg + git status |
 | ATDD-022 | 已覆盖 | `json_test.go` + `service_test.go` |

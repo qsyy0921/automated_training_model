@@ -164,6 +164,12 @@ func (e *GoToolExecutor) registerToolHandlers() {
 	e.toolRunner.Register("training.run", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
 		return e.submitTrainingDryRun(ctx, call)
 	})
+	e.toolRunner.Register("evaluation.run", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
+		return e.submitEvaluationDryRun(ctx, call)
+	})
+	e.toolRunner.Register("deployment.run", func(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
+		return e.submitDeploymentDryRun(ctx, call)
+	})
 }
 
 func (e *GoToolExecutor) planDataIntake(ctx context.Context, req ToolExecutionRequest, call ToolCall) (ToolExecutionResult, error) {
@@ -466,6 +472,21 @@ type trainingDryRunRequest struct {
 	Params      map[string]string
 }
 
+type evaluationDryRunRequest struct {
+	DatasetID string
+	ModelID   string
+	Split     string
+	Params    map[string]string
+}
+
+type deploymentDryRunRequest struct {
+	ModelID  string
+	Target   string
+	Runtime  string
+	Replicas string
+	Params   map[string]string
+}
+
 func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) {
 	datasetID := strings.TrimSpace(call.Params["dataset_id"])
 	if datasetID == "" {
@@ -505,6 +526,103 @@ func prepareTrainingDryRunRequest(call ToolCall) (trainingDryRunRequest, error) 
 	}
 	params["request_json"] = string(raw)
 	return trainingDryRunRequest{DatasetID: datasetID, TargetTask: targetTask, ModelFamily: modelFamily, Params: params}, nil
+}
+
+func prepareEvaluationDryRunRequest(call ToolCall) (evaluationDryRunRequest, error) {
+	datasetID := strings.TrimSpace(call.Params["dataset_id"])
+	if datasetID == "" {
+		return evaluationDryRunRequest{}, fmt.Errorf("dataset_id is required")
+	}
+	modelID := strings.TrimSpace(call.Params["model_id"])
+	if modelID == "" {
+		return evaluationDryRunRequest{}, fmt.Errorf("model_id is required")
+	}
+	split := strings.TrimSpace(call.Params["split"])
+	if split == "" {
+		split = "validation"
+	}
+	params := map[string]string{
+		"dataset_id": datasetID,
+		"model_id":   modelID,
+		"split":      split,
+	}
+	for _, key := range []string{"metrics", "save_visuals", "failure_mining"} {
+		if value := strings.TrimSpace(call.Params[key]); value != "" {
+			params[key] = value
+		}
+	}
+	requestBody := map[string]any{
+		"dataset_id": datasetID,
+		"model_id":   modelID,
+		"split":      split,
+	}
+	if rawMetrics := strings.TrimSpace(call.Params["metrics"]); rawMetrics != "" {
+		requestBody["metrics"] = compactCSV(rawMetrics)
+	}
+	if value := strings.TrimSpace(call.Params["save_visuals"]); value != "" {
+		requestBody["save_visuals"] = strings.EqualFold(value, "true")
+	}
+	if value := strings.TrimSpace(call.Params["failure_mining"]); value != "" {
+		requestBody["failure_mining"] = strings.EqualFold(value, "true")
+	}
+	raw, err := json.Marshal(requestBody)
+	if err != nil {
+		return evaluationDryRunRequest{}, fmt.Errorf("marshal evaluation dry-run request: %w", err)
+	}
+	params["request_json"] = string(raw)
+	return evaluationDryRunRequest{DatasetID: datasetID, ModelID: modelID, Split: split, Params: params}, nil
+}
+
+func prepareDeploymentDryRunRequest(call ToolCall) (deploymentDryRunRequest, error) {
+	modelID := strings.TrimSpace(call.Params["model_id"])
+	if modelID == "" {
+		return deploymentDryRunRequest{}, fmt.Errorf("model_id is required")
+	}
+	target := strings.TrimSpace(call.Params["target"])
+	if target == "" {
+		return deploymentDryRunRequest{}, fmt.Errorf("target is required")
+	}
+	runtime := strings.TrimSpace(call.Params["runtime"])
+	if runtime == "" {
+		runtime = "python-worker"
+	}
+	replicas := strings.TrimSpace(call.Params["replicas"])
+	if replicas == "" {
+		replicas = "1"
+	}
+	if _, err := strconv.Atoi(replicas); err != nil {
+		return deploymentDryRunRequest{}, fmt.Errorf("replicas must be an integer")
+	}
+	params := map[string]string{
+		"model_id": modelID,
+		"target":   target,
+		"runtime":  runtime,
+		"replicas": replicas,
+	}
+	for _, key := range []string{"model_version", "strategy", "resource_class", "rollback_policy"} {
+		if value := strings.TrimSpace(call.Params[key]); value != "" {
+			params[key] = value
+		}
+	}
+	requestBody := map[string]any{
+		"model_id": modelID,
+		"target":   target,
+		"runtime":  runtime,
+	}
+	if parsed, err := strconv.Atoi(replicas); err == nil {
+		requestBody["replicas"] = parsed
+	}
+	for _, key := range []string{"model_version", "strategy", "resource_class", "rollback_policy"} {
+		if value := strings.TrimSpace(call.Params[key]); value != "" {
+			requestBody[key] = value
+		}
+	}
+	raw, err := json.Marshal(requestBody)
+	if err != nil {
+		return deploymentDryRunRequest{}, fmt.Errorf("marshal deployment dry-run request: %w", err)
+	}
+	params["request_json"] = string(raw)
+	return deploymentDryRunRequest{ModelID: modelID, Target: target, Runtime: runtime, Replicas: replicas, Params: params}, nil
 }
 
 type hfModelRequest struct {
@@ -944,6 +1062,76 @@ func (e *GoToolExecutor) submitTrainingDryRun(_ context.Context, call ToolCall) 
 			"model_family": req.ModelFamily,
 		},
 	})
+}
+
+func (e *GoToolExecutor) submitEvaluationDryRun(_ context.Context, call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareEvaluationDryRunRequest(call)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	return e.enqueueGenericWorkerJob(modelruntime.WorkerJobRequest{
+		WorkflowID: "data-to-deployment-lifecycle",
+		AgentID:    "training-agent",
+		ToolID:     "evaluation.run",
+		Action:     "evaluation.run",
+		DatasetID:  req.DatasetID,
+		DryRun:     true,
+		Params:     req.Params,
+	}, genericWorkerJobOptions{
+		Kind:          "evaluation.run",
+		ReplyLabel:    fmt.Sprintf("Python worker 评估 dry-run 已排队：dataset=%s model=%s split=%s", req.DatasetID, req.ModelID, req.Split),
+		QueuedMessage: "queued python evaluation dry-run",
+		Resumable:     false,
+		Metadata: map[string]string{
+			"dataset_id": req.DatasetID,
+			"model_id":   req.ModelID,
+			"split":      req.Split,
+		},
+	})
+}
+
+func (e *GoToolExecutor) submitDeploymentDryRun(_ context.Context, call ToolCall) (ToolExecutionResult, error) {
+	req, err := prepareDeploymentDryRunRequest(call)
+	if err != nil {
+		return ToolExecutionResult{}, err
+	}
+	return e.enqueueGenericWorkerJob(modelruntime.WorkerJobRequest{
+		WorkflowID: "data-to-deployment-lifecycle",
+		AgentID:    "training-agent",
+		ToolID:     "deployment.run",
+		Action:     "deployment.run",
+		DryRun:     true,
+		Params:     req.Params,
+	}, genericWorkerJobOptions{
+		Kind:          "deployment.run",
+		ReplyLabel:    fmt.Sprintf("Python worker 部署 dry-run 已排队：model=%s target=%s runtime=%s replicas=%s", req.ModelID, req.Target, req.Runtime, req.Replicas),
+		QueuedMessage: "queued python deployment dry-run",
+		Resumable:     false,
+		Metadata: map[string]string{
+			"model_id": req.ModelID,
+			"target":   req.Target,
+			"runtime":  req.Runtime,
+			"replicas": req.Replicas,
+		},
+	})
+}
+
+func compactCSV(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func appendWorkerLogs(job *ModelJob, logs []modelruntime.WorkerLog, fallback time.Time) {

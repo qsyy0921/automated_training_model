@@ -37,6 +37,24 @@ func TestRuntimeRouterSelectsLocalControlForTrainingDryRunCommand(t *testing.T) 
 	}
 }
 
+func TestRuntimeRouterSelectsLocalControlForEvaluationDryRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "/bot-eval-dry shanghaitech-original model-1 validation"}
+	intent := ClassifyIntent(msg)
+	route := NewRuntimeRouter().Select(PlanRequest{Message: msg, Intent: intent})
+	if route.Mode != RouteLocalControl {
+		t.Fatalf("expected local control route, got %+v", route)
+	}
+}
+
+func TestRuntimeRouterSelectsLocalControlForDeploymentDryRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "/bot-deploy-dry model-1 local-dry-run python-worker 2"}
+	intent := ClassifyIntent(msg)
+	route := NewRuntimeRouter().Select(PlanRequest{Message: msg, Intent: intent})
+	if route.Mode != RouteLocalControl {
+		t.Fatalf("expected local control route, got %+v", route)
+	}
+}
+
 func TestRuntimeRouterCanDisableLocalSemanticFastPath(t *testing.T) {
 	t.Setenv("AGENT_RUNTIME_LOCAL_SEMANTIC_FASTPATH", "false")
 	msg := channel.InboundMessage{ID: "msg1", Channel: channel.KindQQ, Text: "请帮我规划 ShanghaiTech 数据接入"}

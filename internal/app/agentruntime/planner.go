@@ -35,6 +35,10 @@ func (p *RulePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 		return p.locateAnythingVerifyJobPlan(req), nil
 	case IntentTrainingDryRun:
 		return p.trainingDryRunPlan(req), nil
+	case IntentEvaluationDryRun:
+		return p.evaluationDryRunPlan(req), nil
+	case IntentDeploymentDryRun:
+		return p.deploymentDryRunPlan(req), nil
 	case IntentChat:
 		result.ReplyText = fmt.Sprintf("已收到。意图会先交给 %s 做规划；当前最小运行时已支持 /bot-status、/bot-runs 和 /bot-run dry。", req.Delegation.AgentID)
 		return result, nil
@@ -49,6 +53,8 @@ func (p *RulePlanner) Plan(ctx context.Context, req PlanRequest) (PlanResult, er
 				"/bot-run dry [dataset_id]",
 				"/bot-verify-hf-job [repo_id]",
 				"/bot-train-dry <dataset_id> [target_task] [model_family]",
+				"/bot-eval-dry <dataset_id> <model_id> [split]",
+				"/bot-deploy-dry <model_id> <target> [runtime] [replicas]",
 				"普通文本 -> planner-agent",
 				"图片/附件 -> vision-agent 或 data-intake-agent",
 			}, "\n")
@@ -178,6 +184,72 @@ func (p *RulePlanner) trainingDryRunPlan(req PlanRequest) PlanResult {
 				"target_task":  targetTask,
 				"model_family": modelFamily,
 				"dry_run":      "true",
+			},
+		}},
+	}
+}
+
+func (p *RulePlanner) evaluationDryRunPlan(req PlanRequest) PlanResult {
+	datasetID := valueOrString(req.Intent.DatasetID, "shanghaitech-original")
+	modelID := "candidate-model"
+	split := "validation"
+	if len(req.Intent.Args) >= 2 && strings.TrimSpace(req.Intent.Args[1]) != "" {
+		modelID = strings.TrimSpace(req.Intent.Args[1])
+	}
+	if len(req.Intent.Args) >= 3 && strings.TrimSpace(req.Intent.Args[2]) != "" {
+		split = strings.TrimSpace(req.Intent.Args[2])
+	}
+	return PlanResult{
+		Intent:     req.Intent,
+		Delegation: req.Delegation,
+		Status:     "tool_planned_with_guard",
+		ReplyText:  "已识别为评估 dry-run 请求，使用本地确定性命令生成后台评估 worker 任务。",
+		ToolCalls: []ToolCall{{
+			ID:      "call-1",
+			ToolID:  "evaluation.run",
+			SkillID: "data-to-deployment-lifecycle",
+			Params: map[string]string{
+				"dataset_id": datasetID,
+				"model_id":   modelID,
+				"split":      split,
+				"dry_run":    "true",
+			},
+		}},
+	}
+}
+
+func (p *RulePlanner) deploymentDryRunPlan(req PlanRequest) PlanResult {
+	modelID := "candidate-model"
+	target := "local-dry-run"
+	runtime := "python-worker"
+	replicas := "1"
+	if len(req.Intent.Args) >= 1 && strings.TrimSpace(req.Intent.Args[0]) != "" {
+		modelID = strings.TrimSpace(req.Intent.Args[0])
+	}
+	if len(req.Intent.Args) >= 2 && strings.TrimSpace(req.Intent.Args[1]) != "" {
+		target = strings.TrimSpace(req.Intent.Args[1])
+	}
+	if len(req.Intent.Args) >= 3 && strings.TrimSpace(req.Intent.Args[2]) != "" {
+		runtime = strings.TrimSpace(req.Intent.Args[2])
+	}
+	if len(req.Intent.Args) >= 4 && strings.TrimSpace(req.Intent.Args[3]) != "" {
+		replicas = strings.TrimSpace(req.Intent.Args[3])
+	}
+	return PlanResult{
+		Intent:     req.Intent,
+		Delegation: req.Delegation,
+		Status:     "tool_planned_with_guard",
+		ReplyText:  "已识别为部署 dry-run 请求，使用本地确定性命令生成后台部署 worker 任务。",
+		ToolCalls: []ToolCall{{
+			ID:      "call-1",
+			ToolID:  "deployment.run",
+			SkillID: "data-to-deployment-lifecycle",
+			Params: map[string]string{
+				"model_id": modelID,
+				"target":   target,
+				"runtime":  runtime,
+				"replicas": replicas,
+				"dry_run":  "true",
 			},
 		}},
 	}

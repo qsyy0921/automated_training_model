@@ -107,6 +107,35 @@ func TestClassifyTrainingDryRunCommand(t *testing.T) {
 	}
 }
 
+func TestClassifyEvaluationDryRunCommand(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "/bot-eval-dry shanghaitech-original model-1 validation"})
+	if intent.Kind != IntentEvaluationDryRun {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.ToolID != "evaluation.run" {
+		t.Fatalf("unexpected tool: %s", intent.ToolID)
+	}
+	if intent.DatasetID != "shanghaitech-original" {
+		t.Fatalf("unexpected dataset: %s", intent.DatasetID)
+	}
+	if len(intent.Args) != 3 || intent.Args[1] != "model-1" {
+		t.Fatalf("unexpected args: %+v", intent.Args)
+	}
+}
+
+func TestClassifyDeploymentDryRunCommand(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{Text: "/bot-deploy-dry model-1 local-dry-run python-worker 2"})
+	if intent.Kind != IntentDeploymentDryRun {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.ToolID != "deployment.run" {
+		t.Fatalf("unexpected tool: %s", intent.ToolID)
+	}
+	if len(intent.Args) != 4 || intent.Args[0] != "model-1" || intent.Args[3] != "2" {
+		t.Fatalf("unexpected args: %+v", intent.Args)
+	}
+}
+
 func TestClassifyDataIntakePlanningFastPath(t *testing.T) {
 	intent := ClassifyIntent(channel.InboundMessage{Text: "请帮我规划 ShanghaiTech 数据接入"})
 	if intent.Kind != IntentDataIntake {

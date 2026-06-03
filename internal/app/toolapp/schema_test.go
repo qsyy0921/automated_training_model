@@ -110,6 +110,37 @@ func TestPreflightAllowsTrainingDryRunTool(t *testing.T) {
 	}
 }
 
+func TestPreflightAllowsEvaluationDryRunTool(t *testing.T) {
+	result := Preflight(DefaultCatalog(), PreflightPolicy{}, ToolCall{
+		ToolID: "evaluation.run",
+		Params: map[string]string{
+			"dataset_id": "shanghaitech-original",
+			"model_id":   "model-1",
+			"split":      "validation",
+			"dry_run":    "true",
+		},
+	})
+	if !result.Allowed {
+		t.Fatalf("expected evaluation dry-run tool to pass preflight, got %+v", result)
+	}
+}
+
+func TestPreflightAllowsDeploymentDryRunTool(t *testing.T) {
+	result := Preflight(DefaultCatalog(), PreflightPolicy{}, ToolCall{
+		ToolID: "deployment.run",
+		Params: map[string]string{
+			"model_id": "model-1",
+			"target":   "local-dry-run",
+			"runtime":  "python-worker",
+			"replicas": "2",
+			"dry_run":  "true",
+		},
+	})
+	if !result.Allowed {
+		t.Fatalf("expected deployment dry-run tool to pass preflight, got %+v", result)
+	}
+}
+
 func defaultWorkflowForTest() string {
 	return "data-to-deployment-lifecycle"
 }

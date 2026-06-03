@@ -70,7 +70,7 @@ Model & Data Training Platform
 - Go 控制面已接入 Python model worker 的最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；`dry_run=true` 和真实下载共用同一条 worker 路径。worker timeout、坏 JSON 和显式 failed 结果也会把部分 stdout/stderr、retryable 和 `worker_error_kind` 落回 job store，便于 CLI/Web/API 统一排障。`model.verify_hf` 支持显式 `job=true` 的 Python worker job 模式；`model.smoke_locateanything` 也支持显式 `job=true` 的 worker smoke 模式，默认仍保持同步 smoke，避免打断现有 ShanghaiTech dry-run 链。若需回退旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`；若需同步执行旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_SYNC=true`。
 - Python worker 运行中事件已通过 `stderr` 结构化桥接回 Go：worker 在执行期间会持续回写 heartbeat、stdout/stderr 行和运行日志到同一份 `ModelJobStore`；`/api/runtime/model-jobs/{id}/logs/stream` 与 `labelctl agent /follow-job` 会直接看到这些中间态，而不是只能等终态摘要。
 - `labelctl agent /follow-job <job_id>` 终态事件现在会直接显示 retry、heartbeat、artifact、manifest 和 stdout/stderr 摘要，不必再手动补一次 `/job-logs`。
-- `training-agent` 已有最小可运行入口：`/bot-train-dry <dataset_id> [target_task] [model_family]` 会直接创建 `training.run` 的 Python worker `ModelJob`，并把 heartbeat、logs、artifacts、stdout/stderr 摘要写回同一份 runtime store；当前先支持 dry-run 计划，不直接执行真实训练。
+- `training-agent` 已有最小可运行入口：`/bot-train-dry <dataset_id> [target_task] [model_family]`、`/bot-eval-dry <dataset_id> <model_id> [split]`、`/bot-deploy-dry <model_id> <target> [runtime] [replicas]` 会直接创建 `training.run`、`evaluation.run`、`deployment.run` 的 Python worker `ModelJob`，并把 heartbeat、logs、artifacts、stdout/stderr 摘要写回同一份 runtime store；当前先支持 dry-run 计划，不直接执行真实训练/评估/部署。
 
 ## Agent 生命周期
 
@@ -207,6 +207,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-runtime-
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\runtime-hf-install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-hf-verify-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-training-dry-worker.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-evaluation-dry-worker.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-deployment-dry-worker.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locateanything-model.ps1
 ```
 
@@ -218,13 +220,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\ops\scripts\smoke-locatean
 
 `smoke-training-dry-worker.ps1` 会通过 Runtime 发送 `/bot-train-dry shanghaitech-original detection yolo11n`，验证 `training-agent` 的最小 dry-run 路径已经进入 Python worker `ModelJob`，并检查 trace、worker heartbeat 和 dry-run artifact。
 
+`smoke-evaluation-dry-worker.ps1` 会通过 Runtime 发送 `/bot-eval-dry shanghaitech-original model-1 validation`，验证 `evaluation.run(dry_run)` 已进入 Python worker `ModelJob`，并检查 trace、worker heartbeat 和 recipe artifact。
+
+`smoke-deployment-dry-worker.ps1` 会通过 Runtime 发送 `/bot-deploy-dry model-1 local-dry-run python-worker 2`，验证 `deployment.run(dry_run)` 已进入 Python worker `ModelJob`，并检查 trace、worker heartbeat 和 recipe artifact。
+
 `smoke-locateanything-model.ps1` 会通过 Runtime 执行 `model.verify_hf`、`model.smoke_locateanything` 和 `workflow.submit_run(dry_run=true)`。当前本机已完成 LocateAnything-3B 加载 smoke：`AutoConfig`、`AutoProcessor`、safetensors shard 和 `AutoModel.from_pretrained` 均通过；由于当前 PyTorch 是 CPU-only，真实 ShanghaiTech 推理仍未标记完成。
 
 ### 什么时候使用 Sub-Agent
 
 | 场景 | 默认处理 |
 | --- | --- |
-| `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job`、`/bot-train-dry` | Go control plane 直接处理，不使用 sub-agent |
+| `/bot-ping`、`/bot-me`、`/bot-status`、`/bot-runs`、`/bot-run dry`、`/bot-verify-hf-job`、`/bot-train-dry`、`/bot-eval-dry`、`/bot-deploy-dry` | Go control plane 直接处理，不使用 sub-agent |
 | 项目身份/能力说明、已知 LocateAnything 固定流程 | Go 本地语义 fast-path；模型下载/测试仍通过 ToolExecutor 受控执行 |
 | 普通自然语言请求 | `planner-agent`，负责意图细化和 tool-call plan |
 | 高置信度数据接入规划 | `data-intake-agent`，Go `RuntimeRouter` 直接生成 `intake.plan`，保留审批和 trace |

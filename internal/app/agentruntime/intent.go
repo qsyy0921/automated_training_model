@@ -9,19 +9,21 @@ import (
 type IntentKind string
 
 const (
-	IntentUnknown        IntentKind = "unknown"
-	IntentHealthCheck    IntentKind = "health_check"
-	IntentIdentifyActor  IntentKind = "identify_actor"
-	IntentRuntimeStatus  IntentKind = "runtime_status"
-	IntentListRuns       IntentKind = "list_runs"
-	IntentSubmitDryRun   IntentKind = "submit_dry_run"
-	IntentDataIntake     IntentKind = "data_intake"
-	IntentRuntimeAbout   IntentKind = "runtime_about"
-	IntentModelInstall   IntentKind = "model_install"
-	IntentModelTest      IntentKind = "model_test"
-	IntentVerifyHFJob    IntentKind = "verify_hf_job"
-	IntentTrainingDryRun IntentKind = "training_dry_run"
-	IntentChat           IntentKind = "chat"
+	IntentUnknown          IntentKind = "unknown"
+	IntentHealthCheck      IntentKind = "health_check"
+	IntentIdentifyActor    IntentKind = "identify_actor"
+	IntentRuntimeStatus    IntentKind = "runtime_status"
+	IntentListRuns         IntentKind = "list_runs"
+	IntentSubmitDryRun     IntentKind = "submit_dry_run"
+	IntentDataIntake       IntentKind = "data_intake"
+	IntentRuntimeAbout     IntentKind = "runtime_about"
+	IntentModelInstall     IntentKind = "model_install"
+	IntentModelTest        IntentKind = "model_test"
+	IntentVerifyHFJob      IntentKind = "verify_hf_job"
+	IntentTrainingDryRun   IntentKind = "training_dry_run"
+	IntentEvaluationDryRun IntentKind = "evaluation_dry_run"
+	IntentDeploymentDryRun IntentKind = "deployment_dry_run"
+	IntentChat             IntentKind = "chat"
 )
 
 type Intent struct {
@@ -139,6 +141,17 @@ func ClassifyIntent(msg channel.InboundMessage) Intent {
 		if len(fields) >= 2 {
 			intent.DatasetID = fields[1]
 		}
+	case "/bot-eval-dry":
+		intent.Kind = IntentEvaluationDryRun
+		intent.SkillID = "data-to-deployment-lifecycle"
+		intent.ToolID = "evaluation.run"
+		if len(fields) >= 2 {
+			intent.DatasetID = fields[1]
+		}
+	case "/bot-deploy-dry":
+		intent.Kind = IntentDeploymentDryRun
+		intent.SkillID = "data-to-deployment-lifecycle"
+		intent.ToolID = "deployment.run"
 	default:
 		intent.Kind = IntentUnknown
 	}

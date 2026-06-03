@@ -89,6 +89,20 @@ func DefaultCatalog() Catalog {
 			AllowedParamKeys:  []string{"dataset_id", "target_task", "model_family", "annotation_version", "split_config", "output_registry", "dry_run"},
 			RequiredParamKeys: []string{"dataset_id", "target_task", "model_family"},
 		},
+		{
+			ID:                "evaluation.run",
+			Name:              "Evaluation Dry Run",
+			Risk:              RiskMedium,
+			AllowedParamKeys:  []string{"dataset_id", "model_id", "split", "metrics", "save_visuals", "failure_mining", "dry_run"},
+			RequiredParamKeys: []string{"dataset_id", "model_id"},
+		},
+		{
+			ID:                "deployment.run",
+			Name:              "Deployment Dry Run",
+			Risk:              RiskMedium,
+			AllowedParamKeys:  []string{"model_id", "model_version", "target", "runtime", "replicas", "strategy", "resource_class", "rollback_policy", "dry_run"},
+			RequiredParamKeys: []string{"model_id", "target"},
+		},
 	})
 }
 

@@ -42,6 +42,30 @@ func TestDecideSubAgentSkipsTrainingDryRunCommand(t *testing.T) {
 	}
 }
 
+func TestDecideSubAgentSkipsEvaluationDryRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{Text: "/bot-eval-dry shanghaitech-original model-1 validation"}
+	intent := ClassifyIntent(msg)
+	decision := DecideSubAgent(intent, msg)
+	if decision.UseSubAgent {
+		t.Fatalf("expected Go control plane handling, got %+v", decision)
+	}
+	if decision.ToolID != "evaluation.run" {
+		t.Fatalf("unexpected tool: %s", decision.ToolID)
+	}
+}
+
+func TestDecideSubAgentSkipsDeploymentDryRunCommand(t *testing.T) {
+	msg := channel.InboundMessage{Text: "/bot-deploy-dry model-1 local-dry-run python-worker 2"}
+	intent := ClassifyIntent(msg)
+	decision := DecideSubAgent(intent, msg)
+	if decision.UseSubAgent {
+		t.Fatalf("expected Go control plane handling, got %+v", decision)
+	}
+	if decision.ToolID != "deployment.run" {
+		t.Fatalf("unexpected tool: %s", decision.ToolID)
+	}
+}
+
 func TestDecideSubAgentUsesVisionForImages(t *testing.T) {
 	msg := channel.InboundMessage{
 		Text:        "看一下这张图",
