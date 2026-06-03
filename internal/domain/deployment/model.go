@@ -11,6 +11,7 @@ type Request struct {
 	Config           map[string]string `json:"config,omitempty"`
 	CanaryPercent    int               `json:"canary_percent,omitempty"`
 	RollbackPolicy   string            `json:"rollback_policy,omitempty"`
+	ExecutionRecipe  string            `json:"execution_recipe,omitempty"`
 	ExecutionCommand []string          `json:"execution_command,omitempty"`
 	ExecutionCwd     string            `json:"execution_cwd,omitempty"`
 	ExecutionEnv     map[string]string `json:"execution_env,omitempty"`

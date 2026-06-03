@@ -100,7 +100,7 @@ class WorkerContractTests(unittest.TestCase):
         self.assertIn("evaluation dry-run recipe ready", result["message"])
         self.assertEqual(result["artifacts"][0]["kind"], "evaluation.run.plan")
 
-    def test_training_run_execution_materializes_bundle(self) -> None:
+    def test_training_run_execution_uses_default_recipe_runner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             artifact_root = Path(tmp) / "artifacts"
             result = self.run_job_quiet(
@@ -126,16 +126,21 @@ class WorkerContractTests(unittest.TestCase):
             )
 
             self.assertEqual(result["status"], "completed")
-            self.assertIn("execution bundle materialized", result["message"])
+            self.assertIn("recipe completed", result["message"])
             self.assertEqual(result["heartbeat"]["status"], "completed")
-            self.assertEqual([item["kind"] for item in result["artifacts"]], ["training.run.request", "training.run.plan", "training.run.result"])
+            self.assertEqual(
+                [item["kind"] for item in result["artifacts"]],
+                ["training.run.request", "training.run.plan", "training.run.result", "training.run.recipe_report"],
+            )
             bundle_dir = artifact_root / "training.run" / "task_000013"
             self.assertTrue((bundle_dir / "request.json").exists())
             self.assertTrue((bundle_dir / "plan.json").exists())
             self.assertTrue((bundle_dir / "result.json").exists())
+            self.assertTrue((bundle_dir / "recipe_report.json").exists())
             result_payload = json.loads((bundle_dir / "result.json").read_text(encoding="utf-8"))
             self.assertFalse(result_payload["dry_run"])
-            self.assertEqual(result_payload["execution_mode"], "materialized-recipe")
+            self.assertEqual(result_payload["execution_mode"], "recipe-executed")
+            self.assertEqual(result_payload["execution_recipe"], "default")
             self.assertEqual(result_payload["request"]["dataset_id"], "shanghaitech-original")
 
     @patch("agent_worker.lifecycle.run_command_with_events")

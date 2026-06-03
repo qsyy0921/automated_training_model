@@ -40,7 +40,7 @@
 - [x] 新增 Python model worker 可观测执行契约：`--health`、heartbeat、ordered logs、artifact 引用、attempt/max_attempts 和 retryable，先覆盖 dry-run 与参数错误。
 - [x] 新增 Go -> Python model worker 最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，`dry_run=true` 与真实下载共用同一条 worker 路径，并把 heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回 job store。
 - [ ] 将 JSON MVP model jobs 迁移到统一 task repository，补齐逐文件字节级进度、原始 stdout/stderr 字节流直通、取消幂等性和自动 resume 状态；当前 `model.download_hf` 已默认接入 Python worker，`model.verify_hf` 与 `model.smoke_locateanything` 已支持显式 `job=true` 的 worker job，且 `/bot-verify-hf-job [repo_id]` 已可直接触发后台 verify worker；worker timeout / decode failure 已能回写 stdout/stderr 和错误类型，artifact manifest 也已归档到 `runtime-root/artifacts`，运行中的 heartbeat 与结构化 `stdout/stderr` 行也已通过同一份 job store 暴露给 CLI/Web/API，但训练/评估和默认同步路径仍未统一迁移。
-- [ ] 把 `training.run(dry_run)` 继续扩展到真实训练 recipe、evaluation/deployment 同类 worker job，并与统一 task repository、artifact manifest、checkpoint lineage 打通；当前 `/bot-train-dry`、`/bot-eval-dry`、`/bot-deploy-dry` 仍停留在 `ModelJob dry-run`，而 lifecycle HTTP task 已支持 `dry_run=false` 的可选 command execution，但还不执行真实 GPU 训练/评估/部署 recipe。
+- [ ] 把 `training.run(dry_run)` 继续扩展到真实训练 recipe、evaluation/deployment 同类 worker job，并与统一 task repository、artifact manifest、checkpoint lineage 打通；当前 `/bot-train-dry`、`/bot-eval-dry`、`/bot-deploy-dry` 仍停留在 `ModelJob dry-run`，而 lifecycle HTTP task 已支持 `dry_run=false` 的 repo-owned recipe runner 与可选 command execution，但还不执行真实 GPU 训练/评估/部署 recipe。
 - [ ] 为 LocateAnything-3B 补齐 ShanghaiTech original 真实推理 smoke，并在结果中明确显存、依赖、权重格式的阻塞点。
 - [x] 新增 Web 默认首页 `Agent Overview`，把当前视频审核降级为 `Review Workbench` 页面。
 - [x] 在 Web Agent Overview 中接入 model job logs 查询，与 CLI/API 共用 `/api/runtime/model-jobs/{id}/logs`。
@@ -72,7 +72,7 @@
 ## 后端架构待办
 
 - [ ] 将 `lifecycleapp` 当前的 JSON task queue + `WorkerGateway` MVP 升级为统一 task repository：补真实训练/评估/部署 recipe、恢复、审批和更细粒度的状态机；当前 task logs / NDJSON stream、artifact manifest 归档和 `dry_run=false` command execution 已补齐，但仍未进入真实 GPU/部署 recipe。
-- [ ] 把 lifecycle CLI 的 execution flags 从“透传任意命令”继续收敛成受控 recipe 参数，避免长期把训练/评估/部署执行面停留在 operator 手写命令层。
+- [ ] 把 lifecycle CLI 的 execution flags 继续收敛到正式 recipe 参数与 schema 校验；当前 `-exec-recipe default` 已打通 repo-owned recipe runner，但 recipe 仍只是受控占位执行，不是最终训练/评估/部署 GPU 配方。
 - [ ] 为 `providerapp` 增加加密 secret store。
 - [ ] 补充 CLI：数据集注册、任务提交、导出标注、检查服务健康。
 - [ ] 增加 OpenAPI 文档生成。

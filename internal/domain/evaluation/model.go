@@ -7,6 +7,7 @@ type Request struct {
 	Split            string            `json:"split,omitempty"`
 	Metrics          []string          `json:"metrics,omitempty"`
 	EvalConfig       map[string]string `json:"eval_config,omitempty"`
+	ExecutionRecipe  string            `json:"execution_recipe,omitempty"`
 	ExecutionCommand []string          `json:"execution_command,omitempty"`
 	ExecutionCwd     string            `json:"execution_cwd,omitempty"`
 	ExecutionEnv     map[string]string `json:"execution_env,omitempty"`

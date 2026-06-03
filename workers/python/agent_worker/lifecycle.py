@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import sys
 from pathlib import Path
 import subprocess
 from typing import Any
@@ -117,49 +118,18 @@ def complete_lifecycle_execution(
             started=started,
         )
 
-    execution = build_execution_record(job, action, request, plan, bundle_dir, started)
-    write_json(result_path, execution)
-
-    finished = execution["finished_at"]
-    lifecycle_logs = list(logs)
-    lifecycle_logs.append(JobLog(at=started, level="info", message=f"normalized request for {action}"))
-    lifecycle_logs.append(JobLog(at=started, level="info", message=f"execution bundle root: {bundle_dir}"))
-    for step in plan.get("steps", []):
-        lifecycle_logs.append(JobLog(at=started, level="info", message=f"execute step: {step.get('id', '-')}: {step.get('title', '-')}"))
-    lifecycle_logs.append(JobLog(at=finished, level="info", message=execution["summary"]))
-
-    metadata = lifecycle_artifact_metadata(job, action, plan, "false")
-    return JobResult(
-        task_id=job.task_id,
-        status="completed",
-        message=execution["summary"],
-        artifacts=[
-            JobArtifact(
-                name=f"{job.task_id}-{action}-request",
-                uri=str(request_path),
-                kind=f"{action}.request",
-                metadata={**metadata, "role": "request"},
-            ),
-            JobArtifact(
-                name=f"{job.task_id}-{action}-plan",
-                uri=str(plan_path),
-                kind=f"{action}.plan",
-                metadata={**metadata, "role": "plan"},
-            ),
-            JobArtifact(
-                name=f"{job.task_id}-{action}-result",
-                uri=str(result_path),
-                kind=f"{action}.result",
-                metadata={**metadata, "role": "result", "execution_mode": "materialized-recipe"},
-            ),
-        ],
-        logs=lifecycle_logs,
-        heartbeat=WorkerHeartbeat(at=finished, status="completed", message=f"{action} execution bundle ready"),
-        retryable=False,
-        attempt=1,
-        max_attempts=1,
-        started_at=started,
-        finished_at=finished,
+    return complete_lifecycle_recipe_execution(
+        job=job,
+        action=action,
+        request=request,
+        plan=plan,
+        bundle_dir=bundle_dir,
+        request_path=request_path,
+        plan_path=plan_path,
+        result_path=result_path,
+        recipe=request_recipe(request),
+        logs=logs,
+        started=started,
     )
 
 
@@ -284,6 +254,139 @@ def complete_lifecycle_command_execution(
     )
 
 
+def complete_lifecycle_recipe_execution(
+    job: JobEnvelope,
+    action: str,
+    request: dict[str, Any],
+    plan: dict[str, Any],
+    bundle_dir: Path,
+    request_path: Path,
+    plan_path: Path,
+    result_path: Path,
+    recipe: str,
+    logs: list[JobLog],
+    started: str,
+) -> JobResult:
+    cwd = resolve_execution_cwd(request)
+    timeout_seconds = execution_timeout_seconds(request)
+    env = execution_env(request)
+    report_path = bundle_dir / "recipe_report.json"
+    command = [
+        sys.executable,
+        str(repo_root() / "workers" / "python" / "agent_worker" / "lifecycle_recipe_runner.py"),
+        "--action",
+        action,
+        "--recipe",
+        recipe,
+        "--bundle-dir",
+        str(bundle_dir),
+    ]
+    lifecycle_logs = list(logs)
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"normalized request for {action}"))
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"execution bundle root: {bundle_dir}"))
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"execution recipe: {recipe}"))
+    lifecycle_logs.append(JobLog(at=started, level="info", message=f"execution cwd: {cwd}"))
+    for step in plan.get("steps", []):
+        lifecycle_logs.append(JobLog(at=started, level="info", message=f"execute step: {step.get('id', '-')}: {step.get('title', '-')}"))
+
+    metadata = lifecycle_artifact_metadata(job, action, plan, "false")
+    metadata["execution_timeout_seconds"] = str(timeout_seconds)
+    metadata["execution_recipe"] = recipe
+    try:
+        completed = run_command_with_events(
+            command=command,
+            cwd=str(cwd),
+            timeout=timeout_seconds,
+            env=env,
+            label=f"{action} recipe execution",
+        )
+    except subprocess.TimeoutExpired:
+        finished = utc_now_iso()
+        execution = build_recipe_execution_record(
+            job=job,
+            action=action,
+            request=request,
+            plan=plan,
+            bundle_dir=bundle_dir,
+            recipe=recipe,
+            report_path=report_path,
+            started=started,
+            finished=finished,
+            execution_mode="recipe-timeout",
+            status="failed",
+            summary=f"{action} recipe timed out after {timeout_seconds}s",
+            timeout_seconds=timeout_seconds,
+        )
+        write_json(result_path, execution)
+        lifecycle_logs.append(JobLog(at=finished, level="error", message=execution["summary"]))
+        return JobResult(
+            task_id=job.task_id,
+            status="failed",
+            message=execution["summary"],
+            artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, metadata, "recipe-timeout"),
+            logs=lifecycle_logs,
+            heartbeat=WorkerHeartbeat(at=finished, status="failed", message=f"{action} recipe timed out"),
+            retryable=True,
+            attempt=1,
+            max_attempts=3,
+            started_at=started,
+            finished_at=finished,
+        )
+
+    finished = utc_now_iso()
+    stdout_lines = summarize_process_output(completed.stdout or "")
+    stderr_lines = summarize_process_output(completed.stderr or "")
+    if stdout_lines:
+        lifecycle_logs.append(JobLog(at=finished, level="info", message=f"recipe stdout: {stdout_lines[0]}"))
+    if stderr_lines:
+        lifecycle_logs.append(JobLog(at=finished, level="warn", message=f"recipe stderr: {stderr_lines[0]}"))
+
+    success = completed.returncode == 0
+    execution_mode = "recipe-executed" if success else "recipe-failed"
+    summary = (
+        f"{action} recipe completed: recipe={recipe} exit={completed.returncode}"
+        if success
+        else f"{action} recipe failed: recipe={recipe} exit={completed.returncode}"
+    )
+    execution = build_recipe_execution_record(
+        job=job,
+        action=action,
+        request=request,
+        plan=plan,
+        bundle_dir=bundle_dir,
+        recipe=recipe,
+        report_path=report_path,
+        started=started,
+        finished=finished,
+        execution_mode=execution_mode,
+        status="completed" if success else "failed",
+        summary=summary,
+        timeout_seconds=timeout_seconds,
+        returncode=completed.returncode,
+        stdout_excerpt=stdout_lines,
+        stderr_excerpt=stderr_lines,
+    )
+    write_json(result_path, execution)
+    lifecycle_logs.append(JobLog(at=finished, level="info" if success else "error", message=summary))
+    return JobResult(
+        task_id=job.task_id,
+        status="completed" if success else "failed",
+        message=summary,
+        artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, metadata, execution_mode),
+        logs=lifecycle_logs,
+        heartbeat=WorkerHeartbeat(
+            at=finished,
+            status="completed" if success else "failed",
+            message=f"{action} recipe {'completed' if success else 'failed'}",
+        ),
+        retryable=False,
+        attempt=1,
+        max_attempts=3,
+        started_at=started,
+        finished_at=finished,
+    )
+
+
 def parse_request_json(job: JobEnvelope) -> dict[str, Any]:
     raw = (job.params or {}).get("request_json", "").strip()
     if not raw:
@@ -315,35 +418,6 @@ def resolve_bundle_dir(job: JobEnvelope, action: str) -> Path:
     if not root.is_absolute():
         root = repo_root() / root
     return root / action / job.task_id
-
-
-def build_execution_record(
-    job: JobEnvelope,
-    action: str,
-    request: dict[str, Any],
-    plan: dict[str, Any],
-    bundle_dir: Path,
-    started: str,
-) -> dict[str, Any]:
-    finished = utc_now_iso()
-    return {
-        "task_id": job.task_id,
-        "workflow_id": job.workflow_id,
-        "agent_id": job.agent_id,
-        "tool_id": job.tool_id,
-        "action": action,
-        "dry_run": False,
-        "execution_mode": "materialized-recipe",
-        "bundle_dir": str(bundle_dir),
-        "dataset_id": str(plan.get("dataset_id", "")),
-        "model_id": str(plan.get("model_id", "")),
-        "target": str(plan.get("target", "")),
-        "summary": execution_summary(action, plan),
-        "started_at": started,
-        "finished_at": finished,
-        "request": request,
-        "plan": plan,
-    }
 
 
 def build_command_execution_record(
@@ -395,26 +469,57 @@ def build_command_execution_record(
     return record
 
 
+def build_recipe_execution_record(
+    job: JobEnvelope,
+    action: str,
+    request: dict[str, Any],
+    plan: dict[str, Any],
+    bundle_dir: Path,
+    recipe: str,
+    report_path: Path,
+    started: str,
+    finished: str,
+    execution_mode: str,
+    status: str,
+    summary: str,
+    timeout_seconds: int,
+    returncode: int | None = None,
+    stdout_excerpt: list[str] | None = None,
+    stderr_excerpt: list[str] | None = None,
+) -> dict[str, Any]:
+    record = {
+        "task_id": job.task_id,
+        "workflow_id": job.workflow_id,
+        "agent_id": job.agent_id,
+        "tool_id": job.tool_id,
+        "action": action,
+        "dry_run": False,
+        "execution_mode": execution_mode,
+        "status": status,
+        "bundle_dir": str(bundle_dir),
+        "dataset_id": str(plan.get("dataset_id", "")),
+        "model_id": str(plan.get("model_id", "")),
+        "target": str(plan.get("target", "")),
+        "summary": summary,
+        "started_at": started,
+        "finished_at": finished,
+        "execution_recipe": recipe,
+        "execution_timeout_seconds": timeout_seconds,
+        "recipe_report_path": str(report_path),
+        "request": request,
+        "plan": plan,
+    }
+    if returncode is not None:
+        record["returncode"] = returncode
+    if stdout_excerpt:
+        record["stdout_excerpt"] = stdout_excerpt
+    if stderr_excerpt:
+        record["stderr_excerpt"] = stderr_excerpt
+    return record
+
+
 def execution_summary(action: str, plan: dict[str, Any]) -> str:
-    if action == "training.run":
-        return (
-            "training execution bundle materialized: "
-            f"dataset={plan.get('dataset_id', '')} target={plan.get('target_task', '')} model={plan.get('model_family', '')}"
-        )
-    if action == "evaluation.run":
-        return (
-            "evaluation execution bundle materialized: "
-            f"dataset={plan.get('dataset_id', '')} model={plan.get('model_id', '')} split={plan.get('split', '')}"
-        )
-    if action == "deployment.run":
-        return (
-            "deployment execution bundle materialized: "
-            f"model={plan.get('model_id', '')} target={plan.get('target', '')} runtime={plan.get('runtime', '')}"
-        )
-    if action == "autolabel.run":
-        task_types = ",".join(string_list(plan.get("task_types")))
-        return f"autolabel execution bundle materialized: dataset={plan.get('dataset_id', '')} task_types={task_types}"
-    return f"{action} execution bundle materialized"
+    return plan.get("summary", f"{action} recipe ready")
 
 
 def lifecycle_artifact_metadata(job: JobEnvelope, action: str, plan: dict[str, Any], dry_run: str) -> dict[str, str]:
@@ -460,6 +565,28 @@ def lifecycle_execution_artifacts(
     ]
 
 
+def lifecycle_recipe_artifacts(
+    job: JobEnvelope,
+    action: str,
+    request_path: Path,
+    plan_path: Path,
+    result_path: Path,
+    report_path: Path,
+    metadata: dict[str, str],
+    execution_mode: str,
+) -> list[JobArtifact]:
+    artifacts = lifecycle_execution_artifacts(job, action, request_path, plan_path, result_path, metadata, execution_mode)
+    artifacts.append(
+        JobArtifact(
+            name=f"{job.task_id}-{action}-recipe-report",
+            uri=str(report_path),
+            kind=f"{action}.recipe_report",
+            metadata={**metadata, "role": "recipe_report", "execution_mode": execution_mode},
+        )
+    )
+    return artifacts
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -480,6 +607,13 @@ def resolve_execution_cwd(request: dict[str, Any]) -> Path:
 
 def request_command(request: dict[str, Any]) -> list[str]:
     return string_list(request.get("execution_command"))
+
+
+def request_recipe(request: dict[str, Any]) -> str:
+    value = optional_string(request, "execution_recipe")
+    if value:
+        return value
+    return "default"
 
 
 def execution_env(request: dict[str, Any]) -> dict[str, str]:

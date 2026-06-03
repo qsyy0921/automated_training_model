@@ -91,11 +91,14 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		t.Fatalf("unexpected autolabel body: %+v", autolabelBody)
 	}
 
-	if err := runTraining(cfg, []string{"submit", "-dataset", "ds1", "-target-task", "detection", "-model-family", "yolo11n", "-exec", "python", "-exec-arg=-c", "-exec-arg=print('train')", "-exec-cwd", "tmp/train", "-exec-env", "ATM_TEST=1", "-exec-timeout", "30"}); err != nil {
+	if err := runTraining(cfg, []string{"submit", "-dataset", "ds1", "-target-task", "detection", "-model-family", "yolo11n", "-exec-recipe", "default", "-exec", "python", "-exec-arg=-c", "-exec-arg=print('train')", "-exec-cwd", "tmp/train", "-exec-env", "ATM_TEST=1", "-exec-timeout", "30"}); err != nil {
 		t.Fatal(err)
 	}
 	if trainingBody["dataset_id"] != "ds1" || trainingBody["target_task"] != "detection" || trainingBody["model_family"] != "yolo11n" || trainingBody["dry_run"] != false {
 		t.Fatalf("unexpected training body: %+v", trainingBody)
+	}
+	if trainingBody["execution_recipe"] != "default" {
+		t.Fatalf("unexpected training execution recipe body: %+v", trainingBody)
 	}
 	if len(trainingBody["execution_command"].([]any)) != 3 || trainingBody["execution_timeout_seconds"].(float64) != 30 || trainingBody["execution_cwd"] != "tmp/train" {
 		t.Fatalf("unexpected training execution body: %+v", trainingBody)
@@ -188,10 +191,10 @@ func TestRunAutoLabelSupportsExecutionFlags(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if err := runAutoLabel(Config{addr: server.URL}, []string{"submit", "-dataset", "ds1", "-task-types", "label", "-exec", "python", "-exec-arg=-c", "-exec-arg=print('auto')", "-exec-cwd", "tmp/auto", "-exec-env", "AUTO=1", "-exec-timeout", "45"}); err != nil {
+	if err := runAutoLabel(Config{addr: server.URL}, []string{"submit", "-dataset", "ds1", "-task-types", "label", "-exec-recipe", "default", "-exec-cwd", "tmp/auto", "-exec-env", "AUTO=1", "-exec-timeout", "45"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(body["execution_command"].([]any)) != 3 || body["execution_cwd"] != "tmp/auto" || body["execution_timeout_seconds"].(float64) != 45 {
+	if body["execution_recipe"] != "default" || body["execution_cwd"] != "tmp/auto" || body["execution_timeout_seconds"].(float64) != 45 {
 		t.Fatalf("unexpected autolabel execution body: %+v", body)
 	}
 }

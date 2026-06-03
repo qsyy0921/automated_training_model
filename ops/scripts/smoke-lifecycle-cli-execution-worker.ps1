@@ -67,7 +67,7 @@ function Assert-TaskExecutionMode {
   $resultArtifact = @($logs.artifacts | Where-Object { $_.kind -like "*.result" } | Select-Object -First 1)
   Assert-True ($resultArtifact.Count -eq 1) "missing result artifact for $TaskId"
   $payload = Get-Content -LiteralPath $resultArtifact[0].uri -Raw | ConvertFrom-Json
-  Assert-True ($payload.execution_mode -eq "command-executed") "unexpected execution_mode: $($payload.execution_mode)"
+  Assert-True ($payload.execution_mode -eq "recipe-executed") "unexpected execution_mode: $($payload.execution_mode)"
 }
 
 function Run-LabelctlJson {
@@ -139,10 +139,7 @@ try {
     "-dataset", $DatasetId,
     "-target-task", $TargetTask,
     "-model-family", $ModelFamily,
-    "-exec", "powershell",
-    "-exec-arg=-NoProfile",
-    "-exec-arg=-Command",
-    "-exec-arg=Write-Output 'cli train ok'",
+    "-exec-recipe", "default",
     "-exec-timeout", "30"
   )
   Wait-TaskCompleted -BaseUrl $baseURL -TaskId $train.run.task_id -Deadline $deadline -Label "training CLI task" | Out-Null
@@ -153,10 +150,7 @@ try {
     "evaluation", "submit",
     "-dataset", $DatasetId,
     "-model", $EvaluationModelId,
-    "-exec", "powershell",
-    "-exec-arg=-NoProfile",
-    "-exec-arg=-Command",
-    "-exec-arg=Write-Output 'cli eval ok'",
+    "-exec-recipe", "default",
     "-exec-timeout", "30"
   )
   Wait-TaskCompleted -BaseUrl $baseURL -TaskId $eval.run.task_id -Deadline $deadline -Label "evaluation CLI task" | Out-Null
@@ -168,10 +162,7 @@ try {
     "-model", $DeploymentModelId,
     "-target", "local",
     "-dry-run=false",
-    "-exec", "powershell",
-    "-exec-arg=-NoProfile",
-    "-exec-arg=-Command",
-    "-exec-arg=Write-Output 'cli deploy ok'",
+    "-exec-recipe", "default",
     "-exec-timeout", "30"
   )
   Wait-TaskCompleted -BaseUrl $baseURL -TaskId $deploy.deployment.task_id -Deadline $deadline -Label "deployment CLI task" | Out-Null

@@ -166,7 +166,7 @@ func (s *Service) submit(ctx context.Context, taskType string, req any) (string,
 	payload := map[string]string{"request_json": string(raw)}
 	var fields map[string]any
 	if err := json.Unmarshal(raw, &fields); err == nil {
-		for _, key := range []string{"dataset_id", "model_id", "target_task", "model_family", "target", "runtime", "dry_run"} {
+		for _, key := range []string{"dataset_id", "model_id", "target_task", "model_family", "target", "runtime", "dry_run", "execution_recipe"} {
 			if value := strings.TrimSpace(fmt.Sprint(fields[key])); value != "" && value != "<nil>" {
 				payload[key] = value
 			}

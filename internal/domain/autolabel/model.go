@@ -6,6 +6,7 @@ type Request struct {
 	TaskTypes        []string          `json:"task_types"`
 	ModelProfile     string            `json:"model_profile,omitempty"`
 	Prompt           string            `json:"prompt,omitempty"`
+	ExecutionRecipe  string            `json:"execution_recipe,omitempty"`
 	ExecutionCommand []string          `json:"execution_command,omitempty"`
 	ExecutionCwd     string            `json:"execution_cwd,omitempty"`
 	ExecutionEnv     map[string]string `json:"execution_env,omitempty"`

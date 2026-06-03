@@ -76,6 +76,7 @@ func TestSubmitTrainingPreservesExecutionFieldsInRequestJSON(t *testing.T) {
 		TargetTask:       "detection",
 		ModelFamily:      "yolo11n",
 		DryRun:           false,
+		ExecutionRecipe:  "default",
 		ExecutionCommand: []string{"python", "-c", "print('ok')"},
 		ExecutionCwd:     "tmp/runtime-training",
 		ExecutionEnv:     map[string]string{"ATM_TEST": "1"},
@@ -83,6 +84,12 @@ func TestSubmitTrainingPreservesExecutionFieldsInRequestJSON(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if gateway.payload["execution_recipe"] != "default" {
+		t.Fatalf("expected normalized execution_recipe payload, got %+v", gateway.payload)
+	}
+	if !strings.Contains(gateway.payload["request_json"], `"execution_recipe":"default"`) {
+		t.Fatalf("expected request_json to include execution_recipe, got %s", gateway.payload["request_json"])
 	}
 	if !strings.Contains(gateway.payload["request_json"], `"execution_command":["python","-c","print('ok')"]`) {
 		t.Fatalf("expected request_json to include execution_command, got %s", gateway.payload["request_json"])

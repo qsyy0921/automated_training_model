@@ -46,9 +46,12 @@ Dry-run results include:
 - `retryable`, `attempt`, `max_attempts`: retry contract for the future Go task runner.
 
 Lifecycle worker execution can now run an explicit command when a non-dry-run
-request includes `execution_command`. In that mode the worker still materializes
-`request.json`, `plan.json`, and `result.json`, but `result.json.execution_mode`
-changes to `command-executed`, `command-failed`, or `command-timeout`.
+request uses the default repo-owned recipe runner. In that mode the worker
+materializes `request.json`, `plan.json`, `result.json`, and `recipe_report.json`,
+and `result.json.execution_mode` becomes `recipe-executed`, `recipe-failed`, or
+`recipe-timeout`. If the request explicitly includes `execution_command`, the
+worker switches to operator-specified command execution and emits
+`command-executed`, `command-failed`, or `command-timeout`.
 
 Agent Runtime prototype:
 
