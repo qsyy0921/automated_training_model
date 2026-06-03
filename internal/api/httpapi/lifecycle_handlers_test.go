@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +42,11 @@ func (f fakeTaskGateway) Status(ctx context.Context, id string) (*workflow.Task,
 func (f fakeTaskGateway) Cancel(ctx context.Context, id string) error { return nil }
 
 func TestLifecycleTaskLogsEndpoints(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := filepath.Join(root, "task_000001.artifact_manifest.json")
+	if err := os.WriteFile(manifestPath, []byte("{\n  \"schema_version\": \"artifact-manifest/v1\",\n  \"artifact_summary\": {\n    \"artifact_count\": 1,\n    \"primary_artifact\": {\"name\": \"plan\", \"uri\": \"artifact://training/task_000001\", \"role\": \"plan\"}\n  }\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	task := &workflow.Task{
 		ID:              "task_000001",
 		Type:            "training.run",
@@ -51,7 +58,7 @@ func TestLifecycleTaskLogsEndpoints(t *testing.T) {
 		WorkerHeartbeat: &workflow.TaskHeartbeat{At: "2026-06-03T12:34:56Z", Status: "completed", Message: "done"},
 		Artifacts:       []workflow.TaskArtifact{{Name: "plan", URI: "artifact://training/task_000001", Kind: "dry-run-plan"}},
 		Stdout:          "{\"status\":\"completed\"}",
-		Metadata:        map[string]string{"artifact_manifest": "F:\\automated_training_model\\data_lake\\runtime\\artifacts\\task_000001.artifact_manifest.json"},
+		Metadata:        map[string]string{"artifact_manifest": manifestPath},
 		Logs: []workflow.TaskLog{
 			{At: time.Unix(1, 0), Level: "info", Message: "queued"},
 			{At: time.Unix(2, 0), Level: "info", Message: "done"},
@@ -84,6 +91,16 @@ func TestLifecycleTaskLogsEndpoints(t *testing.T) {
 	stream := rec.Body.String()
 	if !strings.Contains(stream, `"type":"log"`) || !strings.Contains(stream, `"type":"final"`) || !strings.Contains(stream, `"status":"completed"`) || !strings.Contains(stream, `"artifact_manifest"`) {
 		t.Fatalf("unexpected stream body: %s", stream)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/tasks/task_000001/manifest", nil)
+	rec = httptest.NewRecorder()
+	server.taskDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected manifest status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"schema_version":"artifact-manifest/v1"`) || !strings.Contains(rec.Body.String(), `"primary_artifact"`) || !strings.Contains(rec.Body.String(), `task_000001.artifact_manifest.json`) {
+		t.Fatalf("unexpected manifest response: %s", rec.Body.String())
 	}
 }
 

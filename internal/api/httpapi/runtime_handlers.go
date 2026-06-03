@@ -109,6 +109,9 @@ func (s *Server) runtimeModelJobDetail(w http.ResponseWriter, r *http.Request) {
 	case "logs/stream":
 		s.runtimeModelJobLogStream(w, r, id)
 		return
+	case "manifest":
+		s.runtimeModelJobManifest(w, r, id)
+		return
 	default:
 		writeError(w, http.StatusNotFound, errors.New("model job not found"))
 		return
@@ -141,6 +144,20 @@ func (s *Server) runtimeModelJobLogs(w http.ResponseWriter, r *http.Request, id 
 		"metadata":         job.Metadata,
 		"logs":             agentruntime.RecentModelJobLogs(job, runtimeTraceLimit(r)),
 	})
+}
+
+func (s *Server) runtimeModelJobManifest(w http.ResponseWriter, r *http.Request, id string) {
+	job, ok := s.runtime.GetModelJob(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, errors.New("model job not found"))
+		return
+	}
+	payload, err := artifactManifestResponseFromPath(job.Metadata["artifact_manifest"])
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) runtimeModelJobLogStream(w http.ResponseWriter, r *http.Request, id string) {

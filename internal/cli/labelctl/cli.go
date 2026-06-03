@@ -252,6 +252,12 @@ func runRuntime(cfg Config, args []string) error {
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/logs")
 	}
+	if args[0] == "job-manifest" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime job-manifest <job_id>")
+		}
+		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/manifest")
+	}
 	if args[0] == "job-logs-stream" || args[0] == "follow-job" {
 		if len(args) < 2 {
 			return errors.New("usage: labelctl runtime job-logs-stream <job_id>")
@@ -272,6 +278,12 @@ func runRuntime(cfg Config, args []string) error {
 			return errors.New("usage: labelctl runtime task-logs <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs")
+	}
+	if args[0] == "task-manifest" {
+		if len(args) < 2 {
+			return errors.New("usage: labelctl runtime task-manifest <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/manifest")
 	}
 	if args[0] == "task-logs-stream" || args[0] == "follow-task" {
 		if len(args) < 2 {
@@ -959,11 +971,11 @@ func usage() {
   health
   videos
   dataset [list|register-folder|register-manifest|activate]
-  models [list|get <id>|register|jobs|job <id>|job-logs <id>|cancel-job <id>|resume-job <id>]
-  deploy [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
-  autolabel [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
-  training [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
-  evaluation [submit|task <id>|task-logs <id>|follow-task <id>|cancel-task <id>]
+  models [list|get <id>|register|jobs|job <id>|job-logs <id>|job-manifest <id>|cancel-job <id>|resume-job <id>]
+  deploy [submit|task <id>|task-logs <id>|task-manifest <id>|follow-task <id>|cancel-task <id>]
+  autolabel [submit|task <id>|task-logs <id>|task-manifest <id>|follow-task <id>|cancel-task <id>]
+  training [submit|task <id>|task-logs <id>|task-manifest <id>|follow-task <id>|cancel-task <id>]
+  evaluation [submit|task <id>|task-logs <id>|task-manifest <id>|follow-task <id>|cancel-task <id>]
   logs [traces|audit|runs|jobs|job <id>|task <id>|intake]
   doctor
   providers
@@ -972,7 +984,7 @@ func usage() {
   workflows
   runs
   audit
-  runtime [status|sessions|traces|model-jobs|job <id>|job-logs <id>|cancel-job <id>|resume-job <id>|intake|intake-workflow <id>|approve-intake <id>|register-intake <id>|send <message>|chat]
+  runtime [status|sessions|traces|model-jobs|job <id>|job-logs <id>|job-manifest <id>|task <id>|task-logs <id>|task-manifest <id>|cancel-job <id>|resume-job <id>|cancel-task <id>|intake|intake-workflow <id>|approve-intake <id>|register-intake <id>|send <message>|chat]
   desktop [status|sessions|traces|jobs|send <message>|json]
   channels
   channel qq status

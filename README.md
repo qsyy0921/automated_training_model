@@ -70,6 +70,7 @@ Model & Data Training Platform
 - Go 控制面已接入 Python model worker 的最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；`dry_run=true` 和真实下载共用同一条 worker 路径。worker timeout、坏 JSON 和显式 failed 结果也会把部分 stdout/stderr、retryable 和 `worker_error_kind` 落回 job store，便于 CLI/Web/API 统一排障。`model.verify_hf` 支持显式 `job=true` 的 Python worker job 模式；`model.smoke_locateanything` 也支持显式 `job=true` 的 worker smoke 模式，默认仍保持同步 smoke，避免打断现有 ShanghaiTech dry-run 链。若需回退旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`；若需同步执行旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_SYNC=true`。
 - Python worker 运行中事件已通过 `stderr` 结构化桥接回 Go：worker 在执行期间会持续回写 heartbeat、stdout/stderr 行和运行日志到同一份 `ModelJobStore`；`/api/runtime/model-jobs/{id}/logs/stream` 与 `labelctl agent /follow-job` 会直接看到这些中间态，而不是只能等终态摘要。
 - `labelctl agent /follow-job <job_id>` 终态事件现在会直接显示 retry、heartbeat、artifact、manifest 和 stdout/stderr 摘要，不必再手动补一次 `/job-logs`。
+- model job / lifecycle task 现在都支持独立 manifest 读取：`GET /api/runtime/model-jobs/{id}/manifest`、`GET /api/tasks/{id}/manifest`，CLI 可直接用 `/job-manifest`、`/task-manifest` 或 `labelctl runtime job-manifest|task-manifest` 查看 `artifact-manifest/v1` 摘要。
 - `training-agent` 已有最小可运行入口：`/bot-train-dry|run <dataset_id> [target_task] [model_family]`、`/bot-eval-dry|run <dataset_id> <model_id> [split]`、`/bot-deploy-dry|run <model_id> <target> [runtime] [replicas]` 会直接创建 `training.run`、`evaluation.run`、`deployment.run` 的 Python worker `ModelJob`，并把 heartbeat、logs、artifacts、stdout/stderr 摘要写回同一份 runtime store；其中 `*-dry` 生成 dry-run plan，`*-run` 默认走 `execution_recipe=default` 的 repo-owned recipe runner，落地 `request.json` / `plan.json` / `result.json` / `recipe_spec.json` / `recipe_report.json`，`recipe_spec.json` 会记录 stage、outputs 和 repo-owned command preview，仍未接入真实 GPU 训练/评估/部署 recipe。
 
 ## Agent 生命周期
@@ -108,10 +109,12 @@ atm:02 planner-agent> 请帮我规划 ShanghaiTech 数据接入
 atm:03 planner-agent> /traces
 atm:03 planner-agent> /job <job_id>
 atm:03 planner-agent> /job-logs <job_id>
+atm:03 planner-agent> /job-manifest <job_id>
 atm:03 planner-agent> /follow-job <job_id>
 atm:03 planner-agent> /tasks
 atm:03 planner-agent> /task <task_id>
 atm:03 planner-agent> /task-logs <task_id>
+atm:03 planner-agent> /task-manifest <task_id>
 atm:03 planner-agent> /follow-task <task_id>
 atm:03 planner-agent> /doctor
 atm:03 planner-agent> /exit
@@ -128,7 +131,9 @@ atm:03 planner-agent> /exit
 /job <id>    查看单个模型/后台 job
 /task <id>   查看单个 lifecycle task
 /job-logs <id>    查看 job 生命周期日志
+/job-manifest <id> 查看 job artifact manifest
 /task-logs <id>   查看 lifecycle task 生命周期日志
+/task-manifest <id> 查看 lifecycle task artifact manifest
 /follow-job <id>  跟随 job NDJSON 日志流，直到终态或超时
 /follow-task <id> 跟随 lifecycle task NDJSON 日志流，直到终态或超时
 /doctor      gateway、本机 CLI、LLM/Mimo 环境变量诊断
@@ -138,7 +143,7 @@ atm:03 planner-agent> /exit
 /exit        退出
 ```
 
-等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。长任务观测也在交互 CLI 内闭环：`/job`、`/job-logs` 和 `/follow-job` 复用 Gateway 的 model job API / NDJSON stream，不直接读取本地 data_lake 文件；worker 正在运行时的 heartbeat、`stdout>`、`stderr>` 行也会持续出现在同一条 job 日志流里。lifecycle task 现在同样支持 `GET /api/tasks`、`GET /api/tasks/{id}`、`GET /api/tasks/{id}/logs` 和 `GET /api/tasks/{id}/logs/stream`；交互式 CLI 可直接使用 `/tasks`、`/task`、`/task-logs`、`/follow-task`，一次性命令则可使用 `labelctl runtime tasks`、`labelctl runtime task-logs <task_id>`、`labelctl logs follow-task <task_id>`。
+等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。长任务观测也在交互 CLI 内闭环：`/job`、`/job-logs`、`/job-manifest` 和 `/follow-job` 复用 Gateway 的 model job API / NDJSON stream，不直接读取本地 data_lake 文件；worker 正在运行时的 heartbeat、`stdout>`、`stderr>` 行也会持续出现在同一条 job 日志流里。lifecycle task 现在同样支持 `GET /api/tasks`、`GET /api/tasks/{id}`、`GET /api/tasks/{id}/logs`、`GET /api/tasks/{id}/manifest` 和 `GET /api/tasks/{id}/logs/stream`；交互式 CLI 可直接使用 `/tasks`、`/task`、`/task-logs`、`/task-manifest`、`/follow-task`，一次性命令则可使用 `labelctl runtime tasks`、`labelctl runtime task-logs <task_id>`、`labelctl runtime task-manifest <task_id>`、`labelctl logs follow-task <task_id>`。
 
 也可以使用一次性命令：
 
@@ -150,9 +155,11 @@ atm:03 planner-agent> /exit
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime model-jobs
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job-logs <job_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime job-manifest <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime tasks
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime task <task_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime task-logs <task_id>
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime task-manifest <task_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime cancel-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 runtime resume-job <job_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 dataset list

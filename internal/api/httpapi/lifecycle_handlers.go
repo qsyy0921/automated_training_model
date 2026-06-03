@@ -131,6 +131,9 @@ func (s *Server) taskDetail(w http.ResponseWriter, r *http.Request) {
 	case "logs/stream":
 		s.taskLogStream(w, r, id)
 		return
+	case "manifest":
+		s.taskManifest(w, r, id)
+		return
 	default:
 		writeError(w, http.StatusNotFound, errors.New("task not found"))
 		return
@@ -163,6 +166,20 @@ func (s *Server) taskLogs(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	writeJSON(w, http.StatusOK, lifecycleTaskLogsPayload(task, lifecycleTaskRecentLogs(task, runtimeTraceLimit(r))))
+}
+
+func (s *Server) taskManifest(w http.ResponseWriter, r *http.Request, id string) {
+	task, err := s.lifecycle.TaskStatus(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	payload, err := artifactManifestResponseFromPath(task.Metadata["artifact_manifest"])
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) taskLogStream(w http.ResponseWriter, r *http.Request, id string) {

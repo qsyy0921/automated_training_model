@@ -76,6 +76,8 @@ func TestRuntimeChatModelJobCommandsUseGateway(t *testing.T) {
 			_, _ = w.Write([]byte(`{"task":{"id":"task1","type":"training.run","status":"running","progress_percent":35,"message":"running python worker execution","retryable":false,"attempt":1,"max_attempts":1,"updated_at":"2026-06-03T12:34:56Z"}}`))
 		case "/api/tasks/task1/logs":
 			_, _ = w.Write([]byte(`{"task_id":"task1","type":"training.run","status":"running","progress_percent":35,"retryable":false,"attempt":1,"max_attempts":1,"worker_heartbeat":{"at":"2026-06-03T12:34:56Z","status":"running","message":"alive"},"artifacts":[{"name":"result","uri":"artifact://training/task1","kind":"training.run.result"}],"stdout":"{\"status\":\"running\"}","metadata":{"artifact_manifest":"F:\\automated_training_model\\data_lake\\runtime\\artifacts\\task1.artifact_manifest.json"},"logs":[{"at":"2026-06-03T12:34:56Z","level":"info","message":"running"}]}`))
+		case "/api/tasks/task1/manifest":
+			_, _ = w.Write([]byte(`{"path":"F:\\automated_training_model\\data_lake\\runtime\\artifacts\\task1.artifact_manifest.json","manifest":{"schema_version":"artifact-manifest/v1","artifact_summary":{"artifact_count":1,"role_counts":{"result":1},"execution_mode_counts":{"recipe-executed":1},"primary_artifact":{"name":"result","uri":"artifact://training/task1","role":"result","execution_mode":"recipe-executed"}},"artifacts":[{"name":"result","uri":"artifact://training/task1","kind":"training.run.result"}]}}`))
 		case "/api/tasks/task1/logs/stream":
 			_, _ = w.Write([]byte(`{"type":"log","task_id":"task1","log":{"at":"2026-06-03T12:34:56Z","level":"info","message":"running"}}` + "\n"))
 			_, _ = w.Write([]byte(`{"type":"final","task_id":"task1","status":"completed","progress_percent":100,"message":"done","retryable":false,"attempt":1,"max_attempts":1,"worker_heartbeat":{"at":"2026-06-03T12:34:57Z","status":"completed","message":"done"},"artifacts":[{"name":"result","uri":"artifact://training/task1","kind":"training.run.result"}],"stdout":"{\"status\":\"completed\"}","metadata":{"artifact_manifest":"F:\\automated_training_model\\data_lake\\runtime\\artifacts\\task1.artifact_manifest.json"}}` + "\n"))
@@ -83,6 +85,8 @@ func TestRuntimeChatModelJobCommandsUseGateway(t *testing.T) {
 			_, _ = w.Write([]byte(`{"job":{"id":"job1","repo_id":"nvidia/LocateAnything-3B","kind":"model.download_hf","status":"running","progress_percent":25,"message":"running","retryable":true,"attempt":1,"max_attempts":3,"updated_at":"2026-06-03T12:34:56Z"}}`))
 		case "/api/runtime/model-jobs/job1/logs":
 			_, _ = w.Write([]byte(`{"job_id":"job1","status":"running","progress_percent":25,"retryable":true,"attempt":1,"max_attempts":3,"worker_heartbeat":{"at":"2026-06-03T12:34:56Z","status":"running","message":"alive"},"artifacts":[{"name":"plan","uri":"artifact://dry-run/job1","kind":"dry-run-plan"}],"stdout":"{\"status\":\"running\"}","metadata":{"artifact_manifest":"F:\\automated_training_model\\data_lake\\runtime\\artifacts\\job1.artifact_manifest.json"},"logs":[{"at":"2026-06-03T12:34:56Z","level":"info","message":"running"}]}`))
+		case "/api/runtime/model-jobs/job1/manifest":
+			_, _ = w.Write([]byte(`{"path":"F:\\automated_training_model\\data_lake\\runtime\\artifacts\\job1.artifact_manifest.json","manifest":{"schema_version":"artifact-manifest/v1","artifact_summary":{"artifact_count":1,"role_counts":{"plan":1},"primary_artifact":{"name":"plan","uri":"artifact://dry-run/job1","role":"plan"}},"artifacts":[{"name":"plan","uri":"artifact://dry-run/job1","kind":"dry-run-plan"}]}}`))
 		case "/api/runtime/model-jobs/job1/logs/stream":
 			_, _ = w.Write([]byte(`{"type":"log","job_id":"job1","log":{"at":"2026-06-03T12:34:56Z","level":"info","message":"running"}}` + "\n"))
 			_, _ = w.Write([]byte(`{"type":"final","job_id":"job1","status":"succeeded","progress_percent":100,"message":"done","retryable":false,"attempt":1,"max_attempts":3,"worker_heartbeat":{"at":"2026-06-03T12:34:57Z","status":"completed","message":"done"},"artifacts":[{"name":"plan","uri":"artifact://dry-run/job1","kind":"dry-run-plan"}],"stdout":"{\"status\":\"completed\"}","metadata":{"artifact_manifest":"F:\\automated_training_model\\data_lake\\runtime\\artifacts\\job1.artifact_manifest.json"}}` + "\n"))
@@ -95,7 +99,7 @@ func TestRuntimeChatModelJobCommandsUseGateway(t *testing.T) {
 	var out bytes.Buffer
 	chat := newRuntimeChat(Config{addr: server.URL}, strings.NewReader(""), &out, &out)
 	chat.noColor = true
-	for _, input := range []string{"/tasks", "/task task1", "/task-logs task1", "/follow-task task1", "/job job1", "/job-logs job1", "/follow-job job1"} {
+	for _, input := range []string{"/tasks", "/task task1", "/task-logs task1", "/task-manifest task1", "/follow-task task1", "/job job1", "/job-logs job1", "/job-manifest job1", "/follow-job job1"} {
 		handled, err := chat.handleCommand(input)
 		if err != nil {
 			t.Fatalf("%s failed: %v", input, err)
@@ -104,12 +108,12 @@ func TestRuntimeChatModelJobCommandsUseGateway(t *testing.T) {
 			t.Fatalf("%s was not handled", input)
 		}
 	}
-	for _, path := range []string{"/api/tasks", "/api/tasks/task1", "/api/tasks/task1/logs", "/api/tasks/task1/logs/stream", "/api/runtime/model-jobs/job1", "/api/runtime/model-jobs/job1/logs", "/api/runtime/model-jobs/job1/logs/stream"} {
+	for _, path := range []string{"/api/tasks", "/api/tasks/task1", "/api/tasks/task1/logs", "/api/tasks/task1/manifest", "/api/tasks/task1/logs/stream", "/api/runtime/model-jobs/job1", "/api/runtime/model-jobs/job1/logs", "/api/runtime/model-jobs/job1/manifest", "/api/runtime/model-jobs/job1/logs/stream"} {
 		if !seen[path] {
 			t.Fatalf("expected request to %s", path)
 		}
 	}
-	if !strings.Contains(out.String(), "Lifecycle Task Logs") || !strings.Contains(out.String(), "Following Lifecycle Task") || !strings.Contains(out.String(), "artifact://training/task1") || !strings.Contains(out.String(), "Model Job Logs") || !strings.Contains(out.String(), "final status=succeeded") || !strings.Contains(out.String(), "artifact://dry-run/job1") || !strings.Contains(out.String(), "attempt=1/3") || !strings.Contains(out.String(), "manifest  F:\\") || !strings.Contains(out.String(), "stdout    {\"status\":\"completed\"}") {
+	if !strings.Contains(out.String(), "Lifecycle Task Logs") || !strings.Contains(out.String(), "Lifecycle Task Artifact Manifest") || !strings.Contains(out.String(), "roles     result=1") || !strings.Contains(out.String(), "Following Lifecycle Task") || !strings.Contains(out.String(), "artifact://training/task1") || !strings.Contains(out.String(), "Model Job Logs") || !strings.Contains(out.String(), "Model Job Artifact Manifest") || !strings.Contains(out.String(), "final status=succeeded") || !strings.Contains(out.String(), "artifact://dry-run/job1") || !strings.Contains(out.String(), "attempt=1/3") || !strings.Contains(out.String(), "manifest  F:\\") || !strings.Contains(out.String(), "stdout    {\"status\":\"completed\"}") {
 		t.Fatalf("unexpected output:\n%s", out.String())
 	}
 }

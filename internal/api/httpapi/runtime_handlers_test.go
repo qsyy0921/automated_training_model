@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +31,11 @@ func (f fakeRuntimeRunner) GetModelJob(id string) (agentruntime.ModelJob, bool) 
 }
 
 func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
+	root := t.TempDir()
+	manifestPath := filepath.Join(root, "job1.artifact_manifest.json")
+	if err := os.WriteFile(manifestPath, []byte("{\n  \"schema_version\": \"artifact-manifest/v1\",\n  \"artifact_summary\": {\n    \"artifact_count\": 1,\n    \"primary_artifact\": {\"name\": \"plan\", \"uri\": \"artifact://dry-run/job1\", \"role\": \"plan\"}\n  }\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	job := agentruntime.ModelJob{
 		ID:              "job1",
 		Status:          "succeeded",
@@ -40,7 +47,7 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 		WorkerHeartbeat: &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:56Z", Status: "completed", Message: "done"},
 		Artifacts:       []agentruntime.ModelJobArtifact{{Name: "plan", URI: "artifact://dry-run/job1", Kind: "dry-run-plan"}},
 		Stdout:          "{\"status\":\"completed\"}",
-		Metadata:        map[string]string{"artifact_manifest": "F:\\automated_training_model\\data_lake\\runtime\\artifacts\\job1.artifact_manifest.json"},
+		Metadata:        map[string]string{"artifact_manifest": manifestPath},
 		Logs: []agentruntime.ModelJobLog{
 			{At: time.Unix(1, 0), Level: "info", Message: "queued"},
 			{At: time.Unix(2, 0), Level: "info", Message: "done"},
@@ -70,6 +77,16 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, `"type":"log"`) || !strings.Contains(body, `"type":"final"`) || !strings.Contains(body, `"status":"succeeded"`) || !strings.Contains(body, `"worker_heartbeat"`) || !strings.Contains(body, `"artifact_manifest"`) {
 		t.Fatalf("unexpected stream body: %s", body)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/runtime/model-jobs/job1/manifest", nil)
+	rec = httptest.NewRecorder()
+	server.runtimeModelJobDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected manifest status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"schema_version":"artifact-manifest/v1"`) || !strings.Contains(rec.Body.String(), `"primary_artifact"`) || !strings.Contains(rec.Body.String(), `job1.artifact_manifest.json`) {
+		t.Fatalf("unexpected manifest response: %s", rec.Body.String())
 	}
 }
 

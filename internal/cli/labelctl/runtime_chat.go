@@ -161,6 +161,34 @@ type runtimeTaskLogsPayload struct {
 	Logs            []runtimeTaskLog     `json:"logs"`
 }
 
+type runtimeArtifactManifestPayload struct {
+	Path     string                  `json:"path"`
+	Manifest runtimeArtifactManifest `json:"manifest"`
+}
+
+type runtimeArtifactManifest struct {
+	SchemaVersion   string                 `json:"schema_version"`
+	ArtifactSummary runtimeArtifactSummary `json:"artifact_summary"`
+	Artifacts       []runtimeJobArtifact   `json:"artifacts"`
+	Metadata        map[string]string      `json:"metadata"`
+}
+
+type runtimeArtifactSummary struct {
+	ArtifactCount       int                             `json:"artifact_count"`
+	RoleCounts          map[string]int                  `json:"role_counts"`
+	KindCounts          map[string]int                  `json:"kind_counts"`
+	ExecutionModeCounts map[string]int                  `json:"execution_mode_counts"`
+	PrimaryArtifact     *runtimeArtifactPrimaryArtifact `json:"primary_artifact"`
+}
+
+type runtimeArtifactPrimaryArtifact struct {
+	Name          string `json:"name"`
+	URI           string `json:"uri"`
+	Kind          string `json:"kind"`
+	Role          string `json:"role"`
+	ExecutionMode string `json:"execution_mode"`
+}
+
 type runtimeJobHeartbeat struct {
 	At      string `json:"at"`
 	Status  string `json:"status"`
@@ -424,11 +452,21 @@ func (c *runtimeChat) handleCommand(input string) (bool, error) {
 			return true, errors.New("usage: /job-logs <job_id>")
 		}
 		return true, c.printJobLogs(parts[1])
+	case "/job-manifest":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /job-manifest <job_id>")
+		}
+		return true, c.printJobManifest(parts[1])
 	case "/task-logs", "/logs-task":
 		if len(parts) < 2 {
 			return true, errors.New("usage: /task-logs <task_id>")
 		}
 		return true, c.printTaskLogs(parts[1])
+	case "/task-manifest":
+		if len(parts) < 2 {
+			return true, errors.New("usage: /task-manifest <task_id>")
+		}
+		return true, c.printTaskManifest(parts[1])
 	case "/follow-job":
 		if len(parts) < 2 {
 			return true, errors.New("usage: /follow-job <job_id>")
@@ -710,7 +748,9 @@ func (c *runtimeChat) printHelp() {
 		"/job <id>    model/background job detail",
 		"/task <id>   lifecycle task detail",
 		"/job-logs <id>    model job lifecycle logs",
+		"/job-manifest <id> model job artifact manifest",
 		"/task-logs <id>   lifecycle task logs",
+		"/task-manifest <id> lifecycle task artifact manifest",
 		"/follow-job <id>  stream model job logs until terminal or timeout",
 		"/follow-task <id> stream lifecycle task logs until terminal or timeout",
 		"/doctor      server, runtime and local CLI diagnostics",
@@ -967,6 +1007,55 @@ func (c *runtimeChat) printTaskLogs(id string) error {
 	}
 	c.printPanel("Lifecycle Task Logs", lines, statusColor(payload.Status))
 	return nil
+}
+
+func (c *runtimeChat) printJobManifest(id string) error {
+	var payload runtimeArtifactManifestPayload
+	if err := getJSONValue(c.cfg.addr+"/api/runtime/model-jobs/"+url.PathEscape(id)+"/manifest", &payload); err != nil {
+		return err
+	}
+	c.printArtifactManifestPanel("Model Job Artifact Manifest", payload)
+	return nil
+}
+
+func (c *runtimeChat) printTaskManifest(id string) error {
+	var payload runtimeArtifactManifestPayload
+	if err := getJSONValue(c.cfg.addr+"/api/tasks/"+url.PathEscape(id)+"/manifest", &payload); err != nil {
+		return err
+	}
+	c.printArtifactManifestPanel("Lifecycle Task Artifact Manifest", payload)
+	return nil
+}
+
+func (c *runtimeChat) printArtifactManifestPanel(title string, payload runtimeArtifactManifestPayload) {
+	lines := []string{
+		"schema    " + valueOr(payload.Manifest.SchemaVersion, "-"),
+		"path      " + valueOr(payload.Path, "-"),
+		fmt.Sprintf("count     %d", payload.Manifest.ArtifactSummary.ArtifactCount),
+	}
+	if primary := payload.Manifest.ArtifactSummary.PrimaryArtifact; primary != nil {
+		lines = append(lines,
+			"primary   "+valueOr(primary.Name, "-"),
+			"uri       "+valueOr(primary.URI, "-"),
+			"role      "+valueOr(primary.Role, "-"),
+		)
+		if strings.TrimSpace(primary.ExecutionMode) != "" {
+			lines = append(lines, "mode      "+primary.ExecutionMode)
+		}
+	}
+	if counts := compactCountMap(payload.Manifest.ArtifactSummary.RoleCounts); counts != "" {
+		lines = append(lines, "roles     "+counts)
+	}
+	if counts := compactCountMap(payload.Manifest.ArtifactSummary.ExecutionModeCounts); counts != "" {
+		lines = append(lines, "modes     "+counts)
+	}
+	if len(payload.Manifest.Artifacts) > 0 {
+		lines = append(lines, "")
+		for _, artifact := range payload.Manifest.Artifacts {
+			lines = append(lines, fmt.Sprintf("%s  %s  %s", valueOr(artifact.Name, "-"), valueOr(artifact.Kind, "-"), valueOr(artifact.URI, "-")))
+		}
+	}
+	c.printPanel(title, lines, "yellow")
 }
 
 func (c *runtimeChat) followJob(id string) error {
@@ -1340,6 +1429,22 @@ func compactMetadata(metadata map[string]any) string {
 			break
 		}
 		parts = append(parts, key+"="+firstLine(fmt.Sprint(metadata[key]), 48))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func compactCountMap(values map[string]int) string {
+	if len(values) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", key, values[key]))
 	}
 	return strings.Join(parts, ", ")
 }

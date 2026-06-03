@@ -133,10 +133,19 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if err := runRuntime(cfg, []string{"job-logs", "job1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runRuntime(cfg, []string{"job-manifest", "job1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runModels(cfg, []string{"job-logs", "job1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runModels(cfg, []string{"job-manifest", "job1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runLogs(cfg, []string{"job", "job1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runLogs(cfg, []string{"job-manifest", "job1"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := runRuntime(cfg, []string{"tasks"}); err != nil {
@@ -145,10 +154,19 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 	if err := runRuntime(cfg, []string{"task-logs", "task1"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runRuntime(cfg, []string{"task-manifest", "task1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runLogs(cfg, []string{"tasks"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := runLogs(cfg, []string{"task-manifest", "task1"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := runDeploy(cfg, []string{"follow-task", "task1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runDeploy(cfg, []string{"task-manifest", "task1"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -161,12 +179,17 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		"POST /api/deployments",
 		"POST /api/channels/qq/test-message",
 		"GET /api/runtime/model-jobs/job1/logs",
+		"GET /api/runtime/model-jobs/job1/manifest",
 		"GET /api/tasks",
 		"GET /api/tasks/task1/logs",
+		"GET /api/tasks/task1/manifest",
 		"GET /api/tasks/task1/logs/stream",
 	} {
 		want := 1
 		if key == "GET /api/runtime/model-jobs/job1/logs" {
+			want = 3
+		}
+		if key == "GET /api/runtime/model-jobs/job1/manifest" {
 			want = 3
 		}
 		if key == "GET /api/tasks" {
@@ -174,6 +197,9 @@ func TestDomainCommandsUseGatewayEndpoints(t *testing.T) {
 		}
 		if key == "GET /api/tasks/task1/logs" {
 			want = 1
+		}
+		if key == "GET /api/tasks/task1/manifest" {
+			want = 3
 		}
 		if seen[key] != want {
 			t.Fatalf("expected %s %d times, got %d", key, want, seen[key])

@@ -258,6 +258,37 @@ export interface RuntimeModelJobLog {
   message: string;
 }
 
+export interface ArtifactManifestSummary {
+  artifact_count: number;
+  role_counts?: Record<string, number>;
+  kind_counts?: Record<string, number>;
+  execution_mode_counts?: Record<string, number>;
+  primary_artifact?: {
+    name: string;
+    uri: string;
+    kind?: string;
+    role?: string;
+    execution_mode?: string;
+  };
+}
+
+export interface ArtifactManifestDocument {
+  schema_version: string;
+  artifact_summary: ArtifactManifestSummary;
+  artifacts?: Array<{
+    name: string;
+    uri: string;
+    kind?: string;
+    metadata?: Record<string, string>;
+  }>;
+  metadata?: Record<string, string>;
+}
+
+export interface ArtifactManifestPayload {
+  path: string;
+  manifest: ArtifactManifestDocument;
+}
+
 export interface RuntimeModelJobLogs {
   job_id: string;
   status: string;

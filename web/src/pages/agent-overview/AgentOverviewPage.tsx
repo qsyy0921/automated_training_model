@@ -20,9 +20,21 @@ export function AgentOverviewPage() {
     enabled: selectedJobId !== "",
     refetchInterval: selectedJobId ? 3000 : false
   });
+  const modelJobManifest = useQuery({
+    queryKey: ["runtime-model-job-manifest", selectedJobId],
+    queryFn: () => apiClient.runtimeModelJobManifest(selectedJobId),
+    enabled: selectedJobId !== "",
+    refetchInterval: selectedJobId ? 3000 : false
+  });
   const taskLogs = useQuery({
     queryKey: ["lifecycle-task-logs", selectedTaskId],
     queryFn: () => apiClient.taskLogs(selectedTaskId, 30),
+    enabled: selectedTaskId !== "",
+    refetchInterval: selectedTaskId ? 3000 : false
+  });
+  const taskManifest = useQuery({
+    queryKey: ["lifecycle-task-manifest", selectedTaskId],
+    queryFn: () => apiClient.taskManifest(selectedTaskId),
     enabled: selectedTaskId !== "",
     refetchInterval: selectedTaskId ? 3000 : false
   });
@@ -223,6 +235,13 @@ export function AgentOverviewPage() {
                 <small>{modelJobLogs.data.metadata.artifact_manifest}</small>
               </div>
             ) : null}
+            {selectedJobId !== "" && modelJobManifest.data?.manifest?.artifact_summary ? (
+              <div className="overviewRow">
+                <strong>summary</strong>
+                <span>{modelJobManifest.data.manifest.artifact_summary.artifact_count ?? 0} artifacts</span>
+                <small>{artifactSummaryText(modelJobManifest.data.manifest.artifact_summary)}</small>
+              </div>
+            ) : null}
             {selectedJobId !== "" && modelJobLogs.data?.stdout ? (
               <pre className="jsonPreview">{modelJobLogs.data.stdout}</pre>
             ) : null}
@@ -293,6 +312,13 @@ export function AgentOverviewPage() {
                 <strong>manifest</strong>
                 <span>artifact manifest</span>
                 <small>{taskLogs.data.metadata.artifact_manifest}</small>
+              </div>
+            ) : null}
+            {selectedTaskId !== "" && taskManifest.data?.manifest?.artifact_summary ? (
+              <div className="overviewRow">
+                <strong>summary</strong>
+                <span>{taskManifest.data.manifest.artifact_summary.artifact_count ?? 0} artifacts</span>
+                <small>{artifactSummaryText(taskManifest.data.manifest.artifact_summary)}</small>
               </div>
             ) : null}
             {selectedTaskId !== "" && taskLogs.data?.stdout ? (
@@ -395,4 +421,22 @@ function compactDateTime(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString("zh-CN", { hour12: false });
+}
+
+function artifactSummaryText(summary: {
+  role_counts?: Record<string, number>;
+  execution_mode_counts?: Record<string, number>;
+  primary_artifact?: { role?: string; execution_mode?: string; uri?: string };
+}) {
+  const parts: string[] = [];
+  if (summary.primary_artifact?.role) parts.push(`primary=${summary.primary_artifact.role}`);
+  if (summary.primary_artifact?.execution_mode) parts.push(`mode=${summary.primary_artifact.execution_mode}`);
+  if (summary.role_counts && Object.keys(summary.role_counts).length > 0) {
+    parts.push(`roles ${Object.entries(summary.role_counts).map(([key, value]) => `${key}=${value}`).join(", ")}`);
+  }
+  if (summary.execution_mode_counts && Object.keys(summary.execution_mode_counts).length > 0) {
+    parts.push(`modes ${Object.entries(summary.execution_mode_counts).map(([key, value]) => `${key}=${value}`).join(", ")}`);
+  }
+  if (summary.primary_artifact?.uri) parts.push(summary.primary_artifact.uri);
+  return parts.join(" · ");
 }

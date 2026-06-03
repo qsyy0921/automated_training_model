@@ -21,6 +21,7 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
   const datasets = useQuery({ queryKey: ["datasets"], queryFn: () => apiClient.listDatasets(), enabled: visible });
   const task = useQuery({ queryKey: ["task", taskID], queryFn: () => apiClient.taskStatus(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
   const taskLogs = useQuery({ queryKey: ["task-logs", taskID], queryFn: () => apiClient.taskLogs(taskID, 12), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
+  const taskManifest = useQuery({ queryKey: ["task-manifest", taskID], queryFn: () => apiClient.taskManifest(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
 
   const registerFolder = useMutation({
     mutationFn: () => apiClient.registerFolderDataset(folderPayload),
@@ -122,6 +123,12 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
               </small>
             ) : null}
             {taskLogs.data?.metadata?.artifact_manifest ? <small>{taskLogs.data.metadata.artifact_manifest}</small> : null}
+            {taskManifest.data?.manifest?.artifact_summary ? (
+              <small>
+                artifacts {taskManifest.data.manifest.artifact_summary.artifact_count} ·
+                {" "}primary {taskManifest.data.manifest.artifact_summary.primary_artifact?.role || "-"}
+              </small>
+            ) : null}
             {taskLogs.data?.artifacts?.length ? <small>artifacts {taskLogs.data.artifacts.length}</small> : null}
             {taskLogs.data?.stdout ? <pre className="taskLogPre">{taskLogs.data.stdout}</pre> : null}
             {taskLogs.data?.stderr ? <pre className="taskLogPre taskLogPreWarn">{taskLogs.data.stderr}</pre> : null}
