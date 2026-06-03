@@ -20,6 +20,10 @@ type workerRunner interface {
 	Run(context.Context, modelruntime.WorkerJobRequest, func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error)
 }
 
+type taskArtifactManifestWriter interface {
+	WriteArtifactManifest(task workflow.Task) (string, error)
+}
+
 type WorkerGateway struct {
 	queue   workflowapp.TaskQueue
 	runner  workerRunner
@@ -174,6 +178,7 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 		}
 		task.Logs = appendTaskLog(task.Logs, finished, "info", task.Message)
 	})
+	g.archiveTaskArtifacts(id)
 }
 
 func (g *WorkerGateway) applyWorkerRuntimeEvent(id string, event modelruntime.WorkerRuntimeEvent) {
@@ -393,6 +398,26 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func (g *WorkerGateway) archiveTaskArtifacts(id string) {
+	writer, ok := g.queue.(taskArtifactManifestWriter)
+	if !ok {
+		return
+	}
+	task, err := g.queue.Status(context.Background(), id)
+	if err != nil || task == nil {
+		return
+	}
+	path, err := writer.WriteArtifactManifest(*task)
+	if err != nil || strings.TrimSpace(path) == "" {
+		return
+	}
+	_ = g.queue.Update(context.Background(), id, func(task *workflow.Task) {
+		task.Metadata = mergeTaskMetadata(task.Metadata, map[string]string{
+			"artifact_manifest": path,
+		})
+	})
 }
 
 func (g *WorkerGateway) setTaskCancel(id string, cancel context.CancelFunc) {

@@ -61,7 +61,7 @@ Model & Data Training Platform
 - 模型注册元数据持久化到 `data_lake/models/models.json`，模型权重和 checkpoint 不进入 Git。
 - Agent Runtime session/trace 默认持久化到 `data_lake/runtime`，Web/CLI/桌面端/QQ 共用同一份运行态审计记录。
 - Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；worker-backed job 的 artifact manifest 会额外归档到 `data_lake/runtime/artifacts/*.artifact_manifest.json`；服务重启前未完成的下载任务会恢复为 `interrupted`，重新提交后可利用 HuggingFace cache 继续。
-- lifecycle HTTP 任务默认持久化到 `data_lake/runtime/tasks.json`；`/api/training/runs`、`/api/evaluation/runs`、`/api/deployments`、`/api/autolabel/jobs` 现在会进入 Go `WorkerGateway`，以 Python worker dry-run 的方式写回 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr 和 retry metadata，但当前仍是 JSON MVP，还没有接入真实训练/评估/部署 recipe。
+- lifecycle HTTP 任务默认持久化到 `data_lake/runtime/tasks.json`；`/api/training/runs`、`/api/evaluation/runs`、`/api/deployments`、`/api/autolabel/jobs` 现在会进入 Go `WorkerGateway`，以 Python worker dry-run 的方式写回 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr 和 retry metadata；worker-backed task 的 artifact manifest 会额外归档到 `data_lake/runtime/artifacts/*.artifact_manifest.json`，并通过 `GET /api/tasks/{id}/logs` / `logs/stream` 暴露给 Web/CLI/API，但当前仍是 JSON MVP，还没有接入真实训练/评估/部署 recipe。
 - Tool schema / preflight / runner 已拆到 `internal/app/toolapp`：未注册工具、未知参数、高风险审批缺失和缺失 handler 会在具体执行前被拦截。
 - Runtime / Gateway 错误响应保留兼容的 `error` 字符串，同时新增 `error_envelope`，包含 `code`、`message`、`source`、`retryable`，CLI stream 会优先显示结构化错误消息。
 - Data Intake Workflow 的 MVP 已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，完成附件 quarantine、静态 scan、dry-run plan 和 pending approval workflow，并把 `workflow_id`、`plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划和 workflow 默认持久化到 `data_lake/runtime/intake`。
@@ -130,7 +130,7 @@ atm:03 planner-agent> /exit
 /exit        退出
 ```
 
-等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。长任务观测也在交互 CLI 内闭环：`/job`、`/job-logs` 和 `/follow-job` 复用 Gateway 的 model job API / NDJSON stream，不直接读取本地 data_lake 文件；worker 正在运行时的 heartbeat、`stdout>`、`stderr>` 行也会持续出现在同一条 job 日志流里。
+等待 Mimo 或 planner 返回时，CLI 会即时显示 `planner-agent working...` 和耗时，避免终端看起来卡死。控制命令、项目身份问题和已知 LocateAnything 固定流程由 Go Runtime 直接规划和执行，不再经过 Python/Mimo；普通 fast chat 已接入 `/api/runtime/stream-message`，Mimo 返回 token 后会直接刷到终端；复杂 planner 和工具执行已能输出 `tool_progress` 事件，CLI 会展示 preflight、handler start/done 等最小工具进度。长任务观测也在交互 CLI 内闭环：`/job`、`/job-logs` 和 `/follow-job` 复用 Gateway 的 model job API / NDJSON stream，不直接读取本地 data_lake 文件；worker 正在运行时的 heartbeat、`stdout>`、`stderr>` 行也会持续出现在同一条 job 日志流里。lifecycle task 也有对应的 `GET /api/tasks/{id}/logs` 和 `GET /api/tasks/{id}/logs/stream`，`labelctl deploy task-logs <task_id>` / `labelctl logs task <task_id>` 会读取同一份 task store。
 
 也可以使用一次性命令：
 
@@ -149,7 +149,9 @@ atm:03 planner-agent> /exit
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 models list
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 models jobs
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 deploy submit -model <model_id> -target local-dry-run
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 deploy task-logs <task_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 logs traces
+.\bin\labelctl.exe -addr http://127.0.0.1:7870 logs task <task_id>
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 doctor
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 channel qq test /bot-ping
 .\bin\labelctl.exe -addr http://127.0.0.1:7870 skill draft -id qq-data-intake-demo -summary "QQ 上传图片后进入隔离区、视觉检查、生成 Data Intake Plan"
@@ -417,4 +419,4 @@ Vite 会把 `/api` 代理到 `http://127.0.0.1:7870`。
 
 ## 当前阶段
 
-这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web Agent Overview、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、runtime/gateway `error_envelope`、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming、最小 tool progress streaming、Python model worker heartbeat/log/artifact/retry 契约，以及 `model.download_hf` 默认走 Go -> Python worker -> ModelJob 的可观测闭环；下一阶段重点是 approval 交互确认、durable queue、训练/评估任务统一切到 task runner、逐文件日志流、artifact manifest、lineage catalog、run log stream 和更严格的策略执行。
+这是一个正在演进中的工程平台。当前已经完成控制面骨架、Agent/Tool/Workflow 注册表、治理模型、Web Agent Overview、视频审核基础能力、Agent Runtime session/trace JSON 持久化、model job JSON 持久化与取消/恢复控制、model job logs 查询和最小 NDJSON 流入口、runtime/gateway `error_envelope`、intake plan/workflow JSON 持久化、tool schema/preflight/runner 边界、intake quarantine/scan/approval MVP、Go 控制命令 fast-path、本地语义 fast-path、Mimo fast chat、常驻 Python planner worker、CLI fast chat token streaming、最小 tool progress streaming、Python model worker heartbeat/log/artifact/retry 契约，以及 `model.download_hf` 默认走 Go -> Python worker -> ModelJob 的可观测闭环；lifecycle HTTP task 也已进入 Go `WorkerGateway` -> Python worker dry-run，支持 task logs / NDJSON stream 和 artifact manifest 归档。下一阶段重点是 approval 交互确认、durable queue、训练/评估任务统一切到真实 task runner、逐文件日志流、lineage catalog、run log stream 和更严格的策略执行。

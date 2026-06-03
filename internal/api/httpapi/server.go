@@ -99,7 +99,7 @@ func NewRouter(mediaSvc *mediaapp.MediaService, annotationSvc *annotationapp.Ann
 	mux.HandleFunc("GET /api/models/", s.modelDetail)
 	mux.HandleFunc("POST /api/models/register", s.registerModel)
 	mux.HandleFunc("POST /api/deployments", s.submitDeployment)
-	mux.HandleFunc("GET /api/tasks/", s.taskStatus)
+	mux.HandleFunc("GET /api/tasks/", s.taskDetail)
 	mux.HandleFunc("DELETE /api/tasks/", s.cancelTask)
 	mux.HandleFunc("GET /api/video/", s.video)
 	return middleware.Chain(

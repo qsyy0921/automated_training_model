@@ -71,7 +71,7 @@
 
 ## 后端架构待办
 
-- [ ] 将 `lifecycleapp` 当前的 JSON task queue + `WorkerGateway` MVP 升级为统一 task repository：补真实训练/评估/部署 recipe、artifact manifest、恢复、审批和更细粒度的状态机，而不是只停留在 worker dry-run。
+- [ ] 将 `lifecycleapp` 当前的 JSON task queue + `WorkerGateway` MVP 升级为统一 task repository：补真实训练/评估/部署 recipe、恢复、审批和更细粒度的状态机，而不是只停留在 worker dry-run；当前 task logs / NDJSON stream 和 artifact manifest 归档已补齐。
 - [ ] 为 `providerapp` 增加加密 secret store。
 - [ ] 补充 CLI：数据集注册、任务提交、导出标注、检查服务健康。
 - [ ] 增加 OpenAPI 文档生成。
@@ -84,5 +84,5 @@
 - [ ] 在检测 recall 稳定后重新开启 Q_track / MOTR-lite。
 - [ ] 设计 anomaly query 训练数据格式和评估协议。
 - [ ] Replace the in-memory workflow queue with Redis/NATS and persist workflow state across server restarts.
-- [ ] Wire Go workflow tasks to Python worker runners；`model.download_hf` 的 Go `ModelJob` -> Python worker MVP 已完成，worker heartbeat 与结构化 `stdout/stderr` 行也已能持续回写，但仍需把 workflow/训练/评估任务接入统一 task runner，并补原始 stdout/stderr 字节流直通、artifact manifest 标准化和失败重试调度。
+- [ ] Wire Go workflow tasks to Python worker runners；`model.download_hf` 的 Go `ModelJob` -> Python worker MVP 已完成，worker heartbeat 与结构化 `stdout/stderr` 行也已能持续回写；lifecycle HTTP task 也已接入 `WorkerGateway` 并提供 task logs / stream / artifact manifest，但仍需把 workflow/训练/评估任务接入统一真实 task runner，并补原始 stdout/stderr 字节流直通和失败重试调度。
 - [ ] Add data/model lineage catalogs for dataset -> labels -> training run -> checkpoint -> evaluation report.

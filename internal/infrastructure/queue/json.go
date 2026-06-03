@@ -21,6 +21,24 @@ type JSONQueue struct {
 	tasks map[string]*workflow.Task
 }
 
+type taskArtifactManifestFile struct {
+	TaskID           string                   `json:"task_id"`
+	Type             string                   `json:"type"`
+	Status           workflow.TaskStatus      `json:"status"`
+	Message          string                   `json:"message,omitempty"`
+	Retryable        bool                     `json:"retryable,omitempty"`
+	Attempt          int                      `json:"attempt,omitempty"`
+	MaxAttempts      int                      `json:"max_attempts,omitempty"`
+	WorkerHeartbeat  *workflow.TaskHeartbeat  `json:"worker_heartbeat,omitempty"`
+	Artifacts        []workflow.TaskArtifact  `json:"artifacts,omitempty"`
+	Metadata         map[string]string        `json:"metadata,omitempty"`
+	CreatedAt        time.Time                `json:"created_at"`
+	StartedAt        *time.Time               `json:"started_at,omitempty"`
+	UpdatedAt        time.Time                `json:"updated_at"`
+	FinishedAt       *time.Time               `json:"finished_at,omitempty"`
+	ArchivedAt       time.Time                `json:"archived_at"`
+}
+
 func NewJSONQueue(path string, now func() time.Time) (*JSONQueue, error) {
 	if now == nil {
 		now = time.Now
@@ -96,6 +114,41 @@ func (q *JSONQueue) Update(ctx context.Context, id string, mutate func(*workflow
 	return q.persistLocked()
 }
 
+func (q *JSONQueue) WriteArtifactManifest(task workflow.Task) (string, error) {
+	if task.ID == "" {
+		return "", nil
+	}
+	if len(task.Artifacts) == 0 && task.Metadata["artifact_count"] == "" {
+		return "", nil
+	}
+	path := q.artifactManifestPath(task.ID)
+	payload := taskArtifactManifestFile{
+		TaskID:          task.ID,
+		Type:            task.Type,
+		Status:          task.Status,
+		Message:         task.Message,
+		Retryable:       task.Retryable,
+		Attempt:         task.Attempt,
+		MaxAttempts:     task.MaxAttempts,
+		WorkerHeartbeat: task.WorkerHeartbeat,
+		Artifacts:       copyTaskArtifacts(task.Artifacts),
+		Metadata:        copyStringMap(task.Metadata),
+		CreatedAt:       task.CreatedAt,
+		StartedAt:       task.StartedAt,
+		UpdatedAt:       task.UpdatedAt,
+		FinishedAt:      task.FinishedAt,
+		ArchivedAt:      q.now(),
+	}
+	if err := writeJSONFile(path, payload); err != nil {
+		return "", err
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path), nil
+	}
+	return abs, nil
+}
+
 func (q *JSONQueue) load() error {
 	var rows []workflow.Task
 	if err := readJSONFile(q.path, &rows); err != nil {
@@ -132,6 +185,11 @@ func parseTaskSequence(id string) (int, bool) {
 		return 0, false
 	}
 	return n, true
+}
+
+func (q *JSONQueue) artifactManifestPath(taskID string) string {
+	base := filepath.Dir(q.path)
+	return filepath.Join(base, "artifacts", taskID+".artifact_manifest.json")
 }
 
 func readJSONFile(path string, value any) error {

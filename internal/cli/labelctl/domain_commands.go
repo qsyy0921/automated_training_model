@@ -161,6 +161,11 @@ func runDeploy(cfg Config, args []string) error {
 			return errors.New("usage: labelctl deploy task <task_id>")
 		}
 		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]))
+	case "task-logs":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl deploy task-logs <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs")
 	case "cancel-task":
 		if len(args) < 2 {
 			return errors.New("usage: labelctl deploy cancel-task <task_id>")
@@ -189,6 +194,11 @@ func runLogs(cfg Config, args []string) error {
 			return errors.New("usage: labelctl logs job <job_id>")
 		}
 		return getJSON(cfg.addr + "/api/runtime/model-jobs/" + url.PathEscape(args[1]) + "/logs")
+	case "task", "task-logs":
+		if len(args) < 2 {
+			return errors.New("usage: labelctl logs task <task_id>")
+		}
+		return getJSON(cfg.addr + "/api/tasks/" + url.PathEscape(args[1]) + "/logs")
 	case "intake":
 		return getJSON(cfg.addr + "/api/runtime/intake/workflows")
 	default:

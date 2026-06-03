@@ -927,8 +927,8 @@ func usage() {
   videos
   dataset [list|register-folder|register-manifest|activate]
   models [list|get <id>|register|jobs|job <id>|job-logs <id>|cancel-job <id>|resume-job <id>]
-  deploy [submit|task <id>|cancel-task <id>]
-  logs [traces|audit|runs|jobs|job <id>|intake]
+  deploy [submit|task <id>|task-logs <id>|cancel-task <id>]
+  logs [traces|audit|runs|jobs|job <id>|task <id>|intake]
   doctor
   providers
   secrets

@@ -77,6 +77,8 @@ export const apiClient = {
     const result = await request<{ task: TaskRecord }>(`/api/tasks/${id}`);
     return result.task;
   },
+  taskLogs: async (id: string, limit = 30) =>
+    request<TaskRecord>(`/api/tasks/${id}/logs?limit=${limit}`),
   listAgents: async () => request<{ agents: AgentSpec[] }>("/api/agents"),
   listAgentTools: async () => request<{ tools: AgentToolSpec[] }>("/api/tools"),
   listWorkflows: async () => request<{ workflows: WorkflowSpec[] }>("/api/workflows"),

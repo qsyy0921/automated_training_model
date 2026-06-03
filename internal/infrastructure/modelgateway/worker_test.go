@@ -2,6 +2,7 @@ package modelgateway
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -19,7 +20,10 @@ func (f fakeWorkerRunner) Run(ctx context.Context, req modelruntime.WorkerJobReq
 }
 
 func TestWorkerGatewayRunsTrainingTaskThroughPythonWorkerDryRun(t *testing.T) {
-	q := queue.NewMemoryQueue()
+	q, err := queue.NewJSONQueue(filepath.Join(t.TempDir(), "tasks.json"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Date(2026, 6, 3, 15, 0, 0, 0, time.UTC)
 	gateway := NewWorkerGatewayWithRunner(q, fakeWorkerRunner{
 		run: func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
@@ -73,6 +77,9 @@ func TestWorkerGatewayRunsTrainingTaskThroughPythonWorkerDryRun(t *testing.T) {
 	}
 	if task.Metadata["execution_path"] != "python-worker" || task.Metadata["worker_finished_at"] == "" {
 		t.Fatalf("unexpected metadata: %+v", task.Metadata)
+	}
+	if task.Metadata["artifact_manifest"] == "" {
+		t.Fatalf("expected artifact manifest metadata, got %+v", task.Metadata)
 	}
 }
 

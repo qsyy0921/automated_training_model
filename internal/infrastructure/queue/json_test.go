@@ -2,7 +2,10 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,6 +43,58 @@ func TestJSONQueuePersistsTasksAcrossReload(t *testing.T) {
 	}
 	if task.Payload["dataset_id"] != "shanghaitech-original" {
 		t.Fatalf("unexpected payload after reload: %+v", task.Payload)
+	}
+}
+
+func TestJSONQueueWritesArtifactManifest(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "tasks.json")
+	now := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
+	q, err := NewJSONQueue(path, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := now.Add(time.Minute)
+	finished := started.Add(time.Minute)
+	if err := q.Update(context.Background(), id, func(task *workflow.Task) {
+		task.Status = workflow.TaskCompleted
+		task.Message = "dry-run complete"
+		task.Retryable = false
+		task.Attempt = 1
+		task.MaxAttempts = 1
+		task.WorkerHeartbeat = &workflow.TaskHeartbeat{At: finished.Format(time.RFC3339Nano), Status: "completed", Message: "done"}
+		task.Artifacts = []workflow.TaskArtifact{{Name: "plan", URI: "artifact://training/task_000001", Kind: "dry-run-plan"}}
+		task.Metadata = map[string]string{"worker_finished_at": finished.Format(time.RFC3339Nano)}
+		task.StartedAt = &started
+		task.FinishedAt = &finished
+	}); err != nil {
+		t.Fatal(err)
+	}
+	task, err := q.Status(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestPath, err := q.WriteArtifactManifest(*task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(filepath.ToSlash(manifestPath), "/artifacts/task_000001.artifact_manifest.json") {
+		t.Fatalf("unexpected manifest path: %s", manifestPath)
+	}
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("parse manifest: %v\n%s", err, string(data))
+	}
+	if payload["task_id"] != "task_000001" || payload["status"] != string(workflow.TaskCompleted) {
+		t.Fatalf("unexpected manifest payload: %s", string(data))
 	}
 }
 

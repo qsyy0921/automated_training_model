@@ -2,14 +2,17 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/qsyy0921/automated_training_model/internal/domain/autolabel"
 	"github.com/qsyy0921/automated_training_model/internal/domain/deployment"
 	"github.com/qsyy0921/automated_training_model/internal/domain/evaluation"
 	"github.com/qsyy0921/automated_training_model/internal/domain/modelregistry"
 	"github.com/qsyy0921/automated_training_model/internal/domain/training"
+	"github.com/qsyy0921/automated_training_model/internal/domain/workflow"
 )
 
 func (s *Server) submitAutoLabel(w http.ResponseWriter, r *http.Request) {
@@ -105,10 +108,22 @@ func (s *Server) submitDeployment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"deployment": dep})
 }
 
-func (s *Server) taskStatus(w http.ResponseWriter, r *http.Request) {
-	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/tasks/"), "/")
+func (s *Server) taskDetail(w http.ResponseWriter, r *http.Request) {
+	id, action := lifecycleTaskPath(r)
 	if id == "" {
 		writeErrorText(w, http.StatusNotFound, "task id missing")
+		return
+	}
+	switch action {
+	case "":
+	case "logs":
+		s.taskLogs(w, r, id)
+		return
+	case "logs/stream":
+		s.taskLogStream(w, r, id)
+		return
+	default:
+		writeError(w, http.StatusNotFound, errors.New("task not found"))
 		return
 	}
 	task, err := s.lifecycle.TaskStatus(r.Context(), id)
@@ -130,4 +145,136 @@ func (s *Server) cancelTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"canceled": true})
+}
+
+func (s *Server) taskLogs(w http.ResponseWriter, r *http.Request, id string) {
+	task, err := s.lifecycle.TaskStatus(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, lifecycleTaskLogsPayload(task, lifecycleTaskRecentLogs(task, runtimeTraceLimit(r))))
+}
+
+func (s *Server) taskLogStream(w http.ResponseWriter, r *http.Request, id string) {
+	task, err := s.lifecycle.TaskStatus(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	flusher, _ := w.(http.Flusher)
+	emit := func(event map[string]any) {
+		_ = enc.Encode(event)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+	for _, log := range lifecycleTaskRecentLogs(task, runtimeTraceLimit(r)) {
+		emit(map[string]any{"type": "log", "task_id": id, "log": log})
+	}
+	if lifecycleTaskTerminal(task.Status) {
+		emit(lifecycleTaskFinalEvent(task))
+		return
+	}
+	timeout := time.NewTimer(runtimeStreamTimeout(r))
+	defer timeout.Stop()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	lastCount := len(task.Logs)
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-timeout.C:
+			latest, err := s.lifecycle.TaskStatus(r.Context(), id)
+			if err == nil && latest != nil {
+				final := lifecycleTaskFinalEvent(latest)
+				final["message"] = "stream timeout"
+				emit(final)
+			}
+			return
+		case <-ticker.C:
+			latest, err := s.lifecycle.TaskStatus(r.Context(), id)
+			if err != nil || latest == nil {
+				emit(map[string]any{"type": "error", "task_id": id, "message": "task not found"})
+				return
+			}
+			if len(latest.Logs) > lastCount {
+				for _, log := range latest.Logs[lastCount:] {
+					emit(map[string]any{"type": "log", "task_id": id, "log": log})
+				}
+				lastCount = len(latest.Logs)
+			}
+			if lifecycleTaskTerminal(latest.Status) {
+				emit(lifecycleTaskFinalEvent(latest))
+				return
+			}
+		}
+	}
+}
+
+func lifecycleTaskLogsPayload(task *workflow.Task, logs []workflow.TaskLog) map[string]any {
+	return map[string]any{
+		"id":                task.ID,
+		"task_id":           task.ID,
+		"type":              task.Type,
+		"status":            task.Status,
+		"progress_percent":  task.ProgressPercent,
+		"message":           task.Message,
+		"retryable":         task.Retryable,
+		"attempt":           task.Attempt,
+		"max_attempts":      task.MaxAttempts,
+		"worker_heartbeat":  task.WorkerHeartbeat,
+		"artifacts":         task.Artifacts,
+		"stdout":            task.Stdout,
+		"stderr":            task.Stderr,
+		"metadata":          task.Metadata,
+		"logs":              logs,
+		"created_at":        task.CreatedAt,
+		"started_at":        task.StartedAt,
+		"finished_at":       task.FinishedAt,
+		"updated_at":        task.UpdatedAt,
+	}
+}
+
+func lifecycleTaskPath(r *http.Request) (string, string) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
+	parts := strings.Split(strings.Trim(rest, "/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		return "", ""
+	}
+	if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return parts[0], strings.Join(parts[1:], "/")
+}
+
+func lifecycleTaskRecentLogs(task *workflow.Task, limit int) []workflow.TaskLog {
+	if task == nil || len(task.Logs) == 0 {
+		return nil
+	}
+	if limit <= 0 || limit >= len(task.Logs) {
+		return task.Logs
+	}
+	return task.Logs[len(task.Logs)-limit:]
+}
+
+func lifecycleTaskFinalEvent(task *workflow.Task) map[string]any {
+	event := lifecycleTaskLogsPayload(task, nil)
+	event["type"] = "final"
+	return event
+}
+
+func lifecycleTaskTerminal(status workflow.TaskStatus) bool {
+	switch status {
+	case workflow.TaskCompleted, workflow.TaskFailed, workflow.TaskCanceled:
+		return true
+	default:
+		return false
+	}
 }

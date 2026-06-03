@@ -20,6 +20,7 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
 
   const datasets = useQuery({ queryKey: ["datasets"], queryFn: () => apiClient.listDatasets(), enabled: visible });
   const task = useQuery({ queryKey: ["task", taskID], queryFn: () => apiClient.taskStatus(taskID), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
+  const taskLogs = useQuery({ queryKey: ["task-logs", taskID], queryFn: () => apiClient.taskLogs(taskID, 12), enabled: Boolean(taskID), refetchInterval: taskID ? 3000 : false });
 
   const registerFolder = useMutation({
     mutationFn: () => apiClient.registerFolderDataset(folderPayload),
@@ -115,6 +116,25 @@ export function TaskMonitorPanel({ visible, onDatasetActivated }: Props) {
             <b>{task.data.id}</b>
             <small>{task.data.status}</small>
             <small>{task.data.message}</small>
+            {taskLogs.data?.worker_heartbeat ? (
+              <small>
+                heartbeat {taskLogs.data.worker_heartbeat.status} · {taskLogs.data.worker_heartbeat.message || taskLogs.data.worker_heartbeat.at}
+              </small>
+            ) : null}
+            {taskLogs.data?.metadata?.artifact_manifest ? <small>{taskLogs.data.metadata.artifact_manifest}</small> : null}
+            {taskLogs.data?.artifacts?.length ? <small>artifacts {taskLogs.data.artifacts.length}</small> : null}
+            {taskLogs.data?.stdout ? <pre className="taskLogPre">{taskLogs.data.stdout}</pre> : null}
+            {taskLogs.data?.stderr ? <pre className="taskLogPre taskLogPreWarn">{taskLogs.data.stderr}</pre> : null}
+            {taskLogs.data?.logs?.length ? (
+              <div className="taskLogList">
+                {taskLogs.data.logs.map((log) => (
+                  <div key={`${log.at}-${log.message}`} className="taskLogRow">
+                    <small>{log.level}</small>
+                    <span>{log.message}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
       </Panel>

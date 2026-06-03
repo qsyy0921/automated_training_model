@@ -54,7 +54,7 @@
 
 ## 当前限制
 
-- [ ] lifecycle 任务现已通过 `workflowapp.ModelGateway` 的 `WorkerGateway` 进入 Python worker dry-run，并把 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr、retry metadata 写回 `data_lake/runtime/tasks.json`；但仍未接入真实训练/评估/部署 recipe、artifact manifest 和恢复闭环。
+- [ ] lifecycle 任务现已通过 `workflowapp.ModelGateway` 的 `WorkerGateway` 进入 Python worker dry-run，并把 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr、retry metadata 写回 `data_lake/runtime/tasks.json`；task logs API / NDJSON stream 和 artifact manifest 已补齐，但仍未接入真实训练/评估/部署 recipe 和恢复闭环。
 - [ ] Zod 只作为依赖接入，API runtime schema 尚未完整覆盖。
 - [ ] 前端仍有少量 `alert/confirm`，后续需要统一 toast/dialog。
 - [ ] 数据版本、标注版本目前只有边界设计；模型版本已有 JSON 元数据仓库，但还未接入真实训练 artifact 生命周期。
@@ -94,6 +94,7 @@
 - [x] Agent Runtime model jobs 默认持久化到 `data_lake/runtime/model_jobs.json`；服务重启前仍处于 `queued/running` 的任务会恢复为 `interrupted`，避免 UI/CLI 误判后台任务仍在运行。
 - [x] 将 lifecycle HTTP 任务队列从 `queue.MemoryQueue` 推进到 `internal/infrastructure/queue.JSONQueue`：`/api/autolabel/jobs`、`/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 默认把任务元数据持久化到 `data_lake/runtime/tasks.json`，服务重启后保留基础 `queued/canceled` 状态。
 - [x] 新增 `internal/infrastructure/modelgateway.WorkerGateway`，让 lifecycle HTTP 任务默认进入 Go -> Python worker dry-run 调度链：`workflow.Task` 现在可持久化 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr、attempt/max_attempts、retry metadata；`taskStatus` 和 Web TaskMonitorPanel 可看到同一份任务状态。
+- [x] 为 worker-backed lifecycle task 增加 task logs / NDJSON stream 和 artifact manifest：`GET /api/tasks/{id}/logs`、`GET /api/tasks/{id}/logs/stream` 会返回同一份 task store 中的 heartbeat、artifacts、stdout/stderr、retry metadata 和 lifecycle logs；`JSONQueue` 会把 artifact 摘要归档到 `data_lake/runtime/artifacts/<task_id>.artifact_manifest.json`，Web TaskMonitorPanel 与 `labelctl deploy task-logs` / `labelctl logs task` 可直接查看。
 - [x] 新增 `internal/app/toolapp`，将 tool schema、参数白名单、risk level 和 approval/preflight gate 从 `agentruntime` 中拆出。
 - [x] `GoToolExecutor.Execute` 执行前接入 `toolapp.Preflight`，覆盖未注册 tool、未知参数、高风险审批缺失等拦截路径；默认本机开发模式仍允许受控高风险工具执行，可用 `AGENT_RUNTIME_REQUIRE_HIGH_RISK_TOOL_APPROVAL=true` 统一收紧。
 - [x] 新增 `internal/app/toolapp.Runner`，把 tool preflight、handler dispatch、结果合并和未注册 handler 拦截从 `agentruntime.GoToolExecutor` 中移出；`GoToolExecutor` 当前只注册 MVP 业务 handler。
