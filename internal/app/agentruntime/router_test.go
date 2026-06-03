@@ -46,3 +46,17 @@ func TestRuntimeRouterCanDisableLocalSemanticFastPath(t *testing.T) {
 		t.Fatalf("expected external planner route when disabled, got %+v", route)
 	}
 }
+
+func TestRuntimeRouterSelectsLocalSemanticForVisualAttachmentInspection(t *testing.T) {
+	msg := channel.InboundMessage{
+		ID:          "msg1",
+		Channel:     channel.KindQQ,
+		Text:        "请检查这张异常帧",
+		Attachments: []channel.Attachment{{ID: "att1", Name: "frame.png", MediaType: "image/png"}},
+	}
+	intent := ClassifyIntent(msg)
+	route := NewRuntimeRouter().Select(PlanRequest{Message: msg, Intent: intent})
+	if route.Mode != RouteLocalSemantic {
+		t.Fatalf("expected local semantic route for visual attachment, got %+v for intent %+v", route, intent)
+	}
+}

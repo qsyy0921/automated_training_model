@@ -165,7 +165,7 @@ func (s *Server) runtimeModelJobLogStream(w http.ResponseWriter, r *http.Request
 		emit(map[string]any{"type": "log", "job_id": id, "log": log})
 	}
 	if agentruntime.IsTerminalModelJobStatus(job.Status) {
-		emit(map[string]any{"type": "final", "job_id": id, "status": job.Status, "progress_percent": job.ProgressPercent, "message": job.Message})
+		emit(runtimeModelJobFinalEvent(job))
 		return
 	}
 	timeout := time.NewTimer(runtimeStreamTimeout(r))
@@ -180,7 +180,9 @@ func (s *Server) runtimeModelJobLogStream(w http.ResponseWriter, r *http.Request
 		case <-timeout.C:
 			latest, ok := s.runtime.GetModelJob(id)
 			if ok {
-				emit(map[string]any{"type": "final", "job_id": id, "status": latest.Status, "progress_percent": latest.ProgressPercent, "message": "stream timeout"})
+				final := runtimeModelJobFinalEvent(latest)
+				final["message"] = "stream timeout"
+				emit(final)
 			}
 			return
 		case <-ticker.C:
@@ -196,10 +198,28 @@ func (s *Server) runtimeModelJobLogStream(w http.ResponseWriter, r *http.Request
 				lastCount = len(latest.Logs)
 			}
 			if agentruntime.IsTerminalModelJobStatus(latest.Status) {
-				emit(map[string]any{"type": "final", "job_id": id, "status": latest.Status, "progress_percent": latest.ProgressPercent, "message": latest.Message})
+				emit(runtimeModelJobFinalEvent(latest))
 				return
 			}
 		}
+	}
+}
+
+func runtimeModelJobFinalEvent(job agentruntime.ModelJob) map[string]any {
+	return map[string]any{
+		"type":             "final",
+		"job_id":           job.ID,
+		"status":           job.Status,
+		"progress_percent": job.ProgressPercent,
+		"message":          job.Message,
+		"retryable":        job.Retryable,
+		"attempt":          job.Attempt,
+		"max_attempts":     job.MaxAttempts,
+		"worker_heartbeat": job.WorkerHeartbeat,
+		"artifacts":        job.Artifacts,
+		"stdout":           job.Stdout,
+		"stderr":           job.Stderr,
+		"metadata":         job.Metadata,
 	}
 }
 

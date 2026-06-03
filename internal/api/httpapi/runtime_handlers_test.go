@@ -68,7 +68,7 @@ func TestRuntimeModelJobLogsEndpoints(t *testing.T) {
 		t.Fatalf("unexpected stream status: %d body=%s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `"type":"log"`) || !strings.Contains(body, `"type":"final"`) || !strings.Contains(body, `"status":"succeeded"`) {
+	if !strings.Contains(body, `"type":"log"`) || !strings.Contains(body, `"type":"final"`) || !strings.Contains(body, `"status":"succeeded"`) || !strings.Contains(body, `"worker_heartbeat"`) || !strings.Contains(body, `"artifact_manifest"`) {
 		t.Fatalf("unexpected stream body: %s", body)
 	}
 }

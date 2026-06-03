@@ -67,6 +67,7 @@ Model & Data Training Platform
 - Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令、runtime self-description、`规划 ShanghaiTech 数据接入` 和已知 LocateAnything 固定流程走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
 - Python model worker 已具备最小可观测执行契约：`python -m agent_worker.main --health` 输出 heartbeat/capabilities；job 结果包含 heartbeat、logs、artifact 引用、attempt/max_attempts 和 retryable；`download_hf` 失败、超时和参数错误都能返回稳定 JSON。
 - Go 控制面已接入 Python model worker 的最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；`dry_run=true` 和真实下载共用同一条 worker 路径。worker timeout、坏 JSON 和显式 failed 结果也会把部分 stdout/stderr、retryable 和 `worker_error_kind` 落回 job store，便于 CLI/Web/API 统一排障。`model.verify_hf` 支持显式 `job=true` 的 Python worker job 模式；`model.smoke_locateanything` 也支持显式 `job=true` 的 worker smoke 模式，默认仍保持同步 smoke，避免打断现有 ShanghaiTech dry-run 链。若需回退旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`；若需同步执行旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_SYNC=true`。
+- `labelctl agent /follow-job <job_id>` 终态事件现在会直接显示 retry、heartbeat、artifact、manifest 和 stdout/stderr 摘要，不必再手动补一次 `/job-logs`。
 - `training-agent` 已有最小可运行入口：`/bot-train-dry <dataset_id> [target_task] [model_family]` 会直接创建 `training.run` 的 Python worker `ModelJob`，并把 heartbeat、logs、artifacts、stdout/stderr 摘要写回同一份 runtime store；当前先支持 dry-run 计划，不直接执行真实训练。
 
 ## Agent 生命周期

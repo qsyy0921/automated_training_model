@@ -35,6 +35,19 @@ func TestClassifyAttachmentIntent(t *testing.T) {
 	}
 }
 
+func TestClassifyVisualAttachmentIntentMarksLocalSemanticFastPath(t *testing.T) {
+	intent := ClassifyIntent(channel.InboundMessage{
+		Text:        "请检查这张异常帧",
+		Attachments: []channel.Attachment{{ID: "att1", Name: "frame.png", MediaType: "image/png"}},
+	})
+	if intent.Kind != IntentDataIntake {
+		t.Fatalf("unexpected intent: %s", intent.Kind)
+	}
+	if intent.Metadata["local_semantic_fast_path"] != "true" {
+		t.Fatalf("expected local semantic marker for visual attachment, got %+v", intent.Metadata)
+	}
+}
+
 func TestClassifyRuntimeAboutFastPath(t *testing.T) {
 	intent := ClassifyIntent(channel.InboundMessage{Text: "你好，你是谁"})
 	if intent.Kind != IntentRuntimeAbout {

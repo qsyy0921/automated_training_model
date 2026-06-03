@@ -40,13 +40,17 @@ type Intent struct {
 func ClassifyIntent(msg channel.InboundMessage) Intent {
 	text := strings.TrimSpace(msg.Text)
 	if len(msg.Attachments) > 0 {
-		return Intent{
+		intent := Intent{
 			Kind:       IntentDataIntake,
 			RawText:    text,
 			SkillID:    "channel-data-intake",
 			ToolID:     "intake.plan",
 			Confidence: 1,
 		}
+		if hasVisualAttachment(msg.Attachments) {
+			intent.Metadata = map[string]string{"local_semantic_fast_path": "true"}
+		}
+		return intent
 	}
 	if text == "" {
 		return Intent{Kind: IntentUnknown, Confidence: 1}

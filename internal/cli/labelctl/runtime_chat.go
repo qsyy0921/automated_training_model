@@ -144,12 +144,20 @@ type runtimeJobArtifact struct {
 }
 
 type runtimeJobStreamEvent struct {
-	Type            string             `json:"type"`
-	JobID           string             `json:"job_id"`
-	Status          string             `json:"status"`
-	ProgressPercent int                `json:"progress_percent"`
-	Message         string             `json:"message"`
-	Log             runtimeModelJobLog `json:"log"`
+	Type            string                 `json:"type"`
+	JobID           string                 `json:"job_id"`
+	Status          string                 `json:"status"`
+	ProgressPercent int                    `json:"progress_percent"`
+	Message         string                 `json:"message"`
+	Retryable       bool                   `json:"retryable"`
+	Attempt         int                    `json:"attempt"`
+	MaxAttempts     int                    `json:"max_attempts"`
+	WorkerHeartbeat *runtimeJobHeartbeat   `json:"worker_heartbeat"`
+	Artifacts       []runtimeJobArtifact   `json:"artifacts"`
+	Stdout          string                 `json:"stdout"`
+	Stderr          string                 `json:"stderr"`
+	Metadata        map[string]any         `json:"metadata"`
+	Log             runtimeModelJobLog     `json:"log"`
 }
 
 type runtimeSession struct {
@@ -832,6 +840,26 @@ func (c *runtimeChat) followJob(id string) error {
 			fmt.Fprintf(c.out, "%s\n", modelJobLogLine(event.Log))
 		case "final":
 			fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("final status=%s progress=%d%% %s", valueOr(event.Status, "-"), event.ProgressPercent, valueOr(event.Message, "")), statusColor(event.Status)))
+			if event.Attempt > 0 || event.MaxAttempts > 0 {
+				fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("retry attempt=%d/%d retryable=%t", event.Attempt, event.MaxAttempts, event.Retryable), "dim"))
+			}
+			if event.WorkerHeartbeat != nil {
+				fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("heartbeat %s %s %s", compactTime(event.WorkerHeartbeat.At), valueOr(event.WorkerHeartbeat.Status, "-"), valueOr(event.WorkerHeartbeat.Message, "-")), "dim"))
+			}
+			if len(event.Artifacts) > 0 {
+				fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("artifact  %s", valueOr(event.Artifacts[0].URI, "-")), "dim"))
+			}
+			if event.Metadata != nil {
+				if manifest := strings.TrimSpace(fmt.Sprint(event.Metadata["artifact_manifest"])); manifest != "" && manifest != "<nil>" {
+					fmt.Fprintf(c.out, "%s\n", c.color("manifest  "+firstLine(manifest, c.contentWidth()-12), "dim"))
+				}
+			}
+			if strings.TrimSpace(event.Stdout) != "" {
+				fmt.Fprintf(c.out, "%s\n", c.color("stdout    "+firstLine(event.Stdout, c.contentWidth()-12), "dim"))
+			}
+			if strings.TrimSpace(event.Stderr) != "" {
+				fmt.Fprintf(c.out, "%s\n", c.color("stderr    "+firstLine(event.Stderr, c.contentWidth()-12), "dim"))
+			}
 			return nil
 		case "error":
 			return errors.New(valueOr(event.Message, "model job stream failed"))

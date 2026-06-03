@@ -342,7 +342,7 @@ func TestDataIntakeIntentEnforcesMandatoryLocalPlan(t *testing.T) {
 	}
 }
 
-func TestVisionIntentRejectsPlannerExpandedToolChain(t *testing.T) {
+func TestVisionIntentUsesLocalSemanticPlan(t *testing.T) {
 	planner := &multiToolPlanner{}
 	tools := &fakeTools{}
 	svc := NewServiceWithPorts(planner, tools, func() time.Time { return time.Unix(0, 0) })
@@ -364,14 +364,14 @@ func TestVisionIntentRejectsPlannerExpandedToolChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if planner.got.Delegation.AgentID != "vision-agent" {
-		t.Fatalf("expected external planner to see vision delegation, got %+v", planner.got.Delegation)
+	if planner.got.Message.ID != "" {
+		t.Fatalf("visual attachment intent should use local semantic plan, got %+v", planner.got)
 	}
 	if tools.got.Delegation.AgentID != "vision-agent" {
-		t.Fatalf("mandatory vision plan should preserve vision-agent, got %+v", tools.got.Delegation)
+		t.Fatalf("local semantic vision plan should preserve vision-agent, got %+v", tools.got.Delegation)
 	}
 	if len(tools.got.ToolCalls) != 1 || tools.got.ToolCalls[0].ToolID != "vlm.inspect" {
-		t.Fatalf("expected exact vlm.inspect fallback, got %+v", tools.got.ToolCalls)
+		t.Fatalf("expected exact vlm.inspect local plan, got %+v", tools.got.ToolCalls)
 	}
 }
 
