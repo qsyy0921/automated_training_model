@@ -66,7 +66,7 @@ Model & Data Training Platform
 - Data Intake Workflow 的 MVP 已拆到 `internal/app/intakeapp`：runtime 的 `intake.plan` / `vlm.inspect` handler 只调用 intake app，完成附件 quarantine、静态 scan、dry-run plan 和 pending approval workflow，并把 `workflow_id`、`plan_id`、`dataset_name`、`source_uri` 和审批边界写入 trace metadata；计划和 workflow 默认持久化到 `data_lake/runtime/intake`。
 - Python/Mimo runtime 默认使用常驻 `python -m agent_runtime.worker`，`labelctl agent` 会显示 `transport=python-worker`；`/bot-ping`、`/bot-status`、`/bot-runs` 等控制命令、runtime self-description、`规划 ShanghaiTech 数据接入` 和已知 LocateAnything 固定流程走 Go 本地 fast-path，普通聊天走 fast chat + NDJSON token streaming，复杂任务才进入 JSON planner 和 ToolExecutor。
 - Python model worker 已具备最小可观测执行契约：`python -m agent_worker.main --health` 输出 heartbeat/capabilities；job 结果包含 heartbeat、logs、artifact 引用、attempt/max_attempts 和 retryable；`download_hf` 失败、超时和参数错误都能返回稳定 JSON。
-- Go 控制面已接入 Python model worker 的最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；`dry_run=true` 和真实下载共用同一条 worker 路径。若需回退旧路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`；若需同步执行旧路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_SYNC=true`。
+- Go 控制面已接入 Python model worker 的最小调度链路：`model.download_hf` 默认会创建 `ModelJob`、启动 `python -m agent_worker.main`，并把 worker heartbeat、logs、artifacts、attempt/max_attempts、retryable、stdout/stderr 摘要写回同一份 model job store；`dry_run=true` 和真实下载共用同一条 worker 路径。`model.verify_hf` 也支持显式 `job=true` 的 Python worker job 模式，默认仍保持同步校验，避免打断现有 LocateAnything smoke 链。若需回退旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_RUNNER=service`；若需同步执行旧下载路径，可设置 `AGENT_RUNTIME_HF_DOWNLOAD_SYNC=true`。
 
 ## Agent 生命周期
 

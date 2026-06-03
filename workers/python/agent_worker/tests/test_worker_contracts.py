@@ -80,6 +80,36 @@ class WorkerContractTests(unittest.TestCase):
         self.assertFalse(result["retryable"])
 
     @patch("agent_worker.main.subprocess.run")
+    def test_verify_hf_action_runs_snapshot_script_with_verify_only(self, run_mock) -> None:
+        run_mock.return_value = subprocess.CompletedProcess(
+            args=["python"],
+            returncode=0,
+            stdout=json.dumps({"complete": True}),
+            stderr="",
+        )
+        result = run_job(
+            JobEnvelope(
+                task_id="task_000001",
+                workflow_id="data-to-deployment-lifecycle",
+                agent_id="model-agent",
+                tool_id="model.verify_hf",
+                action="verify_hf",
+                dry_run=False,
+                params={
+                    "repo_id": "sshleifer/tiny-gpt2",
+                    "local_dir": "data_lake/models/artifacts/huggingface/sshleifer/tiny-gpt2",
+                    "manifest": "data_lake/catalog/models/sshleifer_tiny-gpt2.download.json",
+                },
+            )
+        ).to_dict()
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["heartbeat"]["status"], "completed")
+        self.assertFalse(result["retryable"])
+        called_args = run_mock.call_args.args[0]
+        self.assertIn("--verify-only", called_args)
+
+    @patch("agent_worker.main.subprocess.run")
     def test_download_hf_timeout_is_retryable_failure(self, run_mock) -> None:
         run_mock.side_effect = subprocess.TimeoutExpired(cmd=["python"], timeout=1)
         result = run_job(

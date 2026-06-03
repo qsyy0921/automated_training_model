@@ -74,7 +74,7 @@ func DefaultCatalog() Catalog {
 			ID:               "model.verify_hf",
 			Name:             "Verify HuggingFace Model",
 			Risk:             RiskMedium,
-			AllowedParamKeys: []string{"repo_id", "local_dir", "manifest", "verify_only"},
+			AllowedParamKeys: []string{"repo_id", "local_dir", "manifest", "verify_only", "job", "dataset_id"},
 		},
 		{
 			ID:               "model.smoke_locateanything",
