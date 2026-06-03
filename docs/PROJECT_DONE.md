@@ -54,7 +54,7 @@
 
 ## 当前限制
 
-- [ ] lifecycle 任务现已通过 `workflowapp.ModelGateway` 的 `WorkerGateway` 进入 Python worker，并把 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr、retry metadata 写回 `data_lake/runtime/tasks.json`；`dry_run=true` 产出显式 `*.plan`，`dry_run=false` 默认执行 repo-owned `execution_recipe=default` 并写出 `request.json` / `plan.json` / `result.json` / `recipe_report.json`，显式 `execution_command` 时会执行真实命令；task logs API / NDJSON stream 和 artifact manifest 已补齐，但仍未接入真实 GPU 训练/评估/部署 recipe 和恢复闭环。
+- [ ] lifecycle 任务现已通过 `workflowapp.ModelGateway` 的 `WorkerGateway` 进入 Python worker，并把 `running/completed/failed/canceled`、heartbeat、logs、artifacts、stdout/stderr、retry metadata 写回 `data_lake/runtime/tasks.json`；`dry_run=true` 产出显式 `*.plan`，`dry_run=false` 默认执行 repo-owned `execution_recipe=default` 并写出 `request.json` / `plan.json` / `result.json` / `recipe_spec.json` / `recipe_report.json`，显式 `execution_command` 时会执行真实命令；task logs API / NDJSON stream 和 artifact manifest 已补齐，但仍未接入真实 GPU 训练/评估/部署 recipe 和恢复闭环。
 - [ ] Zod 只作为依赖接入，API runtime schema 尚未完整覆盖。
 - [ ] 前端仍有少量 `alert/confirm`，后续需要统一 toast/dialog。
 - [ ] 数据版本、标注版本目前只有边界设计；模型版本已有 JSON 元数据仓库，但还未接入真实训练 artifact 生命周期。
@@ -99,6 +99,7 @@
 - [x] 为 runtime 命令面补齐 `evaluation.run` / `deployment.run` 的 Python worker `ModelJob` 入口：新增 `/bot-eval-dry <dataset_id> <model_id> [split]`、`/bot-deploy-dry <model_id> <target> [runtime] [replicas]`，并提供 `smoke-evaluation-dry-worker.ps1`、`smoke-deployment-dry-worker.ps1` 验证 trace、worker heartbeat 和 recipe artifact。
 - [x] 为 runtime 命令面补齐非 dry-run worker 入口：新增 `/bot-train-run`、`/bot-eval-run`、`/bot-deploy-run`，Go fast-path 会直接创建 `dry_run=false` 的 Python worker `ModelJob`，默认执行 repo-owned `execution_recipe=default`，并通过 `smoke-runtime-execution-worker.ps1` 验证 trace、worker heartbeat、`request/plan/result/recipe_report` 和 `result.json.execution_mode=recipe-executed`。
 - [x] 为 lifecycle HTTP task 增加 `dry_run=false` 的最小执行路径：`WorkerGateway` 会把 `dry_run` 透传到 Python worker；`training.run` / `evaluation.run` / `deployment.run` / `autolabel.run` 在非 dry-run 时默认执行 repo-owned `execution_recipe=default`，写出 `request.json`、`plan.json`、`result.json`、`recipe_report.json`，并通过 `ops/scripts/smoke-lifecycle-execution-worker.ps1` 验证 task 完成、heartbeat、artifact manifest 和结果文件落地。
+- [x] 将 repo-owned lifecycle recipe runner 从纯占位日志推进到结构化 recipe spec：`training.run` / `evaluation.run` / `deployment.run` / `autolabel.run` 的非 dry-run 默认路径现在会额外落地 `recipe_spec.json`，记录 stage、generated outputs 和 repo-owned command preview；runtime/lifecycle execution smoke 已同步验证 `recipe_spec.json` artifact 和 `result.json.recipe_spec_path`。
 - [x] 为 `labelctl` 补齐 lifecycle 领域命令组：新增 `labelctl autolabel submit`、`labelctl training submit`、`labelctl evaluation submit` 及对应的 `task/status/task-logs/cancel-task` 子命令，统一走 `/api/autolabel/jobs`、`/api/training/runs`、`/api/evaluation/runs` 和同一份 task store。
 - [x] 为 lifecycle task 补齐统一观测面：新增 `GET /api/tasks` 列表接口；交互式 `labelctl agent` 现支持 `/tasks`、`/task <id>`、`/task-logs <id>`、`/follow-task <id>`，一次性 CLI 也支持 `labelctl runtime tasks/task/task-logs`、`labelctl logs follow-task` 和各领域命令组的 `follow-task`。
 - [x] Web Agent Overview 对齐 lifecycle task 观测面：前端现在会轮询 `GET /api/tasks` 和 `GET /api/tasks/{id}/logs`，可直接选中 task 查看 heartbeat、artifact、artifact manifest、stdout/stderr 和最近日志，不再只有 model job 面板。

@@ -144,8 +144,8 @@ npm run build
 | `smoke-training-dry-worker.ps1` | Runtime 发送 `/bot-train-dry`，验证 `training.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-evaluation-dry-worker.ps1` | Runtime 发送 `/bot-eval-dry`，验证 `evaluation.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-deployment-dry-worker.ps1` | Runtime 发送 `/bot-deploy-dry`，验证 `deployment.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
-| `smoke-runtime-execution-worker.ps1` | Runtime 发送 `/bot-train-run`、`/bot-eval-run`、`/bot-deploy-run`，验证 `dry_run=false` 的 `training.run` / `evaluation.run` / `deployment.run` 已进入 Python worker `ModelJob`，默认执行 `execution_recipe=default` 并落回 trace / job logs / heartbeat / recipe artifacts |
-| `smoke-lifecycle-execution-worker.ps1` | 直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交带 `execution_recipe=default` 的 `dry_run=false` 请求，验证 lifecycle task 会真实执行 repo-owned recipe runner 并落地 `request/plan/result/recipe_report`、heartbeat、task logs 和 artifact manifest |
+| `smoke-runtime-execution-worker.ps1` | Runtime 发送 `/bot-train-run`、`/bot-eval-run`、`/bot-deploy-run`，验证 `dry_run=false` 的 `training.run` / `evaluation.run` / `deployment.run` 已进入 Python worker `ModelJob`，默认执行 `execution_recipe=default` 并落回 trace / job logs / heartbeat / `request/plan/result/recipe_spec/recipe_report` artifacts |
+| `smoke-lifecycle-execution-worker.ps1` | 直接调用 `/api/training/runs`、`/api/evaluation/runs`、`/api/deployments` 提交带 `execution_recipe=default` 的 `dry_run=false` 请求，验证 lifecycle task 会真实执行 repo-owned recipe runner 并落地 `request/plan/result/recipe_spec/recipe_report`、heartbeat、task logs 和 artifact manifest |
 | `smoke-lifecycle-cli-execution-worker.ps1` | 通过 `labelctl training/evaluation/deploy submit -exec-recipe default` 提交任务，验证 CLI 可把 repo-owned recipe 透传给 Python worker |
 | `smoke-locateanything-model.ps1` | Runtime 触发 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run`，验证模型可加载但真实推理仍未完成 |
 

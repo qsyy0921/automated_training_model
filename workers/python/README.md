@@ -47,8 +47,10 @@ Dry-run results include:
 
 Lifecycle worker execution can now run an explicit command when a non-dry-run
 request uses the default repo-owned recipe runner. In that mode the worker
-materializes `request.json`, `plan.json`, `result.json`, and `recipe_report.json`,
-and `result.json.execution_mode` becomes `recipe-executed`, `recipe-failed`, or
+materializes `request.json`, `plan.json`, `result.json`, `recipe_spec.json`,
+and `recipe_report.json`. `recipe_spec.json` records the repo-owned stage list,
+generated outputs, and command previews for the current action. Meanwhile
+`result.json.execution_mode` becomes `recipe-executed`, `recipe-failed`, or
 `recipe-timeout`. If the request explicitly includes `execution_command`, the
 worker switches to operator-specified command execution and emits
 `command-executed`, `command-failed`, or `command-timeout`.

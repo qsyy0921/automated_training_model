@@ -130,17 +130,19 @@ class WorkerContractTests(unittest.TestCase):
             self.assertEqual(result["heartbeat"]["status"], "completed")
             self.assertEqual(
                 [item["kind"] for item in result["artifacts"]],
-                ["training.run.request", "training.run.plan", "training.run.result", "training.run.recipe_report"],
+                ["training.run.request", "training.run.plan", "training.run.result", "training.run.recipe_spec", "training.run.recipe_report"],
             )
             bundle_dir = artifact_root / "training.run" / "task_000013"
             self.assertTrue((bundle_dir / "request.json").exists())
             self.assertTrue((bundle_dir / "plan.json").exists())
             self.assertTrue((bundle_dir / "result.json").exists())
+            self.assertTrue((bundle_dir / "recipe_spec.json").exists())
             self.assertTrue((bundle_dir / "recipe_report.json").exists())
             result_payload = json.loads((bundle_dir / "result.json").read_text(encoding="utf-8"))
             self.assertFalse(result_payload["dry_run"])
             self.assertEqual(result_payload["execution_mode"], "recipe-executed")
             self.assertEqual(result_payload["execution_recipe"], "default")
+            self.assertTrue(result_payload["recipe_spec_path"].endswith("recipe_spec.json"))
             self.assertEqual(result_payload["request"]["dataset_id"], "shanghaitech-original")
 
     @patch("agent_worker.lifecycle.run_command_with_events")

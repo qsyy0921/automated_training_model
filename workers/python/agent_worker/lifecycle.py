@@ -271,6 +271,7 @@ def complete_lifecycle_recipe_execution(
     timeout_seconds = execution_timeout_seconds(request)
     env = execution_env(request)
     report_path = bundle_dir / "recipe_report.json"
+    spec_path = bundle_dir / "recipe_spec.json"
     command = [
         sys.executable,
         str(repo_root() / "workers" / "python" / "agent_worker" / "lifecycle_recipe_runner.py"),
@@ -310,6 +311,7 @@ def complete_lifecycle_recipe_execution(
             bundle_dir=bundle_dir,
             recipe=recipe,
             report_path=report_path,
+            spec_path=spec_path,
             started=started,
             finished=finished,
             execution_mode="recipe-timeout",
@@ -323,7 +325,7 @@ def complete_lifecycle_recipe_execution(
             task_id=job.task_id,
             status="failed",
             message=execution["summary"],
-            artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, metadata, "recipe-timeout"),
+            artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, spec_path, metadata, "recipe-timeout"),
             logs=lifecycle_logs,
             heartbeat=WorkerHeartbeat(at=finished, status="failed", message=f"{action} recipe timed out"),
             retryable=True,
@@ -356,6 +358,7 @@ def complete_lifecycle_recipe_execution(
         bundle_dir=bundle_dir,
         recipe=recipe,
         report_path=report_path,
+        spec_path=spec_path,
         started=started,
         finished=finished,
         execution_mode=execution_mode,
@@ -372,7 +375,7 @@ def complete_lifecycle_recipe_execution(
         task_id=job.task_id,
         status="completed" if success else "failed",
         message=summary,
-        artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, metadata, execution_mode),
+        artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, spec_path, metadata, execution_mode),
         logs=lifecycle_logs,
         heartbeat=WorkerHeartbeat(
             at=finished,
@@ -477,6 +480,7 @@ def build_recipe_execution_record(
     bundle_dir: Path,
     recipe: str,
     report_path: Path,
+    spec_path: Path,
     started: str,
     finished: str,
     execution_mode: str,
@@ -506,6 +510,7 @@ def build_recipe_execution_record(
         "execution_recipe": recipe,
         "execution_timeout_seconds": timeout_seconds,
         "recipe_report_path": str(report_path),
+        "recipe_spec_path": str(spec_path),
         "request": request,
         "plan": plan,
     }
@@ -572,10 +577,19 @@ def lifecycle_recipe_artifacts(
     plan_path: Path,
     result_path: Path,
     report_path: Path,
+    spec_path: Path,
     metadata: dict[str, str],
     execution_mode: str,
 ) -> list[JobArtifact]:
     artifacts = lifecycle_execution_artifacts(job, action, request_path, plan_path, result_path, metadata, execution_mode)
+    artifacts.append(
+        JobArtifact(
+            name=f"{job.task_id}-{action}-recipe-spec",
+            uri=str(spec_path),
+            kind=f"{action}.recipe_spec",
+            metadata={**metadata, "role": "recipe_spec", "execution_mode": execution_mode},
+        )
+    )
     artifacts.append(
         JobArtifact(
             name=f"{job.task_id}-{action}-recipe-report",

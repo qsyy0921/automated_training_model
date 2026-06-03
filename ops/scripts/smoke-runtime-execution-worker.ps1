@@ -81,12 +81,16 @@ function Assert-ExecutionLogs {
   Assert-True ($logs.metadata.execution_recipe -eq "default") "model job missing execution_recipe=default: $JobId"
   Assert-True ($null -ne $logs.worker_heartbeat) "model job missing worker heartbeat: $JobId"
   Assert-True ($logs.worker_heartbeat.status -eq "completed") "model job heartbeat not completed: $JobId"
-  Assert-True (($logs.artifacts | Measure-Object).Count -ge 4) "model job should emit at least four artifacts: $JobId"
+  Assert-True (($logs.artifacts | Measure-Object).Count -ge 5) "model job should emit at least five artifacts: $JobId"
+  $specArtifact = @($logs.artifacts | Where-Object { $_.kind -like "*.recipe_spec" } | Select-Object -First 1)
+  Assert-True ($specArtifact.Count -eq 1) "model job missing recipe spec artifact"
+  Assert-True (Test-Path -LiteralPath $specArtifact[0].uri) "recipe spec path does not exist: $($specArtifact[0].uri)"
   $resultArtifact = @($logs.artifacts | Where-Object { $_.kind -eq $ExpectedKind } | Select-Object -First 1)
   Assert-True ($resultArtifact.Count -eq 1) "model job missing result artifact $ExpectedKind"
   Assert-True (Test-Path -LiteralPath $resultArtifact[0].uri) "result artifact path does not exist: $($resultArtifact[0].uri)"
   $resultPayload = Get-Content -LiteralPath $resultArtifact[0].uri -Raw | ConvertFrom-Json
   Assert-True ($resultPayload.execution_mode -eq "recipe-executed") "unexpected execution mode for ${JobId}: $($resultPayload.execution_mode)"
+  Assert-True (Test-Path -LiteralPath $resultPayload.recipe_spec_path) "result payload recipe_spec_path does not exist: $($resultPayload.recipe_spec_path)"
   Assert-True ($resultPayload.summary -match [regex]::Escape($ExpectedNeedle)) "unexpected result summary for ${JobId}: $($resultPayload.summary)"
 }
 

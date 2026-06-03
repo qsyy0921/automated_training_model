@@ -77,16 +77,19 @@ function Assert-ExecutionLogs {
   Assert-True ($logs.status -eq "completed") "task logs did not complete for $TaskId"
   Assert-True ($logs.metadata.dry_run -eq "false") "task metadata.dry_run should be false for $TaskId"
   Assert-True ($logs.worker_heartbeat.status -eq "completed") "task heartbeat not completed for $TaskId"
-  Assert-True (($logs.artifacts | Measure-Object).Count -ge 4) "task should emit at least four artifacts for $TaskId"
+  Assert-True (($logs.artifacts | Measure-Object).Count -ge 5) "task should emit at least five artifacts for $TaskId"
   Assert-True (-not [string]::IsNullOrWhiteSpace($logs.metadata.artifact_manifest)) "task missing artifact manifest for $TaskId"
   Assert-True (Test-Path -LiteralPath $logs.metadata.artifact_manifest) "artifact manifest path does not exist: $($logs.metadata.artifact_manifest)"
   foreach ($artifact in $logs.artifacts) {
     Assert-True (Test-Path -LiteralPath $artifact.uri) "artifact path does not exist: $($artifact.uri)"
   }
+  $specArtifact = @($logs.artifacts | Where-Object { $_.kind -like "*.recipe_spec" } | Select-Object -First 1)
+  Assert-True ($specArtifact.Count -eq 1) "task missing recipe spec artifact"
   $resultArtifact = @($logs.artifacts | Where-Object { $_.kind -eq $ExpectedResultKind } | Select-Object -First 1)
   Assert-True ($resultArtifact.Count -eq 1) "task missing result artifact of kind $ExpectedResultKind"
   $resultPayload = Get-Content -LiteralPath $resultArtifact[0].uri -Raw | ConvertFrom-Json
   Assert-True ($resultPayload.execution_mode -eq $ExpectedExecutionMode) "unexpected execution mode: $($resultPayload.execution_mode)"
+  Assert-True (Test-Path -LiteralPath $resultPayload.recipe_spec_path) "result payload recipe_spec_path does not exist: $($resultPayload.recipe_spec_path)"
   Assert-True ($resultPayload.summary -match [regex]::Escape($ExpectedSummaryNeedle)) "unexpected summary: $($resultPayload.summary)"
 }
 
