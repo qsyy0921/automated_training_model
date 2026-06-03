@@ -9,6 +9,7 @@ type Request struct {
 	SplitConfig       string            `json:"split_config,omitempty"`
 	TrainingConfig    map[string]string `json:"training_config,omitempty"`
 	OutputRegistry    string            `json:"output_registry,omitempty"`
+	DryRun            bool              `json:"dry_run"`
 }
 
 type Run struct {

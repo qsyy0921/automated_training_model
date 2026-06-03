@@ -9,6 +9,7 @@ type Request struct {
 	EvalConfig    map[string]string `json:"eval_config,omitempty"`
 	SaveVisuals   bool              `json:"save_visuals"`
 	FailureMining bool              `json:"failure_mining"`
+	DryRun        bool              `json:"dry_run"`
 }
 
 type Run struct {

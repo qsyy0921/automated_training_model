@@ -44,7 +44,7 @@ Integration / Smoke Tests
 | Tool runner | `internal/app/toolapp/runner_test.go` | preflight 先于 handler、handler dispatch、结果合并、缺失 handler 拦截、handler error、ExecuteStream 输出 preflight/tool progress 事件 |
 | Runtime stream | `internal/app/agentruntime/session_test.go`、`internal/app/agentruntime/errors_test.go`、`internal/cli/labelctl/runtime_chat_test.go` | `RunStream` 能把工具进度事件带上 session 输出到 NDJSON；planner/tool 失败输出 `error_envelope`；CLI 能解析 runtime stream event 和结构化错误消息 |
 | Runtime workflow app | `internal/app/runtimeworkflow/service_test.go` | `workflow.submit_run` dry-run guard、RunRequest 构造、`workflow.list_runs` 回复格式 |
-| Lifecycle task queue | `internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go` | `tasks.json` 持久化恢复、task id 连续性、training/evaluation/deployment 提交透传 gateway、worker-backed dry-run 状态流转、heartbeat/logs/stdout/artifact 回写、artifact manifest 归档、task logs / NDJSON stream、取消路径 |
+| Lifecycle task queue | `internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go` | `tasks.json` 持久化恢复、task id 连续性、training/evaluation/deployment 提交透传 gateway、worker-backed dry-run 与 `dry_run=false` execution bundle 状态流转、heartbeat/logs/stdout/artifact 回写、artifact manifest 归档、task logs / NDJSON stream、取消路径 |
 | Model runtime app | `internal/app/modelruntime/service_test.go` | HuggingFace 默认参数、目录逃逸拦截、LocateAnything smoke 默认路径、下载审批开关、smoke JSON 解析 |
 | Runtime Store | `internal/infrastructure/runtimerepo/json_store_test.go`、`json_model_jobs_test.go`、`internal/infrastructure/intakerepo/json_repository_test.go` | session/trace JSON 持久化、model job 恢复和 interrupted/resumable 标记、intake plan/workflow JSON 恢复 |
 | Intake workflow | `internal/app/intakeapp/workflow_test.go` | quarantine、静态 scan、pending approval、reject unsafe metadata、approve 后 register |
@@ -144,6 +144,7 @@ npm run build
 | `smoke-training-dry-worker.ps1` | Runtime 发送 `/bot-train-dry`，验证 `training.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-evaluation-dry-worker.ps1` | Runtime 发送 `/bot-eval-dry`，验证 `evaluation.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
 | `smoke-deployment-dry-worker.ps1` | Runtime 发送 `/bot-deploy-dry`，验证 `deployment.run(dry_run)` 已进入 Python worker `ModelJob`，并落回 trace / job logs / heartbeat / artifacts |
+| `smoke-lifecycle-execution-worker.ps1` | 直接调用 `/api/training/runs` 提交 `dry_run=false`，验证 lifecycle task 会落地 execution bundle、heartbeat、task logs 和 artifact manifest |
 | `smoke-locateanything-model.ps1` | Runtime 触发 `model.verify_hf`、`model.smoke_locateanything`、`workflow.submit_run`，验证模型可加载但真实推理仍未完成 |
 
 ## 8. Red / Green / Refactor 规则
@@ -190,4 +191,4 @@ git status --short --ignored data_lake\models data_lake\catalog tmp
 - Gateway auth 集成 smoke：非 loopback 模拟、CLI `-token`、桌面端 `-token` 和前端 token profile。
 - ShanghaiTech original 真实推理 smoke。
 - Python worker 到统一 Go task repository 的真实调度集成测试；当前已覆盖 worker 自身 envelope、health、heartbeat、logs、artifact、retry metadata，以及 `model.download_hf` 的 Go `ModelJob` 调度链、`model.verify_hf job=true`、`model.smoke_locateanything job=true`、`training.run(dry_run)` 的 worker 调度和 service fallback。
-- lifecycle HTTP task queue 的恢复和真实 recipe 调度测试；当前已覆盖 `tasks.json` 持久化、worker-backed dry-run 状态流转、heartbeat/logs/stdout/artifact 回写、artifact manifest、task logs / NDJSON stream 和取消，但不覆盖真实训练/评估/部署 recipe。
+- lifecycle HTTP task queue 的恢复和真实 GPU recipe 调度测试；当前已覆盖 `tasks.json` 持久化、worker-backed dry-run 状态流转、`dry_run=false` execution bundle materialization、heartbeat/logs/stdout/artifact 回写、artifact manifest、task logs / NDJSON stream 和取消，但不覆盖真实训练/评估/部署 side effect。

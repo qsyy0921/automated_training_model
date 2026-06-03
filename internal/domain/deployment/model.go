@@ -11,6 +11,7 @@ type Request struct {
 	Config         map[string]string `json:"config,omitempty"`
 	CanaryPercent  int               `json:"canary_percent,omitempty"`
 	RollbackPolicy string            `json:"rollback_policy,omitempty"`
+	DryRun         bool              `json:"dry_run"`
 }
 
 type Deployment struct {

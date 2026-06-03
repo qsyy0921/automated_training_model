@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import tempfile
+from pathlib import Path
 import subprocess
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -97,6 +99,44 @@ class WorkerContractTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertIn("evaluation dry-run recipe ready", result["message"])
         self.assertEqual(result["artifacts"][0]["kind"], "evaluation.run.plan")
+
+    def test_training_run_execution_materializes_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_root = Path(tmp) / "artifacts"
+            result = self.run_job_quiet(
+                JobEnvelope(
+                    task_id="task_000013",
+                    workflow_id="data-to-deployment-lifecycle",
+                    agent_id="training-agent",
+                    tool_id="training.run",
+                    action="training.run",
+                    dry_run=False,
+                    params={
+                        "artifact_root": str(artifact_root),
+                        "request_json": json.dumps(
+                            {
+                                "dataset_id": "shanghaitech-original",
+                                "target_task": "detection",
+                                "model_family": "yolo11n",
+                                "split_config": "official-split",
+                            }
+                        ),
+                    },
+                )
+            )
+
+            self.assertEqual(result["status"], "completed")
+            self.assertIn("execution bundle materialized", result["message"])
+            self.assertEqual(result["heartbeat"]["status"], "completed")
+            self.assertEqual([item["kind"] for item in result["artifacts"]], ["training.run.request", "training.run.plan", "training.run.result"])
+            bundle_dir = artifact_root / "training.run" / "task_000013"
+            self.assertTrue((bundle_dir / "request.json").exists())
+            self.assertTrue((bundle_dir / "plan.json").exists())
+            self.assertTrue((bundle_dir / "result.json").exists())
+            result_payload = json.loads((bundle_dir / "result.json").read_text(encoding="utf-8"))
+            self.assertFalse(result_payload["dry_run"])
+            self.assertEqual(result_payload["execution_mode"], "materialized-recipe")
+            self.assertEqual(result_payload["request"]["dataset_id"], "shanghaitech-original")
 
     def test_missing_task_id_is_non_retryable_failure(self) -> None:
         result = self.run_job_quiet(JobEnvelope(task_id="", workflow_id="wf", agent_id="agent", tool_id="tool", action="run"))

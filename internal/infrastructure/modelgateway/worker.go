@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -57,17 +58,18 @@ func NewWorkerGatewayWithRunner(queue workflowapp.TaskQueue, runner workerRunner
 }
 
 func (g *WorkerGateway) Submit(ctx context.Context, taskType string, payload map[string]string) (string, error) {
+	dryRun := payloadDryRun(payload)
 	id, err := g.queue.Enqueue(ctx, workflow.TaskSpec{Type: taskType, Payload: payload})
 	if err != nil {
 		return "", err
 	}
 	now := g.now()
 	if err := g.queue.Update(ctx, id, func(task *workflow.Task) {
-		task.Message = "queued python worker dry-run"
+		task.Message = workerQueuedMessage(dryRun)
 		task.ProgressPercent = 0
 		task.Metadata = mergeTaskMetadata(task.Metadata, map[string]string{
 			"execution_path": "python-worker",
-			"dry_run":        "true",
+			"dry_run":        strconv.FormatBool(dryRun),
 			"task_type":      taskType,
 		})
 		task.Logs = appendTaskLog(task.Logs, now, "info", task.Message)
@@ -100,16 +102,19 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 	if task.Status == workflow.TaskCanceled {
 		return
 	}
+	dryRun := payloadDryRun(task.Payload)
+	workerPayload := normalizeWorkerPayload(task.Payload)
 	started := g.now()
 	_ = g.queue.Update(context.Background(), id, func(task *workflow.Task) {
 		task.Status = workflow.TaskRunning
 		task.StartedAt = &started
-		task.Message = "running python worker dry-run"
+		task.Message = workerRunningMessage(dryRun)
 		task.ProgressPercent = 15
 		task.Metadata = mergeTaskMetadata(task.Metadata, map[string]string{
 			"execution_path": "python-worker",
 			"tool_id":        taskType,
 			"action":         taskType,
+			"dry_run":        strconv.FormatBool(dryRun),
 		})
 		task.Logs = appendTaskLog(task.Logs, started, "info", task.Message)
 	})
@@ -125,9 +130,9 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 		AgentID:    lifecycleAgentID(taskType),
 		ToolID:     taskType,
 		Action:     taskType,
-		DatasetID:  strings.TrimSpace(payload["dataset_id"]),
-		DryRun:     true,
-		Params:     payload,
+		DatasetID:  strings.TrimSpace(workerPayload["dataset_id"]),
+		DryRun:     dryRun,
+		Params:     workerPayload,
 	}, func(event modelruntime.WorkerRuntimeEvent) {
 		g.applyWorkerRuntimeEvent(id, event)
 	})
@@ -165,7 +170,7 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 		switch strings.ToLower(strings.TrimSpace(result.Status)) {
 		case "completed", "ok", "succeeded":
 			task.Status = workflow.TaskCompleted
-			task.Message = firstNonEmpty(result.Message, "python worker dry-run completed")
+			task.Message = firstNonEmpty(result.Message, workerCompletedMessage(dryRun))
 			task.ProgressPercent = 100
 		case "failed":
 			task.Status = workflow.TaskFailed
@@ -179,6 +184,49 @@ func (g *WorkerGateway) runWorkerTask(id string, taskType string, payload map[st
 		task.Logs = appendTaskLog(task.Logs, finished, "info", task.Message)
 	})
 	g.archiveTaskArtifacts(id)
+}
+
+func payloadDryRun(payload map[string]string) bool {
+	raw := strings.TrimSpace(payload["dry_run"])
+	if raw == "" {
+		return true
+	}
+	return strings.EqualFold(raw, "true")
+}
+
+func normalizeWorkerPayload(payload map[string]string) map[string]string {
+	out := map[string]string{}
+	for key, value := range payload {
+		out[key] = value
+	}
+	if strings.TrimSpace(out["artifact_root"]) == "" {
+		out["artifact_root"] = filepath.Join("data_lake", "runtime", "lifecycle")
+	}
+	if strings.TrimSpace(out["dry_run"]) == "" {
+		out["dry_run"] = "true"
+	}
+	return out
+}
+
+func workerQueuedMessage(dryRun bool) string {
+	if dryRun {
+		return "queued python worker dry-run"
+	}
+	return "queued python worker execution"
+}
+
+func workerRunningMessage(dryRun bool) string {
+	if dryRun {
+		return "running python worker dry-run"
+	}
+	return "running python worker execution"
+}
+
+func workerCompletedMessage(dryRun bool) string {
+	if dryRun {
+		return "python worker dry-run completed"
+	}
+	return "python worker execution completed"
 }
 
 func (g *WorkerGateway) applyWorkerRuntimeEvent(id string, event modelruntime.WorkerRuntimeEvent) {

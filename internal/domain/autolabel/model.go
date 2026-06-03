@@ -7,6 +7,7 @@ type Request struct {
 	ModelProfile  string   `json:"model_profile,omitempty"`
 	Prompt        string   `json:"prompt,omitempty"`
 	RequireReview bool     `json:"require_review"`
+	DryRun        bool     `json:"dry_run"`
 }
 
 type Job struct {

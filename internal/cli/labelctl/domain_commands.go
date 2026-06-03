@@ -135,6 +135,7 @@ func runDeploy(cfg Config, args []string) error {
 		target := fs.String("target", "", "deployment target")
 		runtime := fs.String("runtime", "python-worker", "runtime")
 		replicas := fs.Int("replicas", 1, "replicas")
+		dryRun := fs.Bool("dry-run", true, "submit as dry-run recipe only")
 		resourceClass := fs.String("resource-class", "", "resource class")
 		strategy := fs.String("strategy", "dry-run", "deployment strategy")
 		canary := fs.Int("canary-percent", 0, "canary percent")
@@ -151,6 +152,7 @@ func runDeploy(cfg Config, args []string) error {
 			"target":          *target,
 			"runtime":         *runtime,
 			"replicas":        *replicas,
+			"dry_run":         *dryRun,
 			"resource_class":  *resourceClass,
 			"strategy":        *strategy,
 			"canary_percent":  *canary,

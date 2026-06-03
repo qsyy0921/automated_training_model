@@ -2,6 +2,7 @@ package lifecycleapp
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/qsyy0921/automated_training_model/internal/domain/deployment"
@@ -55,6 +56,9 @@ func TestSubmitTrainingUsesGateway(t *testing.T) {
 	if gateway.payload["dataset_id"] != "shanghaitech-original" || gateway.payload["target_task"] != "detection" || gateway.payload["model_family"] != "yolo11n" {
 		t.Fatalf("expected normalized training payload fields, got %+v", gateway.payload)
 	}
+	if gateway.payload["dry_run"] != "false" {
+		t.Fatalf("expected default false dry_run payload, got %+v", gateway.payload)
+	}
 }
 
 func TestSubmitEvaluationUsesGateway(t *testing.T) {
@@ -90,6 +94,25 @@ func TestSubmitDeploymentUsesGateway(t *testing.T) {
 	}
 	if gateway.payload["model_id"] != "model-1" || gateway.payload["target"] != "local-dry-run" {
 		t.Fatalf("expected normalized deployment payload fields, got %+v", gateway.payload)
+	}
+}
+
+func TestSubmitDeploymentPreservesExplicitDryRun(t *testing.T) {
+	gateway := &fakeGateway{}
+	svc := NewService(gateway)
+	_, err := svc.SubmitDeployment(context.Background(), deployment.Request{
+		ModelID: "model-1",
+		Target:  "local-dry-run",
+		DryRun:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.payload["dry_run"] != "true" {
+		t.Fatalf("expected explicit dry_run payload, got %+v", gateway.payload)
+	}
+	if !strings.Contains(gateway.payload["request_json"], `"dry_run":true`) {
+		t.Fatalf("expected request_json to include dry_run=true, got %s", gateway.payload["request_json"])
 	}
 }
 

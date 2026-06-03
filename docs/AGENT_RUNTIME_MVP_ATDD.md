@@ -275,6 +275,17 @@ Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`
 
 证据：`internal/infrastructure/queue/json_test.go`、`internal/app/lifecycleapp/service_test.go`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/api/httpapi/lifecycle_handlers_test.go`。
 
+### ATDD-023 lifecycle HTTP 任务 `dry_run=false` materialize execution bundle
+
+Given labelserver 正常启动并使用 Python worker `WorkerGateway`
+When 通过 `/api/training/runs` 提交 `dry_run=false`
+Then task 应完成且 `metadata.dry_run=false`
+And `GET /api/tasks/{id}/logs` 返回 completed heartbeat、三个 artifacts 和 `metadata.artifact_manifest`
+And artifacts 指向实际落盘的 `request.json`、`plan.json`、`result.json`
+And `result.json.execution_mode=materialized-recipe`
+
+证据：`ops/scripts/smoke-lifecycle-execution-worker.ps1`、`workers/python/agent_worker/tests/test_worker_contracts.py`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/app/lifecycleapp/service_test.go`。
+
 ## 4. 验收矩阵
 
 | 场景 | 当前状态 | 证据 |
@@ -303,3 +314,4 @@ Then 已创建任务仍可通过同一 task id 查询到，且 `task_000001`、`
 | ATDD-022 | 已覆盖 | `smoke-deployment-dry-worker.ps1` + `service_test.go` |
 | ATDD-021 | 每次提交前执行 | rg + git status |
 | ATDD-022 | 已覆盖 | `json_test.go` + `service_test.go` |
+| ATDD-023 | 已覆盖 | `smoke-lifecycle-execution-worker.ps1` + worker/service/gateway tests |

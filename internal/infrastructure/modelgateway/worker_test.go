@@ -83,6 +83,60 @@ func TestWorkerGatewayRunsTrainingTaskThroughPythonWorkerDryRun(t *testing.T) {
 	}
 }
 
+func TestWorkerGatewayRunsDeploymentTaskThroughPythonWorkerExecution(t *testing.T) {
+	q, err := queue.NewJSONQueue(filepath.Join(t.TempDir(), "tasks.json"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway := NewWorkerGatewayWithRunner(q, fakeWorkerRunner{
+		run: func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
+			if req.ToolID != "deployment.run" || req.DryRun {
+				t.Fatalf("unexpected worker request: %+v", req)
+			}
+			if req.Params["artifact_root"] == "" {
+				t.Fatalf("expected default artifact_root injection, got %+v", req.Params)
+			}
+			if req.Params["dry_run"] != "false" {
+				t.Fatalf("expected false dry_run param, got %+v", req.Params)
+			}
+			return modelruntime.WorkerJobResult{
+				TaskID:      req.TaskID,
+				Status:      "completed",
+				Message:     "deployment execution bundle materialized: model=model-1 target=local runtime=python-worker",
+				Attempt:     1,
+				MaxAttempts: 1,
+				Retryable:   false,
+				Heartbeat:   &modelruntime.WorkerHeartbeat{At: "2026-06-03T15:00:03Z", Status: "completed", Message: "done"},
+				Artifacts:   []modelruntime.WorkerArtifact{{Name: "result", URI: "F:/automated_training_model/data_lake/runtime/lifecycle/deployment.run/task_000001/result.json", Kind: "deployment.run.result"}},
+				StartedAt:   "2026-06-03T15:00:01Z",
+				FinishedAt:  "2026-06-03T15:00:03Z",
+			}, nil
+		},
+	}, time.Now, func() time.Duration { return time.Second })
+
+	taskID, err := gateway.Submit(context.Background(), "deployment.run", map[string]string{
+		"model_id": "model-1",
+		"target":   "local",
+		"runtime":  "python-worker",
+		"dry_run":  "false",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := waitForTask(t, gateway, taskID, func(task *workflow.Task) bool {
+		return task.Status == workflow.TaskCompleted
+	})
+	if task.Message == "" || task.Metadata["dry_run"] != "false" {
+		t.Fatalf("unexpected task state: %+v", task)
+	}
+	if task.Metadata["artifact_manifest"] == "" {
+		t.Fatalf("expected artifact manifest metadata, got %+v", task.Metadata)
+	}
+	if len(task.Artifacts) != 1 || task.Artifacts[0].Kind != "deployment.run.result" {
+		t.Fatalf("unexpected artifacts: %+v", task.Artifacts)
+	}
+}
+
 func TestWorkerGatewayCancelRunningTask(t *testing.T) {
 	q := queue.NewMemoryQueue()
 	started := make(chan struct{}, 1)
