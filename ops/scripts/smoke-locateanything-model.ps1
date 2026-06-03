@@ -2,6 +2,7 @@ param(
   [string]$Addr = "127.0.0.1:7940",
   [string]$Go = "",
   [string]$ConfigPath = "C:\Users\10495\Desktop\mimo.txt",
+  [string]$Proxy = "",
   [string]$MergeRoot = "F:\keyan\token_compression\data\shanghai\new_tracking\merge",
   [string]$FrameRoot = "F:\keyan\token_compression\data\shanghai\data\testing\frames",
   [string]$MaskRoot = "F:\keyan\token_compression\data\shanghai\data\testframemask",
@@ -28,6 +29,36 @@ function Invoke-JSON {
   }
   $json = $Body | ConvertTo-Json -Depth 12
   return Invoke-RestMethod -Method $Method -Uri $Url -ContentType "application/json" -Body $json -TimeoutSec $TimeoutSec
+}
+
+function Resolve-LocalProxy {
+  param([string]$ExplicitProxy = "")
+  if (-not [string]::IsNullOrWhiteSpace($ExplicitProxy)) {
+    return $ExplicitProxy
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:HTTPS_PROXY)) {
+    return $env:HTTPS_PROXY
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:HTTP_PROXY)) {
+    return $env:HTTP_PROXY
+  }
+  foreach ($candidate in @("http://127.0.0.1:7890", "http://127.0.0.1:7897")) {
+    try {
+      $uri = [Uri]$candidate
+      $tcp = New-Object System.Net.Sockets.TcpClient
+      try {
+        $tcp.Connect($uri.Host, $uri.Port)
+        if ($tcp.Connected) {
+          return $candidate
+        }
+      } finally {
+        $tcp.Dispose()
+      }
+    } catch {
+      continue
+    }
+  }
+  return ""
 }
 
 function Stop-LabelServer {
@@ -58,6 +89,11 @@ $env:AGENT_RUNTIME_PLANNER_TIMEOUT_SECONDS = "180"
 $env:AGENT_RUNTIME_MIMO_TIMEOUT_SECONDS = "120"
 $env:AGENT_RUNTIME_HF_DOWNLOAD_TIMEOUT_MINUTES = "120"
 $env:QQ_ONEBOT_OUTBOUND_ENABLED = "false"
+$resolvedProxy = Resolve-LocalProxy -ExplicitProxy $Proxy
+if (-not [string]::IsNullOrWhiteSpace($resolvedProxy)) {
+  $env:HTTP_PROXY = $resolvedProxy
+  $env:HTTPS_PROXY = $resolvedProxy
+}
 
 $baseURL = "http://$Addr"
 $tmpDir = Join-Path $repoRoot "tmp"

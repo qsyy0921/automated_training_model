@@ -51,7 +51,7 @@
 - [ ] 为 API 响应增加 Zod runtime schema，避免字段变更导致白屏。
 - [ ] 把 `features/annotate-anomaly-event` 拆成事件表单、对象槽位、保存记录三个子模块。
 - [ ] 增加统一 toast/dialog，替换 `alert/confirm`。
-- [ ] 把真实 Python worker 接入 `workflowapp.ModelGateway`，支持 YOLO/BoT-SORT/SAM/YOLOWorld/VLM 自动标注任务。
+- [ ] 把 `workflowapp.ModelGateway` 从当前通用 dry-run `WorkerGateway` 继续推进到真实 YOLO/BoT-SORT/SAM/YOLOWorld/VLM 自动标注任务与训练/评估/部署 worker。
 - [ ] 将内存队列替换为可选 Redis Stream / NATS / RabbitMQ adapter，保留 in-memory 开发模式。
 - [ ] 为数据集、标注版本、tracking 版本建立显式 version model。
 - [ ] 增加任务日志、进度、artifact URI、失败原因的统一 task schema。
@@ -71,7 +71,7 @@
 
 ## 后端架构待办
 
-- [ ] 将 `lifecycleapp` 当前的 JSON task queue MVP 升级为统一 task repository：补 running/completed/failed 状态流转、worker 日志、artifact、retry 和恢复，而不是只保存基础 `queued/canceled` 状态。
+- [ ] 将 `lifecycleapp` 当前的 JSON task queue + `WorkerGateway` MVP 升级为统一 task repository：补真实训练/评估/部署 recipe、artifact manifest、恢复、审批和更细粒度的状态机，而不是只停留在 worker dry-run。
 - [ ] 为 `providerapp` 增加加密 secret store。
 - [ ] 补充 CLI：数据集注册、任务提交、导出标注、检查服务健康。
 - [ ] 增加 OpenAPI 文档生成。

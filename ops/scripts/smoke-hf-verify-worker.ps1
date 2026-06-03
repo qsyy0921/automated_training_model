@@ -2,6 +2,7 @@ param(
   [string]$Addr = "127.0.0.1:7950",
   [string]$Go = "",
   [string]$RepoId = "nvidia/LocateAnything-3B",
+  [string]$Proxy = "",
   [string]$MergeRoot = "F:\keyan\token_compression\data\shanghai\new_tracking\merge",
   [string]$FrameRoot = "F:\keyan\token_compression\data\shanghai\data\testing\frames",
   [string]$MaskRoot = "F:\keyan\token_compression\data\shanghai\data\testframemask",
@@ -30,6 +31,36 @@ function Invoke-JSON {
   return Invoke-RestMethod -Method $Method -Uri $Url -ContentType "application/json" -Body $json -TimeoutSec $TimeoutSec
 }
 
+function Resolve-LocalProxy {
+  param([string]$ExplicitProxy = "")
+  if (-not [string]::IsNullOrWhiteSpace($ExplicitProxy)) {
+    return $ExplicitProxy
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:HTTPS_PROXY)) {
+    return $env:HTTPS_PROXY
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:HTTP_PROXY)) {
+    return $env:HTTP_PROXY
+  }
+  foreach ($candidate in @("http://127.0.0.1:7890", "http://127.0.0.1:7897")) {
+    try {
+      $uri = [Uri]$candidate
+      $tcp = New-Object System.Net.Sockets.TcpClient
+      try {
+        $tcp.Connect($uri.Host, $uri.Port)
+        if ($tcp.Connected) {
+          return $candidate
+        }
+      } finally {
+        $tcp.Dispose()
+      }
+    } catch {
+      continue
+    }
+  }
+  return ""
+}
+
 function Stop-LabelServer {
   param([object]$Process, [string]$ListenAddr)
   if ($Process -and -not $Process.HasExited) {
@@ -53,6 +84,11 @@ $env:AGENT_RUNTIME_PYTHON = "python"
 $env:AGENT_RUNTIME_PYTHONPATH = Join-Path $repoRoot "workers\python"
 $env:QQ_ONEBOT_OUTBOUND_ENABLED = "false"
 $env:AGENT_RUNTIME_HF_DOWNLOAD_TIMEOUT_MINUTES = "$TimeoutMinutes"
+$resolvedProxy = Resolve-LocalProxy -ExplicitProxy $Proxy
+if (-not [string]::IsNullOrWhiteSpace($resolvedProxy)) {
+  $env:HTTP_PROXY = $resolvedProxy
+  $env:HTTPS_PROXY = $resolvedProxy
+}
 
 $baseURL = "http://$Addr"
 $tmpDir = Join-Path $repoRoot "tmp"

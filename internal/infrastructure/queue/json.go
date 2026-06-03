@@ -46,7 +46,7 @@ func (q *JSONQueue) Enqueue(ctx context.Context, spec workflow.TaskSpec) (string
 		ID:        id,
 		Type:      spec.Type,
 		Status:    workflow.TaskPending,
-		Payload:   copyPayload(spec.Payload),
+		Payload:   copyStringMap(spec.Payload),
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -64,8 +64,7 @@ func (q *JSONQueue) Status(ctx context.Context, id string) (*workflow.Task, erro
 	if task == nil {
 		return nil, fmt.Errorf("task not found: %s", id)
 	}
-	copied := *task
-	copied.Payload = copyPayload(task.Payload)
+	copied := cloneTask(*task)
 	return &copied, nil
 }
 
@@ -76,7 +75,23 @@ func (q *JSONQueue) Cancel(ctx context.Context, id string) error {
 	if task == nil {
 		return fmt.Errorf("task not found: %s", id)
 	}
+	if task.Status != workflow.TaskPending && task.Status != workflow.TaskRunning {
+		return fmt.Errorf("task %s cannot be canceled from status %s", id, task.Status)
+	}
 	task.Status = workflow.TaskCanceled
+	task.Message = "cancel requested"
+	task.UpdatedAt = q.now()
+	return q.persistLocked()
+}
+
+func (q *JSONQueue) Update(ctx context.Context, id string, mutate func(*workflow.Task)) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	task := q.tasks[id]
+	if task == nil {
+		return fmt.Errorf("task not found: %s", id)
+	}
+	mutate(task)
 	task.UpdatedAt = q.now()
 	return q.persistLocked()
 }
@@ -102,8 +117,7 @@ func (q *JSONQueue) load() error {
 func (q *JSONQueue) persistLocked() error {
 	rows := make([]workflow.Task, 0, len(q.tasks))
 	for _, task := range q.tasks {
-		copied := *task
-		copied.Payload = copyPayload(task.Payload)
+		copied := cloneTask(*task)
 		rows = append(rows, copied)
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -118,17 +132,6 @@ func parseTaskSequence(id string) (int, bool) {
 		return 0, false
 	}
 	return n, true
-}
-
-func copyPayload(payload map[string]string) map[string]string {
-	if len(payload) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(payload))
-	for key, value := range payload {
-		out[key] = value
-	}
-	return out
 }
 
 func readJSONFile(path string, value any) error {

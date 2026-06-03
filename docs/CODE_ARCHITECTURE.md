@@ -119,7 +119,7 @@ workers/python/agent_worker
   Python worker JSON envelope
 
 internal/infrastructure/modelgateway
-  ModelGateway adapter
+  WorkerGateway / ModelGateway adapter
 
 internal/infrastructure/queue
   当前 JSON queue MVP（默认写入 runtime-root/tasks.json）
@@ -129,7 +129,7 @@ crates/tracking-math
   Rust/WASM 热点计算
 ```
 
-当前 Python runtime/worker 已接入 runtime 侧的模型任务和训练 dry-run 闭环；lifecycle HTTP 任务队列已从纯内存提升到 JSON 持久化 MVP，但真实训练/评估/部署 worker 调度还没有接入。
+当前 Python runtime/worker 已接入 runtime 侧的模型任务和训练 dry-run 闭环；lifecycle HTTP 任务现在也会通过 `WorkerGateway` 进入 Python worker dry-run，并把状态与日志写回 `tasks.json`，但真实训练/评估/部署 recipe 还没有接入。
 
 ## 6. 数据与状态层
 
@@ -183,8 +183,8 @@ internal/api/httpapi/channel_handlers.go
 
 ## 9. 当前架构风险
 
-1. `workflowapp.ModelGateway` 当前接的是 noop gateway。
-2. lifecycle task queue 目前只是 `JSONQueue` MVP：可跨重启保留基础任务状态，但还没有真实 worker 调度、运行中日志、artifact 和 retry 状态机。
+1. `workflowapp.ModelGateway` 当前虽然已经从 noop gateway 升级为 `WorkerGateway`，但只跑通了通用 Python worker dry-run，还没有接真实训练/评估/部署 recipe。
+2. lifecycle task queue 目前仍是 `JSONQueue` MVP：可跨重启保留状态与 worker 输出，但 artifact manifest、恢复与更细粒度状态机仍未完成。
 3. Python worker 非 dry-run 未执行真实任务。
 4. 治理 contract 还没有接到强制 preflight。
 5. Lineage catalog 和 artifact manifest 还没有成为硬约束。

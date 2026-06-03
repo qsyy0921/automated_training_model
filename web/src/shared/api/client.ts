@@ -69,9 +69,14 @@ export const apiClient = {
   uploadArchiveDataset: async (formData: FormData) =>
     request<{ dataset: DatasetRecord; extract_root?: string }>("/api/datasets/upload-archive", { method: "POST", body: formData }),
   activateDataset: async (id: string) => request<{ dataset: DatasetRecord; active: boolean }>(`/api/datasets/${id}/activate`, { method: "POST", body: "{}" }),
-  submitTask: async (path: string, payload: Record<string, unknown>) =>
-    request<{ task: TaskRecord }>(path, { method: "POST", body: JSON.stringify(payload) }),
-  taskStatus: async (id: string) => request<TaskRecord>(`/api/tasks/${id}`),
+  submitTask: async (path: string, payload: Record<string, unknown>) => {
+    const result = await request<Record<string, unknown>>(path, { method: "POST", body: JSON.stringify(payload) });
+    return { task: normalizeLifecycleTaskResponse(path, result) };
+  },
+  taskStatus: async (id: string) => {
+    const result = await request<{ task: TaskRecord }>(`/api/tasks/${id}`);
+    return result.task;
+  },
   listAgents: async () => request<{ agents: AgentSpec[] }>("/api/agents"),
   listAgentTools: async () => request<{ tools: AgentToolSpec[] }>("/api/tools"),
   listWorkflows: async () => request<{ workflows: WorkflowSpec[] }>("/api/workflows"),
@@ -127,3 +132,40 @@ export const apiClient = {
   listRuntimePolicies: async () => request<{ runtime_policies: RuntimePolicy[] }>("/api/governance/runtime-policies"),
   getControlSurface: async () => request<{ control_surface: ControlSurface }>("/api/governance/control-surface")
 };
+
+function normalizeLifecycleTaskResponse(path: string, result: Record<string, unknown>): TaskRecord {
+  if (result.task && typeof result.task === "object") {
+    return result.task as TaskRecord;
+  }
+  if (result.run && typeof result.run === "object") {
+    const run = result.run as Record<string, unknown>;
+    if (typeof run.task_id === "string") {
+      return {
+        id: run.task_id,
+        type: path.includes("/evaluation/") ? "evaluation.run" : "training.run",
+        status: String(run.status || "queued")
+      };
+    }
+  }
+  if (result.job && typeof result.job === "object") {
+    const job = result.job as Record<string, unknown>;
+    if (typeof job.task_id === "string") {
+      return {
+        id: job.task_id,
+        type: "autolabel.job",
+        status: String(job.status || "queued")
+      };
+    }
+  }
+  if (result.deployment && typeof result.deployment === "object") {
+    const deployment = result.deployment as Record<string, unknown>;
+    if (typeof deployment.task_id === "string") {
+      return {
+        id: deployment.task_id,
+        type: "deployment.run",
+        status: String(deployment.status || "queued")
+      };
+    }
+  }
+  throw new Error("lifecycle task response missing task id");
+}
