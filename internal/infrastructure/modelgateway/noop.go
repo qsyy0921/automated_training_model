@@ -2,6 +2,7 @@ package modelgateway
 
 import (
 	"context"
+	"strings"
 
 	"github.com/qsyy0921/automated_training_model/internal/app/workflowapp"
 	"github.com/qsyy0921/automated_training_model/internal/domain/workflow"
@@ -35,6 +36,11 @@ func (g *NoopGateway) Resume(ctx context.Context, id string) (string, error) {
 	task, err := g.queue.Status(ctx, id)
 	if err != nil {
 		return "", err
+	}
+	if resumedID := strings.TrimSpace(task.Metadata["resumed_by_task_id"]); resumedID != "" {
+		if existing, err := g.queue.Status(ctx, resumedID); err == nil && existing != nil {
+			return resumedID, nil
+		}
 	}
 	newID, err := g.queue.Enqueue(ctx, workflow.TaskSpec{Type: task.Type, Payload: task.Payload})
 	if err != nil {

@@ -225,6 +225,74 @@ func TestWorkerGatewayResumeInterruptedTask(t *testing.T) {
 	}
 }
 
+func TestWorkerGatewayResumeIsIdempotentAfterChildCreated(t *testing.T) {
+	q, err := queue.NewJSONQueue(filepath.Join(t.TempDir(), "tasks.json"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run", Payload: map[string]string{"dataset_id": "shanghaitech-original", "dry_run": "true"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Update(context.Background(), id, func(task *workflow.Task) {
+		task.Status = workflow.TaskInterrupted
+		task.Resumable = true
+		task.Metadata = map[string]string{"resumed_by_task_id": "task_000002"}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	childID, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "training.run", Payload: map[string]string{"dataset_id": "shanghaitech-original", "dry_run": "true", "resumed_from_task_id": id}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if childID != "task_000002" {
+		t.Fatalf("unexpected child id: %s", childID)
+	}
+	if err := q.Update(context.Background(), childID, func(task *workflow.Task) {
+		task.ParentID = id
+		task.Status = workflow.TaskRunning
+	}); err != nil {
+		t.Fatal(err)
+	}
+	gateway := NewWorkerGatewayWithRunner(q, fakeWorkerRunner{
+		run: func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
+			t.Fatal("resume should have returned existing child without starting new worker")
+			return modelruntime.WorkerJobResult{}, nil
+		},
+	}, time.Now, func() time.Duration { return time.Second })
+
+	resumedID, err := gateway.Resume(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumedID != childID {
+		t.Fatalf("expected existing child id %s, got %s", childID, resumedID)
+	}
+}
+
+func TestWorkerGatewayCancelIsIdempotentAfterCanceled(t *testing.T) {
+	q := queue.NewMemoryQueue()
+	id, err := q.Enqueue(context.Background(), workflow.TaskSpec{Type: "evaluation.run", Payload: map[string]string{"dataset_id": "shanghaitech-original", "model_id": "model-1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Update(context.Background(), id, func(task *workflow.Task) {
+		task.Status = workflow.TaskCanceled
+		task.Message = "cancel requested"
+	}); err != nil {
+		t.Fatal(err)
+	}
+	gateway := NewWorkerGatewayWithRunner(q, fakeWorkerRunner{
+		run: func(ctx context.Context, req modelruntime.WorkerJobRequest, emit func(modelruntime.WorkerRuntimeEvent)) (modelruntime.WorkerJobResult, error) {
+			t.Fatal("canceled task should not run")
+			return modelruntime.WorkerJobResult{}, nil
+		},
+	}, time.Now, func() time.Duration { return time.Second })
+	if err := gateway.Cancel(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func waitForTask(t *testing.T, gateway *WorkerGateway, id string, done func(*workflow.Task) bool) *workflow.Task {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

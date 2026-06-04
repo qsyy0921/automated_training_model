@@ -127,6 +127,9 @@ func (q *JSONQueue) Cancel(ctx context.Context, id string) error {
 	if task == nil {
 		return fmt.Errorf("task not found: %s", id)
 	}
+	if task.Status == workflow.TaskCanceled {
+		return nil
+	}
 	if task.Status != workflow.TaskPending && task.Status != workflow.TaskRunning {
 		return fmt.Errorf("task %s cannot be canceled from status %s", id, task.Status)
 	}

@@ -385,8 +385,8 @@ $env:AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL="true"
 | ART-010 | 用户中断 CLI/Web 请求 | 已经排队的后台任务由 Runtime job store 管理，入口中断不再等同于 runtime 会话失败。 |
 | ART-011 | 设置 `AGENT_RUNTIME_REQUIRE_MODEL_DOWNLOAD_APPROVAL=true` | `model.download_hf` 返回 `approval_required`，不会创建后台下载任务。 |
 | ART-012 | 服务重启后查询 `/api/runtime/model-jobs` | 已完成任务仍可恢复；重启前未完成任务标记为 `interrupted`。 |
-| ART-013 | POST `/api/runtime/model-jobs/{job_id}/cancel` | running/queued 任务写入 `cancel_requested=true`，后台进程收到取消信号后进入 `canceled`，并保留 `resumable=true`。 |
-| ART-014 | POST `/api/runtime/model-jobs/{job_id}/resume` | 对 `failed`、`interrupted`、`canceled` 的 `model.download_hf` 任务新建 child job，`parent_id` 指向原任务。 |
+| ART-013 | POST `/api/runtime/model-jobs/{job_id}/cancel` | running/queued 任务写入 `cancel_requested=true`，后台进程收到取消信号后进入 `canceled`，并保留 `resumable=true`；重复 cancel 对已 `canceled` 或已 `cancel_requested` 的 job 返回当前状态。 |
+| ART-014 | POST `/api/runtime/model-jobs/{job_id}/resume` | 对 `failed`、`interrupted`、`canceled` 的 `model.download_hf` 任务新建 child job，`parent_id` 指向原任务；如果 parent 已记录 `resumed_by_job_id` 且 child 仍存在，则重复 resume 直接返回现有 child。 |
 
 ### 10.5 当前边界
 

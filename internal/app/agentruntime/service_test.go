@@ -452,6 +452,27 @@ func TestModelJobCancelAndResume(t *testing.T) {
 	if resumed.ParentID != jobID || (resumed.Status != "queued" && resumed.Status != "running") {
 		t.Fatalf("unexpected resumed job: %+v", resumed)
 	}
+	resumedAgain, err := executor.ResumeModelJob(jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumedAgain.ID != resumed.ID {
+		t.Fatalf("expected idempotent resume to return %s, got %+v", resumed.ID, resumedAgain)
+	}
+	parent, ok := executor.GetModelJob(jobID)
+	if !ok {
+		t.Fatalf("job not found after resume: %s", jobID)
+	}
+	if parent.Metadata["resumed_by_job_id"] != resumed.ID || parent.Resumable {
+		t.Fatalf("expected parent to record resumed child, got %+v", parent)
+	}
+	canceledAgain, err := executor.CancelModelJob(jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if canceledAgain.ID != jobID {
+		t.Fatalf("unexpected idempotent cancel result: %+v", canceledAgain)
+	}
 	_, _ = executor.CancelModelJob(resumed.ID)
 }
 

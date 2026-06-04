@@ -96,6 +96,13 @@ func (g *WorkerGateway) List(ctx context.Context, limit int) ([]workflow.Task, e
 }
 
 func (g *WorkerGateway) Cancel(ctx context.Context, id string) error {
+	task, err := g.queue.Status(ctx, id)
+	if err != nil {
+		return err
+	}
+	if task.Status == workflow.TaskCanceled {
+		return nil
+	}
 	if err := g.queue.Cancel(ctx, id); err != nil {
 		return err
 	}
@@ -107,6 +114,11 @@ func (g *WorkerGateway) Resume(ctx context.Context, id string) (string, error) {
 	task, err := g.queue.Status(ctx, id)
 	if err != nil {
 		return "", err
+	}
+	if resumedID := strings.TrimSpace(task.Metadata["resumed_by_task_id"]); resumedID != "" {
+		if existing, err := g.queue.Status(ctx, resumedID); err == nil && existing != nil {
+			return resumedID, nil
+		}
 	}
 	if task.Status == workflow.TaskPending || task.Status == workflow.TaskRunning || task.Status == workflow.TaskCompleted {
 		return "", errors.New("task " + id + " cannot be resumed from status " + string(task.Status))

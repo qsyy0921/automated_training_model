@@ -886,6 +886,9 @@ func (e *GoToolExecutor) CancelModelJob(id string) (ModelJob, error) {
 	if !ok {
 		return ModelJob{}, fmt.Errorf("model job not found: %s", id)
 	}
+	if job.Status == "canceled" || job.CancelRequested {
+		return job, nil
+	}
 	if job.Status != "queued" && job.Status != "running" {
 		return job, fmt.Errorf("model job %s cannot be canceled from status %s", id, job.Status)
 	}
@@ -905,6 +908,11 @@ func (e *GoToolExecutor) ResumeModelJob(id string) (ModelJob, error) {
 	job, ok := e.modelJobs.Get(id)
 	if !ok {
 		return ModelJob{}, fmt.Errorf("model job not found: %s", id)
+	}
+	if resumedID := strings.TrimSpace(job.Metadata["resumed_by_job_id"]); resumedID != "" {
+		if resumed, ok := e.modelJobs.Get(resumedID); ok {
+			return resumed, nil
+		}
 	}
 	switch job.Status {
 	case "failed", "interrupted", "canceled":
@@ -940,6 +948,20 @@ func (e *GoToolExecutor) ResumeModelJob(id string) (ModelJob, error) {
 		return ModelJob{}, err
 	}
 	newID := result.Metadata["job_id"]
+	now := e.now()
+	e.modelJobs.Update(id, func(job *ModelJob) {
+		job.Resumable = false
+		job.Metadata = mergeStringMaps(job.Metadata, map[string]string{
+			"resumed_by_job_id": newID,
+		})
+		job.Message = "resumed as " + newID
+		job.Logs = appendModelJobLog(job.Logs, now, "info", job.Message)
+	})
+	e.modelJobs.Update(newID, func(job *ModelJob) {
+		job.Metadata = mergeStringMaps(job.Metadata, map[string]string{
+			"resumed_from_job_id": id,
+		})
+	})
 	resumed, ok := e.modelJobs.Get(newID)
 	if !ok {
 		return ModelJob{}, fmt.Errorf("resumed model job not found: %s", newID)
