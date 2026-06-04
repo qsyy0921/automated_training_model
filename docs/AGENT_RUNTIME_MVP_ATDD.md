@@ -264,6 +264,7 @@ Then Go fast-path 直接创建 `training.run` / `evaluation.run` / `deployment.r
 And job metadata 包含 `dry_run=false` 与 `execution_recipe=default`
 And `/api/runtime/model-jobs/{id}/logs` 返回 completed heartbeat、recipe artifacts 与 `result.json.execution_mode=recipe-executed`
 And artifacts 中包含 `recipe_spec.json`，记录 stage、outputs 和 repo-owned command preview
+And artifacts 还包含 `generated/*` 中的实际 recipe 产物
 
 证据：`ops/scripts/smoke-runtime-execution-worker.ps1`、`internal/app/agentruntime/service_test.go`。
 
@@ -298,7 +299,7 @@ Given labelserver 正常启动并使用 Python worker `WorkerGateway`
 When 通过 `/api/training/runs`、`/api/evaluation/runs` 或 `/api/deployments` 提交 `dry_run=false`
 Then task 应完成且 `metadata.dry_run=false`
 And `GET /api/tasks/{id}/logs` 返回 completed heartbeat、至少四个 artifacts 和 `metadata.artifact_manifest`
-And artifacts 指向实际落盘的 `request.json`、`plan.json`、`result.json`、`recipe_spec.json`、`recipe_report.json`
+And artifacts 指向实际落盘的 `request.json`、`plan.json`、`result.json`、`recipe_spec.json`、`recipe_report.json` 以及 `generated/*`
 And `result.json.execution_mode=recipe-executed`
 
 证据：`ops/scripts/smoke-lifecycle-execution-worker.ps1`、`workers/python/agent_worker/tests/test_worker_contracts.py`、`internal/infrastructure/modelgateway/worker_test.go`、`internal/app/lifecycleapp/service_test.go`。

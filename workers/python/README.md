@@ -55,6 +55,14 @@ generated outputs, and command previews for the current action. Meanwhile
 worker switches to operator-specified command execution and emits
 `command-executed`, `command-failed`, or `command-timeout`.
 
+The default recipe runner now executes repo-owned Python scripts under
+`workers/python/lifecycle_recipes/` and writes real generated outputs into the
+bundle `generated/` directory. For example, training emits
+`train_summary.json`, `train_metrics.json`, `checkpoint.stub.json`, and
+`train.log`; evaluation emits `evaluation_report.json` and
+`metrics_summary.json`; deployment emits `deployment_release.json` and
+`serving_manifest.json`.
+
 Agent Runtime prototype:
 
 ```powershell

@@ -371,11 +371,12 @@ def complete_lifecycle_recipe_execution(
     )
     write_json(result_path, execution)
     lifecycle_logs.append(JobLog(at=finished, level="info" if success else "error", message=summary))
+    generated_files = recipe_generated_files(report_path, bundle_dir)
     return JobResult(
         task_id=job.task_id,
         status="completed" if success else "failed",
         message=summary,
-        artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, spec_path, metadata, execution_mode),
+        artifacts=lifecycle_recipe_artifacts(job, action, request_path, plan_path, result_path, report_path, spec_path, metadata, execution_mode, generated_files),
         logs=lifecycle_logs,
         heartbeat=WorkerHeartbeat(
             at=finished,
@@ -580,6 +581,7 @@ def lifecycle_recipe_artifacts(
     spec_path: Path,
     metadata: dict[str, str],
     execution_mode: str,
+    generated_files: list[str] | None = None,
 ) -> list[JobArtifact]:
     artifacts = lifecycle_execution_artifacts(job, action, request_path, plan_path, result_path, metadata, execution_mode)
     artifacts.append(
@@ -598,11 +600,57 @@ def lifecycle_recipe_artifacts(
             metadata={**metadata, "role": "recipe_report", "execution_mode": execution_mode},
         )
     )
+    for uri in generated_files or []:
+        path = Path(uri)
+        if path == request_path or path == plan_path or path == result_path or path == report_path or path == spec_path:
+            continue
+        artifacts.append(
+            JobArtifact(
+                name=f"{job.task_id}-{action}-{path.stem}",
+                uri=str(path),
+                kind=f"{action}.generated",
+                metadata={**metadata, "role": "generated", "execution_mode": execution_mode, "generated_name": path.name},
+            )
+        )
+    artifacts = dedupe_artifacts(artifacts)
     return artifacts
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def recipe_generated_files(report_path: Path, bundle_dir: Path) -> list[str]:
+    if not report_path.exists():
+        return []
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    values = payload.get("generated_files")
+    if not isinstance(values, list):
+        return []
+    out: list[str] = []
+    for item in values:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        path = Path(item)
+        if not path.is_absolute():
+            path = (bundle_dir / path).resolve()
+        out.append(str(path))
+    return out
+
+
+def dedupe_artifacts(artifacts: list[JobArtifact]) -> list[JobArtifact]:
+    seen: set[tuple[str, str]] = set()
+    out: list[JobArtifact] = []
+    for artifact in artifacts:
+        key = (artifact.kind, artifact.uri)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(artifact)
+    return out
 
 
 def repo_root() -> Path:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -29,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
 
     stage_results: list[dict[str, Any]] = []
     generated_files: list[str] = [str(spec_path)]
+    overall_status = "completed"
     for index, stage in enumerate(spec["stages"], start=1):
         stage_id = str(stage["id"])
         stage_title = str(stage["title"])
@@ -37,6 +39,9 @@ def main(argv: list[str] | None = None) -> int:
         stage_results.append(result)
         generated_files.extend(result.get("generated_files", []))
         print(f"recipe stage[{index}] done status={result['status']} duration_ms={result['duration_ms']}")
+        if result["status"] != "completed":
+            overall_status = "failed"
+            break
 
     report_path = bundle_dir / "recipe_report.json"
     report = {
@@ -47,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         "finished_at": now_iso(),
         "request_summary": summarize_request(args.action, request),
         "plan_step_count": len(plan.get("steps", [])) if isinstance(plan, dict) else 0,
-        "status": "completed",
+        "status": overall_status,
         "recipe_spec_path": str(spec_path),
         "stage_count": len(stage_results),
         "stage_results": stage_results,
@@ -55,8 +60,8 @@ def main(argv: list[str] | None = None) -> int:
     }
     write_json(report_path, report)
     print(f"recipe report={report_path}")
-    print("recipe completed")
-    return 0
+    print(f"recipe {overall_status}")
+    return 0 if overall_status == "completed" else 1
 
 
 def build_recipe_spec(action: str, recipe: str, bundle_dir: Path, request: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
@@ -96,20 +101,15 @@ def build_recipe_spec(action: str, recipe: str, bundle_dir: Path, request: dict[
                 {
                     "id": "launch-plan",
                     "title": "render repo-owned training launch command",
-                    "outputs": [str(action_dir / "launch_command.json"), str(action_dir / "artifact_manifest.json")],
+                    "outputs": [str(action_dir / "launch_command.json")],
                     "payload": {
-                        "command": [
-                            "python",
-                            "-m",
-                            "atm.training.recipe",
-                            "--dataset-id",
-                            dataset_id,
-                            "--target-task",
-                            target_task,
-                            "--model-family",
-                            model_family,
+                        "command": [sys.executable, str(recipe_script("training_recipe.py")), "--bundle-dir", str(bundle_dir)],
+                        "expected_outputs": [
+                            str(action_dir / "train_summary.json"),
+                            str(action_dir / "train_metrics.json"),
+                            str(action_dir / "checkpoint.stub.json"),
+                            str(action_dir / "train.log"),
                         ],
-                        "artifacts": ["checkpoint.stub", "metrics.stub", "train.log"],
                     },
                 },
             ],
@@ -145,18 +145,12 @@ def build_recipe_spec(action: str, recipe: str, bundle_dir: Path, request: dict[
                 {
                     "id": "report-plan",
                     "title": "render repo-owned evaluation launch command",
-                    "outputs": [str(action_dir / "launch_command.json"), str(action_dir / "report_stub.json")],
+                    "outputs": [str(action_dir / "launch_command.json")],
                     "payload": {
-                        "command": [
-                            "python",
-                            "-m",
-                            "atm.evaluation.recipe",
-                            "--dataset-id",
-                            dataset_id,
-                            "--model-id",
-                            model_id,
-                            "--split",
-                            split_name,
+                        "command": [sys.executable, str(recipe_script("evaluation_recipe.py")), "--bundle-dir", str(bundle_dir)],
+                        "expected_outputs": [
+                            str(action_dir / "evaluation_report.json"),
+                            str(action_dir / "metrics_summary.json"),
                         ],
                         "metrics": metrics,
                     },
@@ -198,20 +192,12 @@ def build_recipe_spec(action: str, recipe: str, bundle_dir: Path, request: dict[
                 {
                     "id": "rollout-plan",
                     "title": "render repo-owned deployment launch command",
-                    "outputs": [str(action_dir / "launch_command.json"), str(action_dir / "serving_manifest.json")],
+                    "outputs": [str(action_dir / "launch_command.json")],
                     "payload": {
-                        "command": [
-                            "python",
-                            "-m",
-                            "atm.deployment.recipe",
-                            "--model-id",
-                            model_id,
-                            "--target",
-                            target,
-                            "--runtime",
-                            runtime,
-                            "--replicas",
-                            str(replicas),
+                        "command": [sys.executable, str(recipe_script("deployment_recipe.py")), "--bundle-dir", str(bundle_dir)],
+                        "expected_outputs": [
+                            str(action_dir / "deployment_release.json"),
+                            str(action_dir / "serving_manifest.json"),
                         ],
                     },
                 },
@@ -241,14 +227,12 @@ def build_recipe_spec(action: str, recipe: str, bundle_dir: Path, request: dict[
                 {
                     "id": "review-plan",
                     "title": "render repo-owned autolabel launch command",
-                    "outputs": [str(action_dir / "launch_command.json"), str(action_dir / "review_queue_stub.json")],
+                    "outputs": [str(action_dir / "launch_command.json")],
                     "payload": {
-                        "command": [
-                            "python",
-                            "-m",
-                            "atm.autolabel.recipe",
-                            "--dataset-id",
-                            dataset_id,
+                        "command": [sys.executable, str(recipe_script("autolabel_recipe.py")), "--bundle-dir", str(bundle_dir)],
+                        "expected_outputs": [
+                            str(action_dir / "review_queue.json"),
+                            str(action_dir / "autolabel_summary.json"),
                         ],
                     },
                 },
@@ -270,7 +254,7 @@ def build_recipe_spec(action: str, recipe: str, bundle_dir: Path, request: dict[
                 "id": "execute",
                 "title": "render generic launch command",
                 "outputs": [str(action_dir / "launch_command.json")],
-                "payload": {"command": ["python", "-m", "atm.generic.recipe", "--action", action]},
+                "payload": {"command": [sys.executable, "-c", f"print('generic recipe action={action}')"]},
             },
         ],
     }
@@ -297,15 +281,46 @@ def execute_stage(action: str, recipe: str, bundle_dir: Path, request: dict[str,
         write_json(output_path, stage_payload)
         generated_files.append(str(output_path))
         print(f"recipe output={output_path}")
+    status = "completed"
+    stdout_excerpt: list[str] = []
+    stderr_excerpt: list[str] = []
+    payload = stage.get("payload", {})
+    command = payload.get("command")
+    if isinstance(command, list) and command:
+        print(f"recipe command={' '.join(str(part) for part in command)}")
+        completed = subprocess.run(
+            [str(part) for part in command],
+            cwd=str(repo_root()),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        stdout_excerpt = summarize_lines(completed.stdout)
+        stderr_excerpt = summarize_lines(completed.stderr)
+        for line in stdout_excerpt:
+            print(f"recipe command stdout={line}")
+        for line in stderr_excerpt:
+            print(f"recipe command stderr={line}")
+        if completed.returncode != 0:
+            status = "failed"
+        for output in payload.get("expected_outputs", []):
+            output_path = Path(output)
+            if output_path.exists():
+                generated_files.append(str(output_path))
+                print(f"recipe generated={output_path}")
     duration_ms = int((time.perf_counter() - started) * 1000)
     return {
         "id": stage["id"],
         "title": stage["title"],
-        "status": "completed",
+        "status": status,
         "started_at": at,
         "finished_at": now_iso(),
         "duration_ms": duration_ms,
-        "generated_files": generated_files,
+        "generated_files": unique_preserve_order(generated_files),
+        "stdout_excerpt": stdout_excerpt,
+        "stderr_excerpt": stderr_excerpt,
     }
 
 
@@ -355,6 +370,19 @@ def unique_preserve_order(items: list[str]) -> list[str]:
             seen.add(item)
             out.append(item)
     return out
+
+
+def summarize_lines(text: str) -> list[str]:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[:8]
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def recipe_script(name: str) -> Path:
+    return repo_root() / "workers" / "python" / "lifecycle_recipes" / name
 
 
 def now_iso() -> str:

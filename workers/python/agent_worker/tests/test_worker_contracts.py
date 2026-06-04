@@ -128,16 +128,23 @@ class WorkerContractTests(unittest.TestCase):
             self.assertEqual(result["status"], "completed")
             self.assertIn("recipe completed", result["message"])
             self.assertEqual(result["heartbeat"]["status"], "completed")
-            self.assertEqual(
-                [item["kind"] for item in result["artifacts"]],
-                ["training.run.request", "training.run.plan", "training.run.result", "training.run.recipe_spec", "training.run.recipe_report"],
-            )
+            artifact_kinds = [item["kind"] for item in result["artifacts"]]
+            self.assertIn("training.run.request", artifact_kinds)
+            self.assertIn("training.run.plan", artifact_kinds)
+            self.assertIn("training.run.result", artifact_kinds)
+            self.assertIn("training.run.recipe_spec", artifact_kinds)
+            self.assertIn("training.run.recipe_report", artifact_kinds)
+            self.assertIn("training.run.generated", artifact_kinds)
             bundle_dir = artifact_root / "training.run" / "task_000013"
             self.assertTrue((bundle_dir / "request.json").exists())
             self.assertTrue((bundle_dir / "plan.json").exists())
             self.assertTrue((bundle_dir / "result.json").exists())
             self.assertTrue((bundle_dir / "recipe_spec.json").exists())
             self.assertTrue((bundle_dir / "recipe_report.json").exists())
+            self.assertTrue((bundle_dir / "generated" / "train_summary.json").exists())
+            self.assertTrue((bundle_dir / "generated" / "train_metrics.json").exists())
+            self.assertTrue((bundle_dir / "generated" / "checkpoint.stub.json").exists())
+            self.assertTrue((bundle_dir / "generated" / "train.log").exists())
             result_payload = json.loads((bundle_dir / "result.json").read_text(encoding="utf-8"))
             self.assertFalse(result_payload["dry_run"])
             self.assertEqual(result_payload["execution_mode"], "recipe-executed")
