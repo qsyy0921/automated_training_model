@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -252,6 +253,7 @@ func (s *Server) taskLogStream(w http.ResponseWriter, r *http.Request, id string
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	lastCount := len(task.Logs)
+	lastSignature := lifecycleTaskStreamSignature(task)
 	for {
 		select {
 		case <-r.Context().Done():
@@ -275,6 +277,13 @@ func (s *Server) taskLogStream(w http.ResponseWriter, r *http.Request, id string
 					emit(map[string]any{"type": "log", "task_id": id, "log": log})
 				}
 				lastCount = len(latest.Logs)
+			}
+			signature := lifecycleTaskStreamSignature(latest)
+			if signature != lastSignature {
+				event := lifecycleTaskFinalEvent(latest)
+				event["type"] = "update"
+				emit(event)
+				lastSignature = signature
 			}
 			if lifecycleTaskTerminal(latest.Status) {
 				emit(lifecycleTaskFinalEvent(latest))
@@ -336,6 +345,41 @@ func lifecycleTaskFinalEvent(task *workflow.Task) map[string]any {
 	event := lifecycleTaskLogsPayload(task, nil)
 	event["type"] = "final"
 	return event
+}
+
+func lifecycleTaskStreamSignature(task *workflow.Task) string {
+	if task == nil {
+		return ""
+	}
+	var builder strings.Builder
+	builder.WriteString(string(task.Status))
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(task.ProgressPercent))
+	builder.WriteString("|")
+	builder.WriteString(task.Message)
+	builder.WriteString("|")
+	builder.WriteString(strconv.FormatBool(task.Retryable))
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(task.Attempt))
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(task.MaxAttempts))
+	if task.WorkerHeartbeat != nil {
+		builder.WriteString("|")
+		builder.WriteString(task.WorkerHeartbeat.At)
+		builder.WriteString("|")
+		builder.WriteString(task.WorkerHeartbeat.Status)
+		builder.WriteString("|")
+		builder.WriteString(task.WorkerHeartbeat.Message)
+	}
+	builder.WriteString("|")
+	builder.WriteString(task.Stdout)
+	builder.WriteString("|")
+	builder.WriteString(task.Stderr)
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(len(task.Artifacts)))
+	builder.WriteString("|")
+	builder.WriteString(strings.TrimSpace(task.Metadata["artifact_manifest"]))
+	return builder.String()
 }
 
 func lifecycleTaskTerminal(status workflow.TaskStatus) bool {

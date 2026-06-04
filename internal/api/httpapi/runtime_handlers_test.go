@@ -18,6 +18,7 @@ import (
 type fakeRuntimeRunner struct {
 	job     agentruntime.ModelJob
 	lineage []agentruntime.ModelJob
+	getJob  func(string) (agentruntime.ModelJob, bool)
 }
 
 func (f fakeRuntimeRunner) Run(ctx context.Context, msg channel.InboundMessage) (channel.OutboundMessage, error) {
@@ -25,6 +26,9 @@ func (f fakeRuntimeRunner) Run(ctx context.Context, msg channel.InboundMessage) 
 }
 
 func (f fakeRuntimeRunner) GetModelJob(id string) (agentruntime.ModelJob, bool) {
+	if f.getJob != nil {
+		return f.getJob(id)
+	}
 	if id != f.job.ID {
 		return agentruntime.ModelJob{}, false
 	}
@@ -142,6 +146,52 @@ func TestRuntimeModelJobLogsEndpointReturnsFailedWorkerFields(t *testing.T) {
 		if !strings.Contains(body, fragment) {
 			t.Fatalf("expected fragment %q in body: %s", fragment, body)
 		}
+	}
+}
+
+func TestRuntimeModelJobLogStreamEmitsUpdateBeforeFinal(t *testing.T) {
+	job := agentruntime.ModelJob{
+		ID:              "job-stream",
+		Status:          "running",
+		Message:         "running",
+		ProgressPercent: 10,
+		Retryable:       true,
+		Attempt:         1,
+		MaxAttempts:     2,
+		WorkerHeartbeat: &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:56Z", Status: "running", Message: "alive"},
+		Stdout:          "{\"status\":\"running\"}",
+	}
+	current := job
+	server := &Server{runtime: agentruntime.NewServiceWithRunner(fakeRuntimeRunner{
+		getJob: func(id string) (agentruntime.ModelJob, bool) {
+			if id != "job-stream" {
+				return agentruntime.ModelJob{}, false
+			}
+			return current, true
+		},
+	})}
+	go func() {
+		time.Sleep(600 * time.Millisecond)
+		current.ProgressPercent = 55
+		current.Message = "worker progressing"
+		current.Stdout = "{\"status\":\"progressing\"}"
+		current.WorkerHeartbeat = &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:57Z", Status: "running", Message: "progress"}
+		time.Sleep(600 * time.Millisecond)
+		current.Status = "succeeded"
+		current.ProgressPercent = 100
+		current.Message = "done"
+		current.WorkerHeartbeat = &agentruntime.ModelJobHeartbeat{At: "2026-06-03T12:34:58Z", Status: "completed", Message: "done"}
+		current.Stdout = "{\"status\":\"completed\"}"
+	}()
+	req := httptest.NewRequest(http.MethodGet, "/api/runtime/model-jobs/job-stream/logs/stream?timeout_ms=2500", nil)
+	rec := httptest.NewRecorder()
+	server.runtimeModelJobDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected stream status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"type":"update"`) || !strings.Contains(body, `"progress_percent":55`) || !strings.Contains(body, `"type":"final"`) || !strings.Contains(body, `"status":"succeeded"`) {
+		t.Fatalf("unexpected update stream body: %s", body)
 	}
 }
 

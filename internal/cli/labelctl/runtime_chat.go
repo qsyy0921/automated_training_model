@@ -1177,6 +1177,8 @@ func (c *runtimeChat) followJob(id string) error {
 		switch event.Type {
 		case "log":
 			fmt.Fprintf(c.out, "%s\n", modelJobLogLine(event.Log))
+		case "update":
+			c.printRuntimeJobStreamUpdate(event)
 		case "final":
 			fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("final status=%s progress=%d%% %s", valueOr(event.Status, "-"), event.ProgressPercent, valueOr(event.Message, "")), statusColor(event.Status)))
 			if event.Attempt > 0 || event.MaxAttempts > 0 {
@@ -1243,6 +1245,8 @@ func (c *runtimeChat) followTask(id string) error {
 		switch event.Type {
 		case "log":
 			fmt.Fprintf(c.out, "%s\n", taskLogLine(event.Log))
+		case "update":
+			c.printRuntimeTaskStreamUpdate(event)
 		case "final":
 			fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("final status=%s progress=%d%% %s", valueOr(event.Status, "-"), event.ProgressPercent, valueOr(event.Message, "")), statusColor(event.Status)))
 			if event.Attempt > 0 || event.MaxAttempts > 0 {
@@ -1273,6 +1277,38 @@ func (c *runtimeChat) followTask(id string) error {
 		}
 	}
 	return scanner.Err()
+}
+
+func (c *runtimeChat) printRuntimeJobStreamUpdate(event runtimeJobStreamEvent) {
+	fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("update status=%s progress=%d%% %s", valueOr(event.Status, "-"), event.ProgressPercent, valueOr(event.Message, "")), "dim"))
+	if event.Attempt > 0 || event.MaxAttempts > 0 {
+		fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("retry attempt=%d/%d retryable=%t", event.Attempt, event.MaxAttempts, event.Retryable), "dim"))
+	}
+	if event.WorkerHeartbeat != nil {
+		fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("heartbeat %s %s %s", compactTime(event.WorkerHeartbeat.At), valueOr(event.WorkerHeartbeat.Status, "-"), valueOr(event.WorkerHeartbeat.Message, "-")), "dim"))
+	}
+	if strings.TrimSpace(event.Stdout) != "" {
+		fmt.Fprintf(c.out, "%s\n", c.color("stdout    "+firstLine(event.Stdout, c.contentWidth()-12), "dim"))
+	}
+	if strings.TrimSpace(event.Stderr) != "" {
+		fmt.Fprintf(c.out, "%s\n", c.color("stderr    "+firstLine(event.Stderr, c.contentWidth()-12), "dim"))
+	}
+}
+
+func (c *runtimeChat) printRuntimeTaskStreamUpdate(event runtimeTaskStreamEvent) {
+	fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("update status=%s progress=%d%% %s", valueOr(event.Status, "-"), event.ProgressPercent, valueOr(event.Message, "")), "dim"))
+	if event.Attempt > 0 || event.MaxAttempts > 0 {
+		fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("retry attempt=%d/%d retryable=%t", event.Attempt, event.MaxAttempts, event.Retryable), "dim"))
+	}
+	if event.WorkerHeartbeat != nil {
+		fmt.Fprintf(c.out, "%s\n", c.color(fmt.Sprintf("heartbeat %s %s %s", compactTime(event.WorkerHeartbeat.At), valueOr(event.WorkerHeartbeat.Status, "-"), valueOr(event.WorkerHeartbeat.Message, "-")), "dim"))
+	}
+	if strings.TrimSpace(event.Stdout) != "" {
+		fmt.Fprintf(c.out, "%s\n", c.color("stdout    "+firstLine(event.Stdout, c.contentWidth()-12), "dim"))
+	}
+	if strings.TrimSpace(event.Stderr) != "" {
+		fmt.Fprintf(c.out, "%s\n", c.color("stderr    "+firstLine(event.Stderr, c.contentWidth()-12), "dim"))
+	}
 }
 
 func (c *runtimeChat) resumeTask(id string) error {

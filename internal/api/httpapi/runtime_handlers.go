@@ -207,6 +207,7 @@ func (s *Server) runtimeModelJobLogStream(w http.ResponseWriter, r *http.Request
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	lastCount := len(job.Logs)
+	lastSignature := runtimeModelJobStreamSignature(job)
 	for {
 		select {
 		case <-r.Context().Done():
@@ -230,6 +231,13 @@ func (s *Server) runtimeModelJobLogStream(w http.ResponseWriter, r *http.Request
 					emit(map[string]any{"type": "log", "job_id": id, "log": log})
 				}
 				lastCount = len(latest.Logs)
+			}
+			signature := runtimeModelJobStreamSignature(latest)
+			if signature != lastSignature {
+				event := runtimeModelJobFinalEvent(latest)
+				event["type"] = "update"
+				emit(event)
+				lastSignature = signature
 			}
 			if agentruntime.IsTerminalModelJobStatus(latest.Status) {
 				emit(runtimeModelJobFinalEvent(latest))
@@ -255,6 +263,38 @@ func runtimeModelJobFinalEvent(job agentruntime.ModelJob) map[string]any {
 		"stderr":           job.Stderr,
 		"metadata":         job.Metadata,
 	}
+}
+
+func runtimeModelJobStreamSignature(job agentruntime.ModelJob) string {
+	var builder strings.Builder
+	builder.WriteString(job.Status)
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(job.ProgressPercent))
+	builder.WriteString("|")
+	builder.WriteString(job.Message)
+	builder.WriteString("|")
+	builder.WriteString(strconv.FormatBool(job.Retryable))
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(job.Attempt))
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(job.MaxAttempts))
+	if job.WorkerHeartbeat != nil {
+		builder.WriteString("|")
+		builder.WriteString(job.WorkerHeartbeat.At)
+		builder.WriteString("|")
+		builder.WriteString(job.WorkerHeartbeat.Status)
+		builder.WriteString("|")
+		builder.WriteString(job.WorkerHeartbeat.Message)
+	}
+	builder.WriteString("|")
+	builder.WriteString(job.Stdout)
+	builder.WriteString("|")
+	builder.WriteString(job.Stderr)
+	builder.WriteString("|")
+	builder.WriteString(strconv.Itoa(len(job.Artifacts)))
+	builder.WriteString("|")
+	builder.WriteString(strings.TrimSpace(job.Metadata["artifact_manifest"]))
+	return builder.String()
 }
 
 func (s *Server) runtimeModelJobAction(w http.ResponseWriter, r *http.Request) {

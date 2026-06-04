@@ -195,3 +195,42 @@ func TestLifecycleTaskResumeEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestLifecycleTaskLogStreamEmitsUpdateBeforeFinal(t *testing.T) {
+	task := &workflow.Task{
+		ID:              "task_stream",
+		Type:            "training.run",
+		Status:          workflow.TaskRunning,
+		Message:         "running",
+		ProgressPercent: 15,
+		Retryable:       true,
+		Attempt:         1,
+		MaxAttempts:     2,
+		WorkerHeartbeat: &workflow.TaskHeartbeat{At: "2026-06-03T12:34:56Z", Status: "running", Message: "alive"},
+		Stdout:          "{\"status\":\"running\"}",
+	}
+	server := &Server{lifecycle: lifecycleapp.NewService(fakeTaskGateway{task: task})}
+	go func() {
+		time.Sleep(600 * time.Millisecond)
+		task.ProgressPercent = 60
+		task.Message = "worker progressing"
+		task.Stdout = "{\"status\":\"progressing\"}"
+		task.WorkerHeartbeat = &workflow.TaskHeartbeat{At: "2026-06-03T12:34:57Z", Status: "running", Message: "progress"}
+		time.Sleep(600 * time.Millisecond)
+		task.Status = workflow.TaskCompleted
+		task.ProgressPercent = 100
+		task.Message = "done"
+		task.Stdout = "{\"status\":\"completed\"}"
+		task.WorkerHeartbeat = &workflow.TaskHeartbeat{At: "2026-06-03T12:34:58Z", Status: "completed", Message: "done"}
+	}()
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/task_stream/logs/stream?timeout_ms=2500", nil)
+	rec := httptest.NewRecorder()
+	server.taskDetail(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected stream status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"type":"update"`) || !strings.Contains(body, `"progress_percent":60`) || !strings.Contains(body, `"type":"final"`) || !strings.Contains(body, `"status":"completed"`) {
+		t.Fatalf("unexpected update stream body: %s", body)
+	}
+}
